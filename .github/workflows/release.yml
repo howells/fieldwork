@@ -154,7 +154,9 @@ jobs:
           scope='${{ steps.version.outputs.name }}'
           pnpm --filter "${scope}..." run --if-present build
           pnpm --filter "${scope}..." run --if-present typecheck
-          pnpm --filter "${scope}..." run --if-present lint
+          # Lint gates through the ratchet, as it does locally: `lint` lists
+          # every finding, including the committed backlog in lint-baseline.json.
+          pnpm run lint:ratchet
           pnpm --filter "${scope}..." run --if-present test
           mkdir -p "$GITHUB_WORKSPACE/release-artifacts"
           pnpm --filter "$scope" pack \
