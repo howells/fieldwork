@@ -1,4 +1,5 @@
 import { FieldworkError } from "../../errors.js";
+import type { Original } from "../../parse.js";
 import type {
   Citation,
   DecisionAnswer,
@@ -10,19 +11,28 @@ import type {
   Page,
 } from "../../types.js";
 import {
-  citations,
+  citationsOf,
   compact,
-  list,
   meta,
-  num,
-  record,
-  requireId,
-  strings,
-  text,
+  requireJobId,
   uniqueCitations,
 } from "../../util.js";
 import type { Json } from "../../util.js";
 import type { ParallelDiscovery } from "./options.js";
+import type {
+  AnswerBody,
+  BasisBlock,
+  CandidateBlock,
+  DecisionBlock,
+  EventsBlock,
+  ExtractBody,
+  ExtractErrorBlock,
+  ExtractResultBlock,
+  FindAllResultBlock,
+  MonitorBlock,
+  TaskResultBlock,
+  UsageBlock,
+} from "./response.js";
 
 export const provider = "parallel";
 
@@ -34,12 +44,9 @@ export const nonEmpty = <T extends Json>(value: T): T | undefined => {
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
-export const usageUnits = (value: unknown) => {
+export const usageUnits = (entries: UsageBlock) => {
   const units = new Map<string, number>();
-  for (const item of list(value)) {
-    const entry = record(item);
-    const name = text(entry.name);
-    const count = num(entry.count);
+  for (const { count, name } of entries) {
     if (name !== undefined && count !== undefined) {
       units.set(name, (units.get(name) ?? 0) + count);
     }
@@ -47,38 +54,36 @@ export const usageUnits = (value: unknown) => {
   return Object.fromEntries(units);
 };
 
-export const basis = (entries: unknown): FieldSource[] =>
-  list(entries).map((item) => {
-    const entry = record(item);
-    return compact({
-      citations: citations(entry.citations),
-      confidence: text(entry.confidence),
-      field: text(entry.field) ?? "",
-      reasoning: text(entry.reasoning),
-    });
-  });
+export const basis = (entries: readonly BasisBlock[]): FieldSource[] =>
+  entries.map((entry) =>
+    compact({
+      citations: citationsOf(entry.citations),
+      confidence: entry.confidence,
+      field: entry.field ?? "",
+      reasoning: entry.reasoning,
+    })
+  );
 
 export const citedBy = (fields: FieldSource[]): Citation[] =>
   uniqueCitations(fields.flatMap((field) => field.citations));
 
-export const taskMeta = (result: Json) => {
-  const run = record(result.run);
+export const taskMeta = (result: TaskResultBlock) => {
+  const { run } = result.value;
   return meta({ requestId: run.run_id, warnings: run.warnings });
 };
 
-export const responseMessages = (response: Json): Json[] => {
-  const messages = list(response.output)
-    .map((item) => record(item))
-    .filter((item) => item.type === "message");
+/** The messages of a response; only the final answer's when it marks one. */
+export const responseMessages = (body: AnswerBody) => {
+  const messages = body.output.filter((item) => item.type === "message");
   const final = messages.filter((item) => item.phase === "final_answer");
   return final.length > 0 ? final : messages;
 };
 
 export const probabilities = (
-  value: unknown
+  chances: DecisionBlock["probabilities"]
 ): Record<string, number> | undefined => {
-  const entries = Object.entries(record(value)).filter(
-    (entry): entry is [string, number] => num(entry[1]) !== undefined
+  const entries = Object.entries(chances).filter(
+    (entry): entry is [string, number] => entry[1] !== undefined
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
@@ -95,19 +100,18 @@ export const mostLikely = (chances: Record<string, number> | undefined) => {
 
 export const decisionAnswer = (
   question: DecisionQuestion,
-  value: unknown
+  answer: DecisionBlock
 ): DecisionAnswer => {
-  const answer = record(value);
   if (answer.type === "refusal") {
     return { refusal: "Parallel declined to answer this question" };
   }
-  const confidence = num(answer.confidence);
+  const { confidence } = answer;
   if (question.type === "yesno") {
-    return compact({ probability: num(answer.noul) });
+    return compact({ probability: answer.noul });
   }
   if (question.type === "choice") {
     return compact({
-      choice: text(answer.choice),
+      choice: answer.choice,
       confidence,
       probabilities: probabilities(answer.probabilities),
     });
@@ -133,17 +137,17 @@ export const decisionAnswer = (
 /** Termination reasons that mean the run found everything it could. */
 export const FINISHED = new Set(["match_limit_met", "candidates_exhausted"]);
 
-export const candidate = (value: unknown): Entity<unknown> | undefined => {
-  const item = record(value);
-  const status = text(item.match_status);
+export const candidate = (
+  item: CandidateBlock
+): Entity<unknown> | undefined => {
+  const status = item.match_status;
   if (status === "discarded") {
     return undefined;
   }
   const data: Json = {};
-  for (const [key, output] of Object.entries(record(item.output))) {
-    const entry = record(output);
-    if (entry.type === "enrichment") {
-      data[key] = entry.value;
+  for (const [key, output] of Object.entries(item.output)) {
+    if (output.type === "enrichment") {
+      data[key] = output.value;
     }
   }
   const fields = basis(item.basis);
@@ -157,99 +161,101 @@ export const candidate = (value: unknown): Entity<unknown> | undefined => {
   return compact({
     citations: sources.length > 0 ? sources : undefined,
     data: nonEmpty(data),
-    description: text(item.description),
+    description: item.description,
     fields: fields.length > 0 ? fields : undefined,
     matched,
-    name: text(item.name) ?? "",
-    url: text(item.url),
+    name: item.name ?? "",
+    url: item.url,
   });
 };
 
-export const monitorInfo = (value: unknown): MonitorInfo => {
-  const monitor = record(value);
+export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
+  const monitor = entry.value;
   return compact({
-    createdAt: text(monitor.created_at),
-    id: requireId(provider, monitor.monitor_id),
-    raw: monitor,
-    schedule: text(monitor.frequency),
-    status: text(monitor.status),
-    watch: text(record(monitor.settings).query),
-    webhookUrl: text(record(monitor.webhook).url),
+    createdAt: monitor.created_at,
+    id: requireJobId(provider, monitor.monitor_id),
+    raw: entry.original,
+    schedule: monitor.frequency,
+    status: monitor.status,
+    watch: monitor.settings.query,
+    webhookUrl: monitor.webhook.url,
   });
 };
 
-export const monitorEvent = (value: unknown): MonitorEvent => {
-  const event = record(value);
-  const type = text(event.event_type);
+export const monitorEvent = (entry: EventsBlock): MonitorEvent => {
+  const event = entry.value;
+  const type = event.event_type;
   if (type === "completion") {
     return {
-      at: text(event.timestamp),
-      raw: event,
+      at: event.timestamp,
+      raw: entry.original,
       summary: "Run finished with no material change.",
     };
   }
   if (type === "error") {
     return compact({
-      at: text(event.timestamp),
-      raw: event,
-      summary: text(event.error_message),
+      at: event.timestamp,
+      raw: entry.original,
+      summary: event.error_message,
     });
   }
-  const output = record(
-    type === "snapshot" ? event.changed_output : event.output
-  );
-  const { content } = output;
+  const output = type === "snapshot" ? event.changed_output : event.output;
+  const { structure, text } = output.content;
   const sources = citedBy(basis(output.basis));
   return compact({
-    at: text(event.event_date),
+    at: event.event_date,
     citations: sources.length > 0 ? sources : undefined,
-    id: text(event.event_id),
-    output:
-      typeof content === "object" && content !== null ? content : undefined,
-    raw: event,
-    summary: typeof content === "string" ? content : undefined,
+    id: event.event_id,
+    output: structure,
+    raw: entry.original,
+    summary: text,
   });
 };
 
-export const pageFrom = (result: Json, extra: Partial<Page> = {}): Page =>
-  compact({
-    excerpts: strings(result.excerpts),
-    markdown: text(result.full_content),
-    publishedAt: text(result.publish_date),
-    raw: result,
-    title: text(result.title),
-    url: text(result.url) ?? "",
+/** A page from an extracted result; `raw` is the entry as it arrived unless `extra` sets it. */
+export const pageFrom = (
+  entry: Original<ExtractResultBlock>,
+  extra: Partial<Page> = {}
+): Page => {
+  const result = entry.value;
+  return compact({
+    excerpts: result.excerpts.length > 0 ? result.excerpts : undefined,
+    markdown: result.full_content,
+    publishedAt: result.publish_date,
+    raw: entry.original,
+    title: result.title,
+    url: result.url ?? "",
     ...extra,
   });
+};
 
-export const extractFailure = (error: Json): string => {
-  const status = num(error.http_status_code);
-  const detail = text(error.content);
+export const extractFailure = (error: ExtractErrorBlock): string => {
+  const status = error.http_status_code;
   return [
-    text(error.error_type) ?? "error",
+    error.error_type ?? "error",
     status === undefined ? undefined : `HTTP ${status}`,
-    detail,
+    error.content,
   ]
     .filter((part): part is string => part !== undefined)
     .join(": ");
 };
 
-export const extractMeta = (response: Json) =>
+export const extractMeta = (body: ExtractBody) =>
   meta({
-    requestId: response.extract_id,
-    units: usageUnits(response.usage),
-    warnings: response.warnings,
+    requestId: body.extract_id.id,
+    units: usageUnits(body.usage),
+    warnings: body.warnings,
   });
 
 export const discovery = (
   id: string,
-  result: Json
+  entry: FindAllResultBlock
 ): ParallelDiscovery<unknown> => {
-  const run = record(record(result.run).status);
-  const metrics = record(run.metrics);
-  const reason = text(run.termination_reason);
-  const state = text(run.status) ?? "unknown";
-  const entities = list(result.candidates)
+  const run = entry.value.run.status;
+  const { metrics } = run;
+  const reason = run.termination_reason;
+  const state = run.status ?? "unknown";
+  const entities = entry.value.candidates
     .map((item) => candidate(item))
     .filter((item): item is Entity<unknown> => item !== undefined);
   const stoppedEarly =
@@ -258,7 +264,7 @@ export const discovery = (
     throw new FieldworkError(
       "JobFailed",
       `parallel FindAll run ${id} ended as ${state}${reason === undefined ? "" : ` (${reason})`} without a match`,
-      { cause: result, jobId: id, provider }
+      { cause: entry.original, jobId: id, provider }
     );
   }
   const stopReason = reason ?? state;
@@ -275,7 +281,7 @@ export const discovery = (
         ? [`the run stopped before it finished: ${stopReason}`]
         : undefined,
     }),
-    raw: result,
+    raw: entry.original,
     status: stoppedEarly ? ("partial" as const) : ("completed" as const),
     stopReason: stoppedEarly ? stopReason : undefined,
   });

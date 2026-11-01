@@ -1,18 +1,30 @@
+import * as z from "zod/mini";
+
 import { FieldworkError, withJob } from "../../errors.js";
 import { poll } from "../../http.js";
 import type { PollOptions, RawClient } from "../../http.js";
 import type { CallOptions } from "../../types.js";
-import { compact, list, record, requireId, text } from "../../util.js";
+import { compact, requireJobId } from "../../util.js";
 import type { Json } from "../../util.js";
 import type { ParallelDiscoverOptions } from "./options.js";
 import { jsonOutput } from "./options.js";
 import { provider } from "./parse.js";
+import {
+  FindAllRun,
+  FindAllResult,
+  FindAllStart,
+  TaskResult,
+  TaskRun,
+  TaskStart,
+} from "./response.js";
+import type { TaskRunBlock } from "./response.js";
 
-export const stoppedRun = (id: string, run: Json): FieldworkError => {
-  const status = text(run.status) ?? "unknown";
-  const reason = text(record(run.error).message);
-  const warnings = list(run.warnings)
-    .map((item) => text(record(item).message))
+export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
+  const run = entry.value;
+  const status = run.status ?? "unknown";
+  const reason = run.error.message;
+  const warnings = run.warnings
+    .map((item) => item.message)
     .filter((item): item is string => item !== undefined);
   let message: string;
   if (status === "action_required") {
@@ -26,7 +38,7 @@ export const stoppedRun = (id: string, run: Json): FieldworkError => {
     message += ` (${warnings.join("; ")})`;
   }
   return new FieldworkError("JobFailed", message, {
-    cause: run,
+    cause: entry.original,
     jobId: id,
     provider,
   });
@@ -36,17 +48,19 @@ export const taskResult = async (
   raw: RawClient,
   id: string,
   signal: AbortSignal | undefined
-): Promise<Json> => {
+) => {
   try {
-    return record(
+    return z.parse(
+      TaskResult,
       await raw.request("GET", `/v1/tasks/runs/${id}/result`, { signal })
     );
   } catch (error) {
     if (error instanceof FieldworkError && error.code === "NotFound") {
-      const run = record(
+      const run = z.parse(
+        TaskRun,
         await raw.request("GET", `/v1/tasks/runs/${id}`, { signal })
       );
-      if (text(run.status) === "failed" || text(run.status) === "cancelled") {
+      if (run.value.status === "failed" || run.value.status === "cancelled") {
         throw stoppedRun(id, run);
       }
     }
@@ -58,13 +72,14 @@ export const runTask = async (
   raw: RawClient,
   body: Json,
   settings: PollOptions & { resume?: string }
-): Promise<{ id: string; result: Json }> => {
+) => {
   const { resume, ...wait } = settings;
   const id =
     resume ??
-    requireId(
+    requireJobId(
       raw.provider,
-      record(
+      z.parse(
+        TaskStart,
         await raw.request("POST", "/v1/tasks/runs", {
           body,
           creates: true,
@@ -77,12 +92,13 @@ export const runTask = async (
     raw.provider,
     id,
     async () => {
-      const run = record(
+      const run = z.parse(
+        TaskRun,
         await raw.request("GET", `/v1/tasks/runs/${id}`, {
           signal: wait.signal,
         })
       );
-      const status = text(run.status);
+      const { status } = run.value;
       if (
         status === "failed" ||
         status === "cancelled" ||
@@ -106,7 +122,8 @@ export const startFindAll = async (
   o: ParallelDiscoverOptions,
   call: CallOptions
 ): Promise<string> => {
-  const created = record(
+  const created = z.parse(
+    FindAllStart,
     await raw.request("POST", "/v1beta/findall/runs", {
       creates: true,
       ...call,
@@ -124,7 +141,7 @@ export const startFindAll = async (
       }),
     })
   );
-  const id = requireId(provider, created.findall_id);
+  const id = requireJobId(provider, created.findall_id);
   if (o.schema) {
     try {
       await raw.request("POST", `/v1beta/findall/runs/${id}/enrich`, {
@@ -142,26 +159,29 @@ export const startFindAll = async (
   return id;
 };
 
+/** The result of a FindAll run once it has stopped, or undefined while it runs. */
 export const findAllResult = async (
   raw: RawClient,
   id: string,
   signal: AbortSignal | undefined
-): Promise<Json | undefined> => {
-  const run = record(
+) => {
+  const run = z.parse(
+    FindAllRun,
     await raw.request("GET", `/v1beta/findall/runs/${id}`, { signal })
   );
-  const status = text(record(run.status).status);
+  const { status } = run.value.status;
   if (status === "action_required") {
     throw new FieldworkError(
       "JobFailed",
       `parallel FindAll run ${id} stopped with status action_required: it is waiting for an action Fieldwork cannot take, so it will not finish on its own. Open the run in the Parallel console to see what it needs`,
-      { cause: run, jobId: id, provider }
+      { cause: run.original, jobId: id, provider }
     );
   }
   const stopped =
     status === "completed" || status === "failed" || status === "cancelled";
   return stopped
-    ? record(
+    ? z.parse(
+        FindAllResult,
         await raw.request("GET", `/v1beta/findall/runs/${id}/result`, {
           signal,
         })

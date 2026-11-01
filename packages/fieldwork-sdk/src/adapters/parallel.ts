@@ -1,3 +1,5 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
@@ -10,16 +12,11 @@ import type {
 } from "../types.js";
 import {
   callSettings,
-  citations,
+  citationsOf,
   compact,
-  list,
   meta,
-  num,
   parseJson,
-  record,
   refuseTogether,
-  strings,
-  text,
   uniqueCitations,
 } from "../util.js";
 import { findAllResult, runTask, startFindAll } from "./parallel/jobs.js";
@@ -58,6 +55,16 @@ import {
   taskMeta,
   usageUnits,
 } from "./parallel/parse.js";
+import {
+  AnswerResponse,
+  DecisionsResponse,
+  EventsPage,
+  ExtractResponse,
+  ImagesResponse,
+  MonitorEntry,
+  MonitorsPage,
+  SearchResponse,
+} from "./parallel/response.js";
 
 export type {
   ParallelAnswerOptions,
@@ -99,67 +106,64 @@ export const parallel = (config: ParallelConfig = {}) => {
         allowed_domains: o.includeDomains,
         blocked_domains: o.excludeDomains,
       });
-      const response = record(
-        await raw.request("POST", "/v1/responses", {
-          ...call,
-          body: compact({
-            input: question,
-            instructions: o.instructions,
-            metadata: o.metadata,
-            model: "parallel",
-            previous_response_id: o.continueFrom,
-            reasoning: o.effort ? { effort: o.effort } : undefined,
-            text: o.schema
-              ? {
-                  format: {
-                    name: "answer",
-                    schema: jsonSchemaOf(o.schema),
-                    type: "json_schema",
-                  },
-                }
-              : undefined,
-            tools: filters ? [{ filters, type: "web_search" }] : undefined,
-          }),
-        })
-      );
-      const failure = record(response.error);
-      if (response.status === "failed" || text(failure.message) !== undefined) {
+      const response = await raw.request("POST", "/v1/responses", {
+        ...call,
+        body: compact({
+          input: question,
+          instructions: o.instructions,
+          metadata: o.metadata,
+          model: "parallel",
+          previous_response_id: o.continueFrom,
+          reasoning: o.effort ? { effort: o.effort } : undefined,
+          text: o.schema
+            ? {
+                format: {
+                  name: "answer",
+                  schema: jsonSchemaOf(o.schema),
+                  type: "json_schema",
+                },
+              }
+            : undefined,
+          tools: filters ? [{ filters, type: "web_search" }] : undefined,
+        }),
+      });
+      const body = z.parse(AnswerResponse, response);
+      const failure = body.error.message;
+      if (body.status === "failed" || failure !== undefined) {
         throw new FieldworkError(
           "ProviderError",
-          `parallel could not answer: ${text(failure.message) ?? "the response failed"}`,
+          `parallel could not answer: ${failure ?? "the response failed"}`,
           { cause: response, provider }
         );
       }
-      const parts = responseMessages(response).flatMap((message) =>
-        list(message.content)
-          .map((part) => record(part))
-          .filter((part) => part.type === "output_text")
+      const parts = responseMessages(body).flatMap((message) =>
+        message.content.filter((part) => part.type === "output_text")
       );
       const answer = parts
-        .map((part) => text(part.text))
+        .map((part) => part.text)
         .filter((part): part is string => part !== undefined)
         .join("\n\n");
       if (answer === "") {
         throw new FieldworkError(
           "ProviderError",
-          `parallel returned no answer text (status ${text(response.status) ?? "unknown"})`,
+          `parallel returned no answer text (status ${body.status ?? "unknown"})`,
           { cause: response, provider }
         );
       }
-      const usage = record(response.usage);
-      const incomplete = text(record(response.incomplete_details).reason);
+      const { usage } = body;
+      const incomplete = body.incomplete_details.reason;
       return compact({
         answer,
         citations: uniqueCitations(
-          citations(
+          citationsOf(
             parts
-              .flatMap((part) => list(part.annotations))
-              .filter((item) => record(item).type === "url_citation")
+              .flatMap((part) => part.annotations)
+              .filter((item) => item.type === "url_citation")
           )
         ),
-        continuationId: text(response.id),
+        continuationId: body.id.text,
         meta: meta({
-          requestId: response.id,
+          requestId: body.id.request,
           units: {
             input_tokens: usage.input_tokens,
             output_tokens: usage.output_tokens,
@@ -194,37 +198,36 @@ export const parallel = (config: ParallelConfig = {}) => {
           `parallel question names use only letters, numbers, underscores and hyphens; "${badName}" does not`
         );
       }
-      const response = record(
-        await raw.request("POST", "/v1/decisions", {
-          ...call,
-          body: compact({
-            advanced_settings: nonEmpty({
-              include_excerpts: o.includeExcerpts,
-              location: o.country,
-            }),
-            questions: Object.fromEntries(
-              entries.map(([name, question]) => [
-                name,
-                decisionQuestion(name, question),
-              ])
-            ),
-            state: context ?? null,
+      const response = await raw.request("POST", "/v1/decisions", {
+        ...call,
+        body: compact({
+          advanced_settings: nonEmpty({
+            include_excerpts: o.includeExcerpts,
+            location: o.country,
           }),
-        })
-      );
-      const answers = record(response.answers);
+          questions: Object.fromEntries(
+            entries.map(([name, question]) => [
+              name,
+              decisionQuestion(name, question),
+            ])
+          ),
+          state: context ?? null,
+        }),
+      });
+      const body = z.parse(DecisionsResponse, response);
       const result: Record<string, DecisionAnswer> = {};
       for (const [name, question] of entries) {
-        if (answers[name] !== undefined) {
-          result[name] = decisionAnswer(question, answers[name]);
+        const answer = body.answers[name];
+        if (answer !== undefined) {
+          result[name] = decisionAnswer(question, answer);
         }
       }
       return compact({
         answers: result,
-        citations: citations(response.citations),
+        citations: citationsOf(body.citations),
         meta: meta({
-          requestId: response.decision_id,
-          units: { input_tokens: record(response.usage).input_tokens },
+          requestId: body.decision_id,
+          units: { input_tokens: body.usage.input_tokens },
         }),
         raw: response,
       });
@@ -282,7 +285,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         }),
         { ...call, interval: o.interval, resume: o.resume }
       );
-      const output = record(result.output);
+      const { output } = result.value;
       return compact({
         data: await checkOutput(o.schema, output.content, {
           jobId: id,
@@ -290,44 +293,42 @@ export const parallel = (config: ParallelConfig = {}) => {
         }),
         fields: basis(output.basis),
         meta: taskMeta(result),
-        raw: result,
+        raw: result.original,
       });
     },
 
     async images(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/v1/images/search", {
-          ...call,
-          body: compact({
-            advanced_settings: nonEmpty({
-              location: o.country,
-              max_results: o.limit,
-            }),
-            mode: o.mode,
-            objective: o.objective ?? query,
-            search_queries: o.queries ?? [query],
-            session_id: o.sessionId,
+      const response = await raw.request("POST", "/v1/images/search", {
+        ...call,
+        body: compact({
+          advanced_settings: nonEmpty({
+            location: o.country,
+            max_results: o.limit,
           }),
-        })
-      );
+          mode: o.mode,
+          objective: o.objective ?? query,
+          search_queries: o.queries ?? [query],
+          session_id: o.sessionId,
+        }),
+      });
+      const body = z.parse(ImagesResponse, response);
       return compact({
         meta: meta({
-          requestId: response.search_id,
-          units: usageUnits(response.usage),
-          warnings: response.warnings,
+          requestId: body.search_id,
+          units: usageUnits(body.usage),
+          warnings: body.warnings,
         }),
         raw: response,
-        results: list(response.results).map((item): ImageResult => {
-          const image = record(item);
-          return compact({
-            height: num(image.height),
-            sourceUrl: text(image.source_page_url),
-            title: text(image.title),
-            url: text(image.image_url) ?? "",
-            width: num(image.width),
-          });
-        }),
+        results: body.results.map((image): ImageResult =>
+          compact({
+            height: image.height,
+            sourceUrl: image.source_page_url,
+            title: image.title,
+            url: image.image_url ?? "",
+            width: image.width,
+          })
+        ),
       });
     },
 
@@ -395,7 +396,7 @@ export const parallel = (config: ParallelConfig = {}) => {
                   }),
           }),
         });
-        return monitorInfo(response);
+        return monitorInfo(z.parse(MonitorEntry, response));
       },
 
       async delete(id, options) {
@@ -408,34 +409,36 @@ export const parallel = (config: ParallelConfig = {}) => {
 
       async events(id, options) {
         const { call, rest: o } = callSettings(options);
-        const response = record(
-          await raw.request(
-            "GET",
-            `/v1/monitors/${encodeURIComponent(id)}/events`,
-            {
-              ...call,
-              query: {
-                cursor: o.cursor,
-                event_group_id: o.eventGroupId,
-                include_completions: o.includeCompletions,
-                limit: o.limit,
-              },
-            }
-          )
+        const response = await raw.request(
+          "GET",
+          `/v1/monitors/${encodeURIComponent(id)}/events`,
+          {
+            ...call,
+            query: {
+              cursor: o.cursor,
+              event_group_id: o.eventGroupId,
+              include_completions: o.includeCompletions,
+              limit: o.limit,
+            },
+          }
         );
+        const page = z.parse(EventsPage, response);
         return compact({
-          events: list(response.events).map((item) => monitorEvent(item)),
-          next: text(response.next_cursor),
+          events: page.events.map((entry) => monitorEvent(entry)),
+          next: page.next_cursor,
           raw: response,
         });
       },
 
       async get(id, options) {
         return monitorInfo(
-          await raw.request(
-            "GET",
-            `/v1/monitors/${encodeURIComponent(id)}`,
-            options
+          z.parse(
+            MonitorEntry,
+            await raw.request(
+              "GET",
+              `/v1/monitors/${encodeURIComponent(id)}`,
+              options
+            )
           )
         );
       },
@@ -444,16 +447,15 @@ export const parallel = (config: ParallelConfig = {}) => {
         const monitors: MonitorInfo[] = [];
         let cursor: string | undefined;
         do {
-          const page = record(
+          const page = z.parse(
+            MonitorsPage,
             await raw.request("GET", "/v1/monitors", {
               ...options,
               query: { cursor, limit: 100 },
             })
           );
-          monitors.push(
-            ...list(page.monitors).map((item) => monitorInfo(item))
-          );
-          cursor = text(page.next_cursor);
+          monitors.push(...page.monitors.map((entry) => monitorInfo(entry)));
+          cursor = page.next_cursor;
         } while (cursor !== undefined);
         return monitors;
       },
@@ -461,26 +463,25 @@ export const parallel = (config: ParallelConfig = {}) => {
 
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/v1/extract", {
-          ...call,
-          body: extractBody([url], o),
-        })
-      );
-      const result = record(list(response.results)[0]);
-      if (text(result.url) === undefined) {
-        const failure = record(list(response.errors)[0]);
+      const response = await raw.request("POST", "/v1/extract", {
+        ...call,
+        body: extractBody([url], o),
+      });
+      const body = z.parse(ExtractResponse, response);
+      const [result] = body.results;
+      if (result?.value.url === undefined) {
+        const [failure] = body.errors;
         throw new FieldworkError(
           "ProviderError",
           `parallel could not read ${url}: ${
-            Object.keys(failure).length > 0
+            failure !== undefined && Object.keys(failure).length > 0
               ? extractFailure(failure)
               : "no content returned"
           }`,
           { cause: response, provider }
         );
       }
-      return pageFrom(result, { meta: extractMeta(response), raw: response });
+      return pageFrom(result, { meta: extractMeta(body), raw: response });
     },
 
     async readMany(urls, options) {
@@ -490,23 +491,19 @@ export const parallel = (config: ParallelConfig = {}) => {
           `parallel reads up to ${MAX_EXTRACT_URLS} URLs in one call; got ${urls.length}`
         );
       }
-      const response = record(
-        await raw.request("POST", "/v1/extract", {
-          ...call,
-          body: extractBody(urls, o),
-        })
-      );
+      const response = await raw.request("POST", "/v1/extract", {
+        ...call,
+        body: extractBody(urls, o),
+      });
+      const body = z.parse(ExtractResponse, response);
       return compact({
-        failed: list(response.errors).map((item) => {
-          const failure = record(item);
-          return {
-            error: extractFailure(failure),
-            url: text(failure.url) ?? "",
-          };
-        }),
-        id: text(response.extract_id),
-        meta: extractMeta(response),
-        pages: list(response.results).map((item) => pageFrom(record(item))),
+        failed: body.errors.map((failure) => ({
+          error: extractFailure(failure),
+          url: failure.url ?? "",
+        })),
+        id: body.extract_id.text,
+        meta: extractMeta(body),
+        pages: body.results.map((entry) => pageFrom(entry)),
         raw: response,
       });
     },
@@ -528,10 +525,10 @@ export const parallel = (config: ParallelConfig = {}) => {
         }),
         { ...call, interval: o.interval, resume: o.resume }
       );
-      const output = record(result.output);
+      const { output, run } = result.value;
       const fields = basis(output.basis);
       return compact({
-        continuationId: text(record(result.run).interaction_id),
+        continuationId: run.interaction_id,
         fields,
         id,
         meta: taskMeta(result),
@@ -539,7 +536,7 @@ export const parallel = (config: ParallelConfig = {}) => {
           jobId: id,
           provider,
         }),
-        raw: result,
+        raw: result.original,
         sources: citedBy(fields),
         status: "completed" as const,
       });
@@ -547,43 +544,44 @@ export const parallel = (config: ParallelConfig = {}) => {
 
     async search(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/v1/search", {
-          ...call,
-          body: compact({
-            advanced_settings: nonEmpty({
-              excerpt_settings: nonEmpty({
-                max_chars_per_result: o.maxCharsPerResult,
-              }),
-              fetch_policy: fetchPolicy(o.maxAge),
-              location: o.country,
-              max_results: o.limit,
-              source_policy: sourcePolicy(o),
+      const response = await raw.request("POST", "/v1/search", {
+        ...call,
+        body: compact({
+          advanced_settings: nonEmpty({
+            excerpt_settings: nonEmpty({
+              max_chars_per_result: o.maxCharsPerResult,
             }),
-            max_chars_total: o.maxCharsTotal,
-            mode: o.mode,
-            objective: o.objective ?? query,
-            search_queries: o.queries ?? [query],
-            session_id: o.sessionId,
+            fetch_policy: fetchPolicy(o.maxAge),
+            location: o.country,
+            max_results: o.limit,
+            source_policy: sourcePolicy(o),
           }),
-        })
-      );
+          max_chars_total: o.maxCharsTotal,
+          mode: o.mode,
+          objective: o.objective ?? query,
+          search_queries: o.queries ?? [query],
+          session_id: o.sessionId,
+        }),
+      });
+      const body = z.parse(SearchResponse, response);
       return compact({
         meta: meta({
-          requestId: response.search_id,
-          units: usageUnits(response.usage),
-          warnings: response.warnings,
+          requestId: body.search_id,
+          units: usageUnits(body.usage),
+          warnings: body.warnings,
         }),
         raw: response,
-        results: list(response.results).map((item) => {
-          const result = record(item);
-          return compact({
-            publishedAt: text(result.publish_date),
-            snippet: strings(result.excerpts)?.join(" … "),
-            title: text(result.title),
-            url: text(result.url) ?? "",
-          });
-        }),
+        results: body.results.map((result) =>
+          compact({
+            publishedAt: result.publish_date,
+            snippet:
+              result.excerpts.length > 0
+                ? result.excerpts.join(" … ")
+                : undefined,
+            title: result.title,
+            url: result.url ?? "",
+          })
+        ),
       });
     },
   };
