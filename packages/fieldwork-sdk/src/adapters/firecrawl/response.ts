@@ -1,6 +1,5 @@
 import { FieldworkError } from "../../errors.js";
 import type {
-  AccountUsage,
   ActResult,
   BrowserSession,
   FailedUrl,
@@ -18,22 +17,31 @@ import type {
   RunStatus,
   SearchResponse,
   SearchResult,
+  AccountUsage,
 } from "../../types.js";
-import {
-  compact,
-  list,
-  meta,
-  num,
-  productImages,
-  record,
-  requireId,
-  scalar,
-  strings,
-  text,
-} from "../../util.js";
-import type { Json } from "../../util.js";
+import { compact, meta, requireJobId } from "../../util.js";
 import { PAGE_SIZE } from "./request.js";
-import { provider, warnings } from "./shared.js";
+import type {
+  AgentRunBlock,
+  BatchErrorsBlock,
+  CheckBlock,
+  ClosedBlock,
+  ExecutionBlock,
+  ImageItemBlock,
+  MonitorBlock,
+  PageDataBlock,
+  PaperBlock,
+  ParseBody,
+  PriceBlock,
+  RunStartBlock,
+  ScrapeBody,
+  SearchBody,
+  SessionBlock,
+  UsageBody,
+  VariantBlock,
+  WebItemBlock,
+} from "./shapes.js";
+import { provider } from "./shared.js";
 
 /** Where each paper source's records live on the web, for results that carry only ids. */
 const PAPER_URLS = new Map<string, (id: string) => string>([
@@ -45,104 +53,97 @@ const PAPER_URLS = new Map<string, (id: string) => string>([
 
 const LANGUAGE = /^(?<code>[a-z]{2})(?:[-_]|$)/u;
 
-const firstText = (value: unknown): string | undefined =>
-  Array.isArray(value)
-    ? text(value.find((item) => typeof item === "string" && item !== ""))
-    : text(value);
+/** The list, or undefined when it is empty. */
+const some = <T>(items: readonly T[]): T[] | undefined =>
+  items.length > 0 ? [...items] : undefined;
 
-const languageCode = (value: unknown): string | undefined =>
-  LANGUAGE.exec(firstText(value)?.toLowerCase() ?? "")?.groups?.code;
+const languageCode = (value: string | undefined): string | undefined =>
+  LANGUAGE.exec(value?.toLowerCase() ?? "")?.groups?.code;
 
-const excerptsOf = (data: Json): string[] | undefined => {
-  const highlight = text(data.highlights);
-  const highlights =
-    highlight === undefined ? strings(data.highlights) : [highlight];
-  const answer = text(data.answer);
-  return highlights ?? (answer === undefined ? undefined : [answer]);
+const excerptsOf = (data: PageDataBlock): string[] | undefined => {
+  const { list, text } = data.highlights;
+  const highlights = text === undefined ? some(list) : [text];
+  return highlights ?? (data.answer === undefined ? undefined : [data.answer]);
 };
 
-export const pageMeta = (top: Json, data: Json) => {
-  const metadata = record(data.metadata);
-  return meta({
-    credits: metadata.creditsUsed,
-    requestId: metadata.scrapeId,
-    warnings: warnings(data.warning, top.warning),
+export const pageMeta = (
+  data: Pick<PageDataBlock, "metadata" | "warning">,
+  topNotes: readonly string[]
+) =>
+  meta({
+    credits: data.metadata.creditsUsed,
+    requestId: data.metadata.scrapeId,
+    warnings: [...data.warning.notes, ...topNotes],
   });
-};
 
+/** A page from scraped data; the caller adds `raw`. `topNotes` are the warnings of the whole response. */
 export const toPage = (
-  data: Json,
+  data: PageDataBlock,
   fallbackUrl: string,
-  raw: unknown,
-  top: Json = {}
-): Page => {
-  const metadata = record(data.metadata);
+  topNotes: readonly string[] = []
+): Omit<Page, "raw"> => {
+  const { metadata } = data;
   return compact({
-    author: firstText(metadata.author),
-    description: firstText(metadata.description),
+    author: metadata.author,
+    description: metadata.description,
     excerpts: excerptsOf(data),
-    favicon: text(metadata.favicon),
-    html: text(data.html),
-    image: firstText(metadata.ogImage) ?? firstText(metadata["og:image"]),
-    images: strings(data.images),
+    favicon: metadata.favicon,
+    html: data.html,
+    image: metadata.ogImage ?? metadata["og:image"],
+    images: some(data.images),
     language: languageCode(metadata.language),
-    links: strings(data.links),
-    markdown: text(data.markdown),
-    meta: pageMeta(top, data),
-    publishedAt:
-      text(metadata.publishedTime) ?? text(metadata["article:published_time"]),
-    raw,
-    rawHtml: text(data.rawHtml),
-    screenshot: text(data.screenshot),
-    statusCode: num(metadata.statusCode),
-    summary: text(data.summary),
-    title: firstText(metadata.title),
-    url: text(metadata.url) ?? text(metadata.sourceURL) ?? fallbackUrl,
+    links: some(data.links),
+    markdown: data.markdown,
+    meta: pageMeta(data, topNotes),
+    publishedAt: metadata.publishedTime ?? metadata["article:published_time"],
+    rawHtml: data.rawHtml,
+    screenshot: data.screenshot,
+    statusCode: metadata.statusCode,
+    summary: data.summary,
+    title: metadata.title,
+    url: metadata.url ?? metadata.sourceURL ?? fallbackUrl,
   });
 };
 
-const price = (value: unknown): Price | undefined => {
-  const item = record(value);
+const price = (item: PriceBlock): Price | undefined => {
   const result = compact({
-    amount: text(item.amount) ?? num(item.amount)?.toString(),
-    currency: text(item.currency),
-    formatted: text(item.formatted),
+    amount: item.amount,
+    currency: item.currency,
+    formatted: item.formatted,
   });
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
-const gtin = (variant: Json): string | undefined => {
-  for (const key of ["gtin", "gtin14", "gtin13", "gtin12", "gtin8"]) {
-    const value = scalar(variant[key]);
-    if (value !== undefined && value !== "") {
-      return value;
-    }
-  }
-  return undefined;
-};
+const gtin = (variant: VariantBlock): string | undefined =>
+  [
+    variant.gtin,
+    variant.gtin14,
+    variant.gtin13,
+    variant.gtin12,
+    variant.gtin8,
+  ].find((value) => value !== undefined && value !== "");
 
-const toVariant = (value: unknown): ProductVariant => {
-  const variant = record(value);
-  const availability = record(variant.availability);
+const images = (
+  found: readonly (ProductImage | undefined)[]
+): ProductImage[] | undefined =>
+  some(found.filter((image) => image !== undefined));
+
+const toVariant = (variant: VariantBlock): ProductVariant => {
   const values = Object.fromEntries(
-    Object.entries(record(variant.values)).flatMap(([key, item]) => {
-      const option = scalar(item);
-      return option === undefined ? [] : [[key, option]];
-    })
+    Object.entries(variant.values).flatMap(([key, item]) =>
+      item === undefined ? [] : [[key, item]]
+    )
   );
   return compact({
-    availability: text(availability.text),
+    availability: variant.availability.text,
     gtin: gtin(variant),
-    id: text(variant.id),
-    images: productImages(variant.images),
-    inStock:
-      typeof availability.inStock === "boolean"
-        ? availability.inStock
-        : undefined,
-    originalPrice: price(record(variant.sale).originalPrice),
+    id: variant.id,
+    images: images(variant.images),
+    inStock: variant.availability.inStock,
+    originalPrice: price(variant.sale.originalPrice),
     price: price(variant.price),
-    sku: text(variant.sku),
-    title: text(variant.title),
+    sku: variant.sku,
+    title: variant.title,
     values: Object.keys(values).length > 0 ? values : undefined,
   });
 };
@@ -157,167 +158,164 @@ const allImages = (variants: ProductVariant[]): ProductImage[] | undefined => {
   return seen.size > 0 ? [...seen.values()] : undefined;
 };
 
-export const toProduct = (url: string, response: Json, data: Json): Product => {
-  const product = record(data.product);
-  if (product !== data.product) {
-    const why = text(data.warning) ?? text(response.warning);
-    throw new FieldworkError(
-      "NotFound",
-      `firecrawl found no product on ${url}${why === undefined ? "" : `: ${why}`}`,
-      { cause: response, provider }
-    );
+/** The product on a scraped page; the caller adds `raw`. Undefined when the page has none. */
+export const toProduct = (
+  body: ScrapeBody
+): Omit<Product, "raw"> | undefined => {
+  const { product } = body.data;
+  if (product === undefined) {
+    return undefined;
   }
-  const variants = list(product.variants).map((variant) => toVariant(variant));
+  const variants = product.variants.map((variant) => toVariant(variant));
   return compact({
-    brand: text(product.brand),
-    category: text(product.category),
-    description: text(product.description),
-    images: productImages(product.images) ?? allImages(variants),
-    meta: pageMeta(response, data),
-    raw: response,
-    title: text(product.title),
-    url: text(product.url),
+    brand: product.brand,
+    category: product.category,
+    description: product.description,
+    images: images(product.images) ?? allImages(variants),
+    meta: pageMeta(body.data, body.warning.notes),
+    title: product.title,
+    url: product.url,
     variants,
   });
 };
 
-const searchItem = (item: unknown, kind: string): SearchResult => {
-  const result = record(item);
-  return compact({
-    content: text(result.markdown),
-    image: text(result.imageUrl),
-    kind: text(result.category) ?? kind,
-    publishedAt: text(result.date),
-    snippet: text(result.description) ?? text(result.snippet),
-    title: text(result.title),
-    url: text(result.url) ?? "",
-  });
-};
+/** Why a page has no product: the warning it carries, if any. */
+export const noProductReason = (body: ScrapeBody): string | undefined =>
+  body.data.warning.text ?? body.warning.text;
 
-const paperItem = (item: unknown): SearchResult => {
-  const paper = record(item);
-  const paperId = text(paper.paperId) ?? "";
-  const primary = text(paper.primaryId) ?? paperId;
+const searchItem = (result: WebItemBlock, kind: string): SearchResult =>
+  compact({
+    content: result.markdown,
+    image: result.imageUrl,
+    kind: result.category ?? kind,
+    publishedAt: result.date,
+    snippet: result.description ?? result.snippet,
+    title: result.title,
+    url: result.url ?? "",
+  });
+
+const paperItem = (paper: PaperBlock): SearchResult => {
+  const paperId = paper.paperId ?? "";
+  const primary = paper.primaryId ?? paperId;
   const colon = primary.indexOf(":");
   const resolve =
     colon > 0 ? PAPER_URLS.get(primary.slice(0, colon)) : undefined;
   return compact({
     kind: "research",
-    score: num(paper.score),
-    snippet: text(paper.abstract),
-    title: text(paper.title),
+    score: paper.score,
+    snippet: paper.abstract,
+    title: paper.title,
     url: paperId.startsWith("web:")
       ? paperId.slice("web:".length)
       : (resolve?.(primary.slice(colon + 1)) ?? primary),
   });
 };
 
-const imageItems = (value: unknown): ImageResult[] =>
-  list(value).flatMap((item) => {
-    const image = record(item);
-    const url = text(image.imageUrl);
+const imageItems = (found: readonly ImageItemBlock[]): ImageResult[] =>
+  found.flatMap((image) => {
+    const { imageUrl: url } = image;
     return url === undefined
       ? []
       : [
           compact({
-            height: num(image.imageHeight),
-            sourceUrl: text(image.url),
-            title: text(image.title),
+            height: image.imageHeight,
+            sourceUrl: image.url,
+            title: image.title,
             url,
-            width: num(image.imageWidth),
+            width: image.imageWidth,
           }),
         ];
   });
 
-const searchMeta = (response: Json) =>
+const searchMeta = (body: SearchBody) =>
   meta({
-    credits: response.creditsUsed,
-    requestId: response.id,
-    warnings: warnings(response.warning, response.warnings),
+    credits: body.creditsUsed,
+    requestId: body.id,
+    warnings: [...body.warning, ...body.warnings],
   });
 
-export const searchResult = (response: Json): SearchResponse => {
-  const data = record(response.data);
+/** The results of a search; the caller adds `raw`. */
+export const searchResult = (body: SearchBody): Omit<SearchResponse, "raw"> => {
+  const { data } = body;
   return compact({
-    images: Array.isArray(data.images) ? imageItems(data.images) : undefined,
-    meta: searchMeta(response),
-    raw: response,
+    images: data.images === undefined ? undefined : imageItems(data.images),
+    meta: searchMeta(body),
     results: [
-      ...list(data.web).map((item) => searchItem(item, "web")),
-      ...list(data.news).map((item) => searchItem(item, "news")),
-      ...list(data.research).map((item) => paperItem(item)),
+      ...data.web.map((item) => searchItem(item, "web")),
+      ...data.news.map((item) => searchItem(item, "news")),
+      ...data.research.map((item) => paperItem(item)),
     ],
   });
 };
 
-export const imagesResult = (response: Json) =>
+export const imagesResult = (body: SearchBody) =>
   compact({
-    meta: searchMeta(response),
-    raw: response,
-    results: imageItems(record(response.data).images),
+    meta: searchMeta(body),
+    results: imageItems(body.data.images ?? []),
   });
 
-export const failedPages = (errors: Json): FailedUrl[] =>
-  list(errors.errors).map((item) => {
-    const entry = record(item);
-    return {
-      error: text(entry.error) ?? "unknown error",
-      url: text(entry.url) ?? "",
-    };
-  });
+export const failedPages = (errors: BatchErrorsBlock): FailedUrl[] =>
+  errors.value.errors.map((entry) => ({
+    error: entry.error ?? "unknown error",
+    url: entry.url ?? "",
+  }));
 
-export const researchState = (id: string, status: Json): Json | undefined => {
-  const state = text(status.status);
+export const researchState = (
+  id: string,
+  entry: AgentRunBlock
+): AgentRunBlock | undefined => {
+  const status = entry.value;
+  const state = status.status;
   const hasPartial = status.partial !== undefined && status.partial !== null;
   const done = state === "completed" || (state === "failed" && hasPartial);
   if (!done && (state === "failed" || state === "cancelled")) {
     throw new FieldworkError(
       "JobFailed",
-      `firecrawl research run ${id} ${state}: ${text(status.error) ?? text(status.stopReason) ?? "no reason given"}`,
-      { cause: status, provider }
+      `firecrawl research run ${id} ${state}: ${status.error ?? status.stopReason ?? "no reason given"}`,
+      { cause: entry.original, provider }
     );
   }
-  return done ? status : undefined;
+  return done ? entry : undefined;
 };
 
 export const researchResult = (
   id: string,
-  started: Json,
-  run: Json
+  started: RunStartBlock,
+  entry: AgentRunBlock
 ): Research<unknown> => {
+  const run = entry.value;
   const stopped = run.status === "failed";
   const status: RunStatus = stopped ? "partial" : "completed";
   return compact({
-    continuationId: text(run.threadId) ?? text(started.threadId),
+    continuationId: run.threadId ?? started.value.threadId,
     id,
     meta: meta({
       credits: run.creditsUsed,
       requestId: id,
       warnings: stopped
         ? [
-            run.message,
+            run.message.note,
             run.partialSchemaValid === false
               ? "the partial output does not match the schema"
               : undefined,
-          ]
+          ].filter((note) => note !== undefined)
         : undefined,
     }),
-    output: stopped ? run.partial : (run.data ?? run.message),
-    raw: run,
+    output: stopped ? run.partial : (run.data ?? run.message.value),
+    raw: entry.original,
     sources: [],
     status,
-    stopReason: stopped
-      ? (text(run.stopReason) ?? text(run.error) ?? "failed")
-      : undefined,
+    stopReason: stopped ? (run.stopReason ?? run.error ?? "failed") : undefined,
   });
 };
 
 export const actResult = (
-  result: Json,
+  entry: ExecutionBlock,
   sessionId: string | undefined,
-  closed: Json | null
+  closed: ClosedBlock | null
 ): ActResult => {
-  const stdout = text(result.stdout) ?? "";
+  const result = entry.value;
+  const stdout = result.stdout ?? "";
   const failure =
     result.success === false
       ? "firecrawl reported that the script did not succeed"
@@ -326,125 +324,118 @@ export const actResult = (
   const repeated =
     result.result === "" || result.result === null || result.result === stdout;
   return compact({
-    error: text(result.error) ?? failure,
-    exitCode: num(result.exitCode),
-    killed: typeof result.killed === "boolean" ? result.killed : undefined,
+    error: result.error ?? failure,
+    exitCode: result.exitCode,
+    killed: result.killed,
     meta: meta({ credits: closed?.creditsBilled }),
-    raw: result,
+    raw: entry.original,
     result: repeated ? undefined : result.result,
     sessionId,
-    stderr: text(result.stderr) ?? "",
+    stderr: result.stderr ?? "",
     stdout,
   });
 };
 
-export const browserSession = (response: Json): BrowserSession =>
-  compact({
-    cdpUrl: text(response.cdpUrl),
-    expiresAt: text(response.expiresAt),
-    id: requireId(provider, response.id),
-    liveViewUrl: text(response.liveViewUrl),
-    raw: response,
-  });
-
-export const parseResult = (response: Json): ParsedDocument => {
-  const data = record(response.data);
-  const metadata = record(data.metadata);
+export const browserSession = (entry: SessionBlock): BrowserSession => {
+  const session = entry.value;
   return compact({
-    markdown: text(data.markdown) ?? "",
-    pages: Array.isArray(data.pages)
-      ? list(data.pages).map((page) => ({
-          markdown: text(record(page).markdown) ?? "",
-          pageNumber: Number(record(page).pageNumber),
-        }))
-      : undefined,
-    blocks: Array.isArray(data.blocks) ? data.blocks : undefined,
-    // totalPages is the file's own count; numPages stops at maxPages.
-    pageCount: num(metadata.totalPages) ?? num(metadata.numPages),
-    meta: pageMeta(response, data),
-    raw: response,
+    cdpUrl: session.cdpUrl,
+    expiresAt: session.expiresAt,
+    id: requireJobId(provider, session.id),
+    liveViewUrl: session.liveViewUrl,
+    raw: entry.original,
   });
 };
 
-const watching = (monitor: Json): string | undefined => {
-  const goal = text(monitor.goal);
-  if (goal !== undefined) {
-    return goal;
+/** A parsed document; the caller adds `raw`. */
+export const parseResult = (body: ParseBody): Omit<ParsedDocument, "raw"> => {
+  const { data } = body;
+  return compact({
+    markdown: data.markdown ?? "",
+    pages: data.pages?.map((page) => ({
+      markdown: page.markdown ?? "",
+      pageNumber: Number(page.pageNumber),
+    })),
+    blocks: data.blocks,
+    // totalPages is the file's own count; numPages stops at maxPages.
+    pageCount: data.metadata.totalPages ?? data.metadata.numPages,
+    meta: pageMeta(data, body.warning.notes),
+  });
+};
+
+const watching = (monitor: MonitorBlock["value"]): string | undefined => {
+  if (monitor.goal !== undefined) {
+    return monitor.goal;
   }
-  const targets = list(monitor.targets).map((item) => record(item));
-  const watched = targets.flatMap((target) => {
+  const watched = monitor.targets.flatMap((target) => {
     if (target.type === "scrape") {
-      return strings(target.urls) ?? [];
+      return target.urls;
     }
     if (target.type === "crawl") {
-      return [text(target.url)];
+      return [target.url];
     }
-    return strings(target.queries) ?? [];
+    return target.queries;
   });
   return watched.filter((item) => item !== undefined).join(", ") || undefined;
 };
 
-export const monitorInfo = (value: unknown): MonitorInfo => {
-  const monitor = record(value);
-  const schedule = record(monitor.schedule);
+export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
+  const monitor = entry.value;
   return compact({
-    createdAt: text(monitor.createdAt),
-    id: requireId(provider, monitor.id),
-    raw: monitor,
-    schedule: text(schedule.cron) ?? text(schedule.text),
-    status: text(monitor.status),
+    createdAt: monitor.createdAt,
+    id: requireJobId(provider, monitor.id),
+    raw: entry.original,
+    schedule: monitor.schedule.cron ?? monitor.schedule.text,
+    status: monitor.status,
     watch: watching(monitor),
-    webhookUrl: text(record(monitor.webhook).url),
+    webhookUrl: monitor.webhook.url,
   });
 };
 
-const checkEvent = (check: Json): MonitorEvent => {
-  const summary = record(check.summary);
+const checkEvent = (entry: CheckBlock): MonitorEvent => {
+  const check = entry.value;
+  const { summary } = check;
   const counts = (["changed", "new", "removed", "error"] as const).flatMap(
     (key) => {
-      const count = num(summary[key]);
+      const count = summary[key];
       return count === undefined ? [] : [`${count} ${key}`];
     }
   );
-  const pages = num(summary.totalPages);
+  const pages = summary.totalPages;
   const of = pages === undefined ? "" : ` of ${pages} pages`;
   return compact({
     at:
-      text(check.finishedAt) ??
-      text(check.startedAt) ??
-      text(check.scheduledFor) ??
-      text(check.createdAt),
-    id: text(check.id),
-    raw: check,
+      check.finishedAt ??
+      check.startedAt ??
+      check.scheduledFor ??
+      check.createdAt,
+    id: check.id,
+    raw: entry.original,
     summary: [
-      text(check.status),
+      check.status,
       counts.length > 0 ? `${counts.join(", ")}${of}` : undefined,
-      text(check.error),
+      check.error,
     ]
       .filter((part) => part !== undefined)
       .join(": "),
   });
 };
 
+/** One page of a monitor's checks; the caller adds `raw`. */
 export const monitorEvents = (
-  response: Json,
+  checks: readonly CheckBlock[],
   offset: number
-): MonitorEvents => {
-  const checks = list(response.data).map((item) => record(item));
-  return compact({
+): Omit<MonitorEvents, "raw"> =>
+  compact({
     events: checks.map((check) => checkEvent(check)),
     next:
       checks.length === PAGE_SIZE ? String(offset + checks.length) : undefined,
-    raw: response,
   });
-};
 
-export const usageResult = (response: Json): AccountUsage => {
-  const data = record(response.data);
-  return compact({
-    limit: num(data.planCredits),
-    periodEnd: text(data.billingPeriodEnd),
-    raw: response,
-    remaining: num(data.remainingCredits),
+/** The account's credit usage; the caller adds `raw`. */
+export const usageResult = (body: UsageBody): Omit<AccountUsage, "raw"> =>
+  compact({
+    limit: body.data.planCredits,
+    periodEnd: body.data.billingPeriodEnd,
+    remaining: body.data.remainingCredits,
   });
-};

@@ -225,3 +225,45 @@ export const optionalStringOrNumber = z.optional(
 export const optionalStructure = z.optional(
   z.union([z.array(z.unknown()), z.record(z.string(), z.unknown()), absent])
 );
+
+/**
+ * A non-empty string; or, for an array, its first non-empty string. Any other
+ * value, or an absent one, reads as undefined.
+ */
+export const optionalFirstString = z.optional(
+  z.union([
+    nonEmptyString,
+    z.pipe(
+      arrayOf(nonEmptyString),
+      z.transform((items) => items[0])
+    ),
+  ])
+);
+
+/**
+ * An object that keeps unknown keys, or undefined when the value is absent or
+ * is not an object (null, an array, a string). Declare every field with the
+ * blocks above, so an object never fails.
+ */
+export const optionalObject = <Shape extends z.core.$ZodShape>(shape: Shape) =>
+  z.optional(z.union([z.looseObject(shape), absent]));
+
+/**
+ * Like `arrayOf`, but a value that is not an array, or is absent, reads as
+ * undefined instead of an empty array.
+ */
+export const optionalArrayOf = <Item extends z.ZodMiniType>(item: Item) =>
+  z.optional(
+    z.union([
+      z.pipe(
+        z.array(z.unknown()),
+        z.transform((entries) =>
+          entries.flatMap((entry) => {
+            const parsed = z.safeParse(item, entry);
+            return parsed.success ? [parsed.data] : [];
+          })
+        )
+      ),
+      absent,
+    ])
+  );

@@ -1,3 +1,5 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, withJob } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
@@ -6,15 +8,10 @@ import type { CallOptions, MonitorInfo } from "../types.js";
 import {
   callSettings,
   compact,
-  list,
   meta,
-  num,
   presentPage,
   presentPages,
-  record,
-  requireId,
-  strings,
-  text,
+  requireJobId,
 } from "../util.js";
 import type {
   FirecrawlConfig,
@@ -47,6 +44,7 @@ import {
   imagesResult,
   monitorEvents,
   monitorInfo,
+  noProductReason,
   pageMeta,
   parseResult,
   researchResult,
@@ -56,6 +54,24 @@ import {
   toProduct,
   usageResult,
 } from "./firecrawl/response.js";
+import {
+  AgentRun,
+  Batch,
+  BatchErrors,
+  ChecksResponse,
+  Closed,
+  CrawlStart,
+  Execution,
+  MapResponse,
+  MonitorResponse,
+  MonitorsResponse,
+  ParseResponse,
+  RunStart,
+  ScrapeResponse,
+  SearchResponse,
+  Session,
+  UsageResponse,
+} from "./firecrawl/shapes.js";
 import { invalid, provider, segment } from "./firecrawl/shared.js";
 
 export type {
@@ -101,13 +117,12 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     settings: FirecrawlPageSettings,
     call: CallOptions
   ) => {
-    const response = record(
-      await raw.request("POST", "/scrape", {
-        ...call,
-        body: { formats, url, ...pageBody(settings) },
-      })
-    );
-    return { data: record(response.data), response };
+    const response = await raw.request("POST", "/scrape", {
+      ...call,
+      body: { formats, url, ...pageBody(settings) },
+    });
+    const body = z.parse(ScrapeResponse, response);
+    return { body, data: body.data, response };
   };
 
   const pathOf = (link: string): string => {
@@ -123,9 +138,15 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     interval: number | undefined
   ) => {
     const path = `/${kind}/${segment(id)}`;
-    const get = async (to: string) => {
+    const get = async <Schema extends z.ZodMiniType>(
+      schema: Schema,
+      to: string
+    ) => {
       try {
-        return record(await raw.request("GET", to, { signal: call.signal }));
+        return z.parse(
+          schema,
+          await raw.request("GET", to, { signal: call.signal })
+        );
       } catch (error) {
         throw withJob(error, id);
       }
@@ -134,15 +155,16 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       provider,
       id,
       async () => {
-        const status = record(
+        const status = z.parse(
+          Batch,
           await raw.request("GET", path, { signal: call.signal })
         );
-        const state = text(status.status);
+        const state = status.value.status;
         if (state === "failed" || state === "cancelled") {
           throw new FieldworkError(
             "JobFailed",
             `firecrawl ${kind} ${id} ended ${state}`,
-            { cause: status, provider }
+            { cause: status.original, provider }
           );
         }
         return state === "completed" ? status : undefined;
@@ -150,14 +172,14 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       { ...call, interval }
     );
     const batches = [first];
-    let next = text(first.next);
+    let { next } = first.value;
     while (next !== undefined) {
-      const batch = await get(pathOf(next));
+      const batch = await get(Batch, pathOf(next));
       batches.push(batch);
-      next = text(batch.next);
+      ({ next } = batch.value);
     }
     // Pages that failed show up only here, and robots.txt blocks with them.
-    const errors = await get(`${path}/errors`);
+    const errors = await get(BatchErrors, `${path}/errors`);
     return { batches, errors, failed: failedPages(errors), first };
   };
 
@@ -165,19 +187,21 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     o: FirecrawlSessionSettings,
     call: CallOptions
   ) => {
-    const response = record(
+    const session = z.parse(
+      Session,
       await raw.request("POST", "/interact", {
         body: sessionBody(o),
         creates: true,
         signal: call.signal,
       })
     );
-    return { id: requireId(provider, response.id), response };
+    return { id: requireJobId(provider, session.value.id), session };
   };
 
   const closeQuietly = async (id: string, call: CallOptions) => {
     try {
-      return record(
+      return z.parse(
+        Closed,
         await raw.request("DELETE", `/interact/${segment(id)}`, {
           signal: call.signal,
         })
@@ -198,7 +222,8 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
           ? await openSession(o, call)
           : { id: o.session };
       try {
-        const result = record(
+        const result = z.parse(
+          Execution,
           await raw.request(
             "POST",
             `/interact/${segment(id)}/execute`,
@@ -228,8 +253,8 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
 
       async open(options) {
         const { call, rest: o } = callSettings(options);
-        const { response } = await openSession(o, call);
-        return browserSession(response);
+        const { session } = await openSession(o, call);
+        return browserSession(session);
       },
     },
 
@@ -237,9 +262,10 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       const { call, rest: o } = callSettings(options);
       const id =
         o.resume ??
-        requireId(
+        requireJobId(
           provider,
-          record(
+          z.parse(
+            CrawlStart,
             await raw.request("POST", "/crawl", {
               creates: true,
               ...call,
@@ -248,30 +274,37 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
           ).id
         );
       const job = await finished("crawl", id, call, o.interval);
+      const { robotsBlocked } = job.errors.value;
       return compact({
         failed: job.failed,
         id,
-        meta: meta({ credits: job.first.creditsUsed, requestId: id }),
+        meta: meta({ credits: job.first.value.creditsUsed, requestId: id }),
         pages: job.batches.flatMap((batch) =>
-          list(batch.data).map((item) => toPage(record(item), url, item))
+          batch.value.data.map((item) => ({
+            ...toPage(item.value, url),
+            raw: item.original,
+          }))
         ),
-        raw: { batches: job.batches, errors: job.errors },
-        robotsBlocked: strings(job.errors.robotsBlocked),
-        total: num(job.first.total),
+        raw: {
+          batches: job.batches.map((batch) => batch.original),
+          errors: job.errors.original,
+        },
+        robotsBlocked: robotsBlocked.length > 0 ? robotsBlocked : undefined,
+        total: job.first.value.total,
       });
     },
 
     async extract<T>(url: string, options: FirecrawlExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const { schema, prompt, ...page } = o;
-      const { response, data } = await scrape(
+      const { body, response, data } = await scrape(
         url,
         [compact({ prompt, schema: jsonSchemaOf(schema), type: "json" })],
         page,
         call
       );
       if (data.json === undefined) {
-        const why = text(data.warning);
+        const why = data.warning.text;
         throw new FieldworkError(
           "ProviderError",
           `firecrawl returned no JSON for ${url}${why === undefined ? "" : `: ${why}`}`,
@@ -280,50 +313,37 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       }
       return compact({
         data: await checkOutput(schema, data.json, { provider }),
-        meta: pageMeta(response, data),
+        meta: pageMeta(data, body.warning.notes),
         raw: response,
       });
     },
 
     async images(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: imagesBody(query, o),
-        })
-      );
-      return imagesResult(response);
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: imagesBody(query, o),
+      });
+      return {
+        ...imagesResult(z.parse(SearchResponse, response)),
+        raw: response,
+      };
     },
 
     async map(url, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/map", {
-          ...call,
-          body: mapBody(url, o),
-        })
-      );
-      return {
-        links: list(response.links).map((item) => {
-          if (typeof item === "string") {
-            return { url: item };
-          }
-          const link = record(item);
-          return compact({
-            description: text(link.description),
-            title: text(link.title),
-            url: text(link.url) ?? "",
-          });
-        }),
-        raw: response,
-      };
+      const response = await raw.request("POST", "/map", {
+        ...call,
+        body: mapBody(url, o),
+      });
+      return { links: z.parse(MapResponse, response).links, raw: response };
     },
 
     monitor: {
       async create(options) {
         const { call, rest: o } = callSettings(options);
-        const response = record(
+        const response = z.parse(
+          MonitorResponse,
           await raw.request("POST", "/monitor", {
             creates: true,
             ...call,
@@ -344,18 +364,21 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         if (!Number.isInteger(offset) || offset < 0) {
           throw invalid(`firecrawl events cursor "${o.cursor}" is not valid`);
         }
-        const response = record(
-          await raw.request("GET", `/monitor/${segment(id)}/checks`, {
-            ...call,
-            query: { limit: PAGE_SIZE, offset },
-          })
+        const response = await raw.request(
+          "GET",
+          `/monitor/${segment(id)}/checks`,
+          { ...call, query: { limit: PAGE_SIZE, offset } }
         );
-        return monitorEvents(response, offset);
+        return {
+          ...monitorEvents(z.parse(ChecksResponse, response).data, offset),
+          raw: response,
+        };
       },
 
       async get(id, options) {
         const { call } = callSettings(options);
-        const response = record(
+        const response = z.parse(
+          MonitorResponse,
           await raw.request("GET", `/monitor/${segment(id)}`, call)
         );
         return monitorInfo(response.data);
@@ -365,14 +388,15 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         const { call } = callSettings(options);
         const monitors: MonitorInfo[] = [];
         for (;;) {
-          const response = record(
+          const response = z.parse(
+            MonitorsResponse,
             await raw.request("GET", "/monitor", {
               ...call,
               query: { limit: PAGE_SIZE, offset: monitors.length },
             })
           );
-          const page = list(response.data);
-          monitors.push(...page.map((item) => monitorInfo(item)));
+          const page = response.data;
+          monitors.push(...page.map((entry) => monitorInfo(entry)));
           if (page.length < PAGE_SIZE) {
             return monitors;
           }
@@ -383,83 +407,109 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     async parse(document, options) {
       const { call, rest: o } = callSettings(options);
       const form = parseForm(document, o);
-      const response = record(
-        await raw.request("POST", "/parse", { ...call, form })
-      );
-      return parseResult(response);
+      const response = await raw.request("POST", "/parse", { ...call, form });
+      return {
+        ...parseResult(z.parse(ParseResponse, response)),
+        raw: response,
+      };
     },
 
     async product(url, options) {
       const { call, rest: o } = callSettings(options);
-      const { response, data } = await scrape(url, ["product"], o, call);
-      return toProduct(url, response, data);
+      const { body, response } = await scrape(url, ["product"], o, call);
+      const product = toProduct(body);
+      if (product === undefined) {
+        const why = noProductReason(body);
+        throw new FieldworkError(
+          "NotFound",
+          `firecrawl found no product on ${url}${why === undefined ? "" : `: ${why}`}`,
+          { cause: response, provider }
+        );
+      }
+      return { ...product, raw: response };
     },
 
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
-      const { response, data } = await scrape(url, readFormats(o), o, call);
-      return presentPage(provider, toPage(data, url, response, response));
+      const { body, data, response } = await scrape(
+        url,
+        readFormats(o),
+        o,
+        call
+      );
+      return presentPage(provider, {
+        ...toPage(data, url, body.warning.notes),
+        raw: response,
+      });
     },
 
     async readMany(urls, options) {
       const { call, rest: o } = callSettings(options);
       const { interval, resume, maxConcurrency, ignoreInvalidURLs, ...read } =
         o;
-      const started =
+      const started = z.parse(
+        RunStart,
         resume === undefined
-          ? record(
-              await raw.request("POST", "/batch/scrape", {
-                creates: true,
-                ...call,
-                body: compact({
-                  urls,
-                  ...readBody(read),
-                  maxConcurrency,
-                  ignoreInvalidURLs,
-                }),
-              })
-            )
-          : {};
-      const id = resume ?? requireId(provider, started.id);
+          ? await raw.request("POST", "/batch/scrape", {
+              creates: true,
+              ...call,
+              body: compact({
+                urls,
+                ...readBody(read),
+                maxConcurrency,
+                ignoreInvalidURLs,
+              }),
+            })
+          : {}
+      );
+      const id = resume ?? requireJobId(provider, started.value.id);
       const job = await finished("batch/scrape", id, call, interval);
-      const rejected = (strings(started.invalidURLs) ?? []).map((url) => ({
+      const rejected = started.value.invalidURLs.map((url) => ({
         error: "invalid URL",
         url,
       }));
       const { pages, gone } = presentPages(
         job.batches.flatMap((batch) =>
-          list(batch.data).map((item) => toPage(record(item), "", item))
+          batch.value.data.map((item) => ({
+            ...toPage(item.value, ""),
+            raw: item.original,
+          }))
         )
       );
       return compact({
         failed: [...job.failed, ...rejected, ...gone],
         id,
-        meta: meta({ credits: job.first.creditsUsed, requestId: id }),
+        meta: meta({ credits: job.first.value.creditsUsed, requestId: id }),
         pages,
-        raw: { batches: job.batches, errors: job.errors, started },
+        raw: {
+          batches: job.batches.map((batch) => batch.original),
+          errors: job.errors.original,
+          started: started.original,
+        },
       });
     },
 
     async research<T>(question: string, options?: FirecrawlResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const started =
+      const started = z.parse(
+        RunStart,
         o.resume === undefined
-          ? record(
-              await raw.request("POST", "/agent", {
-                creates: true,
-                ...call,
-                body: researchBody(question, o),
-              })
-            )
-          : {};
-      const id = o.resume ?? requireId(provider, started.id);
+          ? await raw.request("POST", "/agent", {
+              creates: true,
+              ...call,
+              body: researchBody(question, o),
+            })
+          : {}
+      );
+      const id = o.resume ?? requireJobId(provider, started.value.id);
       const run = await poll(
         provider,
         id,
         async () =>
           researchState(
             id,
-            record(
+            z.parse(
+              AgentRun,
               await raw.request("GET", `/agent/${segment(id)}`, {
                 signal: call.signal,
               })
@@ -479,20 +529,23 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
 
     async search(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: searchBody(query, o),
-        })
-      );
-      return searchResult(response);
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: searchBody(query, o),
+      });
+      return {
+        ...searchResult(z.parse(SearchResponse, response)),
+        raw: response,
+      };
     },
 
     async usage(options) {
       const { call } = callSettings(options);
-      return usageResult(
-        record(await raw.request("GET", "/team/credit-usage", call))
-      );
+      const response = await raw.request("GET", "/team/credit-usage", call);
+      return {
+        ...usageResult(z.parse(UsageResponse, response)),
+        raw: response,
+      };
     },
   };
 
