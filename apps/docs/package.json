@@ -7,7 +7,8 @@
     "build": "blume build",
     "typecheck": "tsc --noEmit",
     "lint": "howells-check .",
-    "lint:fix": "howells-fix ."
+    "lint:fix": "howells-fix .",
+    "deploy:production": "vercel build --prod --yes && vercel deploy --prebuilt --prod"
   },
   "dependencies": {
     "@howells/fieldwork-sdk": "workspace:*",
@@ -18,5 +19,8 @@
     "@howells/typescript-config": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }

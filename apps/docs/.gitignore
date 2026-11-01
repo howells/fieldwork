@@ -2,3 +2,5 @@
 /.blume/
 /.astro/
 /dist/
+/.vercel/
+.env*

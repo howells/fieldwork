@@ -53,6 +53,8 @@ export default defineConfig({
     include: ["docs/**/*.{md,mdx}"],
     root: ".",
   },
+  // The canonical origin, for the sitemap, canonical tags and absolute llms.txt links.
+  deployment: { site: "https://fieldwork-sdk.dev" },
   description:
     "One TypeScript API for web search, page reading, extraction, crawling, answers, research, monitors and remote browsers across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.",
   footer: {
