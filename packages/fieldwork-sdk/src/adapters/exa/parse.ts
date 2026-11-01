@@ -119,7 +119,7 @@ export const searchContents = (o: ExaSearchOptions) => {
       o.highlights === false ? undefined : highlightsOption(o.highlights),
     maxAgeHours: hours(o.maxAge),
     summary: summaryOption(o.summary),
-    text: o.content ? true : undefined,
+    text: o.content === true ? true : undefined,
   });
   return Object.keys(contents).length > 0 ? contents : undefined;
 };
@@ -160,7 +160,8 @@ export const readBody = (o: ExaReadOptions) => {
   });
   return compact({
     extras: Object.keys(extras).length > 0 ? extras : undefined,
-    highlights: o.query ? { query: o.query } : undefined,
+    highlights:
+      o.query === undefined || o.query === "" ? undefined : { query: o.query },
     maxAgeHours: hours(o.maxAge),
     snapshotAsOf: o.snapshotAsOf,
     summary: summaryOption(o.summary),
@@ -289,12 +290,13 @@ export const researchResult = <T>(
   if (status !== "completed" && !hasOutput(run, structured)) {
     const error = record(run.error);
     const message = text(error.message);
-    const detail = message
-      ? `${text(error.code) ?? text(error.type) ?? "error"}: ${message}`
-      : stopReason;
+    const detail =
+      message === undefined
+        ? stopReason
+        : `${text(error.code) ?? text(error.type) ?? "error"}: ${message}`;
     throw new FieldworkError(
       "JobFailed",
-      `exa research run ${id} ended ${status}${detail ? ` (${detail})` : ""}`,
+      `exa research run ${id} ended ${status}${detail === undefined ? "" : ` (${detail})`}`,
       { cause: run, jobId: id, provider }
     );
   }
@@ -370,7 +372,7 @@ const eventSummary = (run: Json, content: unknown): string | undefined => {
   }
   if (run.status === "failed") {
     const reason = text(run.failReason);
-    return `Run failed${reason ? `: ${reason}` : ""}`;
+    return `Run failed${reason === undefined ? "" : `: ${reason}`}`;
   }
   return undefined;
 };

@@ -43,8 +43,8 @@ export const bindOperation = (
   }
   if (
     GROUP_CAPABILITIES.includes(capability) &&
-    operation &&
-    typeof operation === "object"
+    typeof operation === "object" &&
+    operation !== null
   ) {
     const group = operation as Record<string, unknown>;
     return Object.fromEntries(

@@ -778,6 +778,16 @@ describe("firecrawl product", () => {
       message: expect.stringContaining("No product found on page"),
     });
   });
+
+  it.each([false, "", 0, "none", []])(
+    "reports a product of %j as NotFound",
+    async (product) => {
+      const { web } = client({ body: { data: { product }, success: true } });
+      await expect(web.product(url)).rejects.toMatchObject({
+        code: "NotFound",
+      });
+    }
+  );
 });
 
 describe("firecrawl map", () => {

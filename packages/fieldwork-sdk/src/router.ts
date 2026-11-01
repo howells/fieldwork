@@ -34,7 +34,7 @@ const build = (routes: Routes) => {
   const raw: Record<string, unknown> = {};
   const providers: Partial<Record<Capability, string>> = {};
   for (const [capability, adapter] of Object.entries(routes)) {
-    if (!adapter) {
+    if (adapter === undefined) {
       continue;
     }
     const operation = bindOperation(

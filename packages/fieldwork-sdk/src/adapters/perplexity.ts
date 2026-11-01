@@ -207,7 +207,10 @@ const webSearchTool = (o: PerplexityFilters & { country?: string }) => {
   const tool = compact({
     filters: Object.keys(filters).length > 0 ? filters : undefined,
     type: "web_search",
-    user_location: o.country ? { country: o.country } : undefined,
+    user_location:
+      o.country === undefined || o.country === ""
+        ? undefined
+        : { country: o.country },
   });
   return Object.keys(tool).length > 1 ? tool : undefined;
 };
@@ -218,7 +221,7 @@ const languageCodes = (language: string | string[] | undefined) => {
 };
 
 const errorCode = (jobId: string | undefined, rateLimited: boolean) => {
-  if (jobId) {
+  if (jobId !== undefined && jobId !== "") {
     return "JobFailed";
   }
   return rateLimited ? "RateLimited" : "ProviderError";
@@ -444,7 +447,7 @@ const startResearch = async (
   o: PerplexityResearchOptions,
   call: CallOptions
 ) => {
-  if (o.resume) {
+  if (o.resume !== undefined && o.resume !== "") {
     return o.resume;
   }
   const created = record(

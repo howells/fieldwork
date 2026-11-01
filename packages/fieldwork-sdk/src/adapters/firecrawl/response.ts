@@ -55,9 +55,10 @@ const languageCode = (value: unknown): string | undefined =>
 
 const excerptsOf = (data: Json): string[] | undefined => {
   const highlight = text(data.highlights);
-  const highlights = highlight ? [highlight] : strings(data.highlights);
+  const highlights =
+    highlight === undefined ? strings(data.highlights) : [highlight];
   const answer = text(data.answer);
-  return highlights ?? (answer ? [answer] : undefined);
+  return highlights ?? (answer === undefined ? undefined : [answer]);
 };
 
 export const pageMeta = (top: Json, data: Json) => {
@@ -113,7 +114,7 @@ const price = (value: unknown): Price | undefined => {
 const gtin = (variant: Json): string | undefined => {
   for (const key of ["gtin", "gtin14", "gtin13", "gtin12", "gtin8"]) {
     const value = scalar(variant[key]);
-    if (value) {
+    if (value !== undefined && value !== "") {
       return value;
     }
   }
@@ -157,15 +158,15 @@ const allImages = (variants: ProductVariant[]): ProductImage[] | undefined => {
 };
 
 export const toProduct = (url: string, response: Json, data: Json): Product => {
-  if (!data.product) {
+  const product = record(data.product);
+  if (product !== data.product) {
     const why = text(data.warning) ?? text(response.warning);
     throw new FieldworkError(
       "NotFound",
-      `firecrawl found no product on ${url}${why ? `: ${why}` : ""}`,
+      `firecrawl found no product on ${url}${why === undefined ? "" : `: ${why}`}`,
       { cause: response, provider }
     );
   }
-  const product = record(data.product);
   const variants = list(product.variants).map((variant) => toVariant(variant));
   return compact({
     brand: text(product.brand),
@@ -215,8 +216,9 @@ const imageItems = (value: unknown): ImageResult[] =>
   list(value).flatMap((item) => {
     const image = record(item);
     const url = text(image.imageUrl);
-    return url
-      ? [
+    return url === undefined
+      ? []
+      : [
           compact({
             height: num(image.imageHeight),
             sourceUrl: text(image.url),
@@ -224,8 +226,7 @@ const imageItems = (value: unknown): ImageResult[] =>
             url,
             width: num(image.imageWidth),
           }),
-        ]
-      : [];
+        ];
   });
 
 const searchMeta = (response: Json) =>
@@ -367,7 +368,7 @@ export const parseResult = (response: Json): ParsedDocument => {
 
 const watching = (monitor: Json): string | undefined => {
   const goal = text(monitor.goal);
-  if (goal) {
+  if (goal !== undefined) {
     return goal;
   }
   const targets = list(monitor.targets).map((item) => record(item));

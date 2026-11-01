@@ -120,13 +120,14 @@ export const exa = (config: ExaConfig = {}) => {
         name: o.name,
         outputSchema: o.outputSchema,
         search: compact({
-          contents: o.content ? { text: true } : undefined,
+          contents: o.content === true ? { text: true } : undefined,
           excludeDomains: o.excludeDomains,
           includeDomains: o.includeDomains,
           numResults: o.limit,
           query: o.query,
         }),
-        trigger: every ? { period: every, type: "interval" } : undefined,
+        trigger:
+          every === undefined ? undefined : { period: every, type: "interval" },
         webhook: compact({ events: o.webhookEvents, url: o.webhookUrl }),
       });
       return monitorInfo(
@@ -194,7 +195,10 @@ export const exa = (config: ExaConfig = {}) => {
             outputSchema: o.schema,
             query: question,
             systemPrompt: o.systemPrompt,
-            userLocation: o.country ? { country: o.country } : undefined,
+            userLocation:
+              o.country === undefined || o.country === ""
+                ? undefined
+                : { country: o.country },
           }),
         })
       );
@@ -325,7 +329,10 @@ export const exa = (config: ExaConfig = {}) => {
             startPublishedDate: dateTime(o.publishedAfter, false),
             systemPrompt: o.systemPrompt,
             type: o.type,
-            userLocation: o.country ? { country: o.country } : undefined,
+            userLocation:
+              o.country === undefined || o.country === ""
+                ? undefined
+                : { country: o.country },
           }),
         })
       );

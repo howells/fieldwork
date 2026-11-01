@@ -10,7 +10,7 @@ import type {
 export type Json = Record<string, unknown>;
 
 export const record = (value: unknown): Json =>
-  value && typeof value === "object" && !Array.isArray(value)
+  typeof value === "object" && value !== null && !Array.isArray(value)
     ? (value as Json)
     : {};
 
@@ -71,7 +71,7 @@ export const uniqueCitations = (all: Citation[]): Citation[] => {
 export const citation = (value: unknown): Citation | undefined => {
   const item = record(value);
   const url = text(item.url);
-  if (!url) {
+  if (url === undefined) {
     return undefined;
   }
   const excerpts =
@@ -151,7 +151,9 @@ export const productImages = (value: unknown): ProductImage[] | undefined => {
       }
       const image = record(item);
       const url = text(image.url) ?? text(image.src);
-      return url ? compact({ alt: text(image.alt), url }) : undefined;
+      return url === undefined
+        ? undefined
+        : compact({ alt: text(image.alt), url });
     })
     .filter((item): item is ProductImage => item !== undefined);
   return items.length > 0 ? items : undefined;

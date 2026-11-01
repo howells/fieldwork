@@ -149,7 +149,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     );
     const batches = [first];
     let next = text(first.next);
-    while (next) {
+    while (next !== undefined) {
       const batch = await get(pathOf(next));
       batches.push(batch);
       next = text(batch.next);
@@ -266,7 +266,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         const why = text(data.warning);
         throw new FieldworkError(
           "ProviderError",
-          `firecrawl returned no JSON for ${url}${why ? `: ${why}` : ""}`,
+          `firecrawl returned no JSON for ${url}${why === undefined ? "" : `: ${why}`}`,
           { cause: response, provider }
         );
       }

@@ -40,7 +40,7 @@ export const usageUnits = (value: unknown) => {
     const entry = record(item);
     const name = text(entry.name);
     const count = num(entry.count);
-    if (name && count !== undefined) {
+    if (name !== undefined && count !== undefined) {
       units.set(name, (units.get(name) ?? 0) + count);
     }
   }
@@ -204,7 +204,8 @@ export const monitorEvent = (value: unknown): MonitorEvent => {
     at: text(event.event_date),
     citations: sources.length > 0 ? sources : undefined,
     id: text(event.event_id),
-    output: content && typeof content === "object" ? content : undefined,
+    output:
+      typeof content === "object" && content !== null ? content : undefined,
     raw: event,
     summary: typeof content === "string" ? content : undefined,
   });
@@ -253,10 +254,10 @@ export const discovery = <T>(
     .filter((item): item is Entity<T> => item !== undefined);
   const stoppedEarly =
     state !== "completed" || (reason !== undefined && !FINISHED.has(reason));
-  if (stoppedEarly && !entities.some((entity) => entity.matched)) {
+  if (stoppedEarly && !entities.some((entity) => entity.matched === true)) {
     throw new FieldworkError(
       "JobFailed",
-      `parallel FindAll run ${id} ended as ${state}${reason ? ` (${reason})` : ""} without a match`,
+      `parallel FindAll run ${id} ended as ${state}${reason === undefined ? "" : ` (${reason})`} without a match`,
       { cause: result, jobId: id, provider }
     );
   }

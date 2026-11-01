@@ -31,8 +31,9 @@ export const webResults = (response: Json): SearchResult[] =>
   list(response.organic_results).flatMap((entry) => {
     const item = record(entry);
     const url = text(item.link);
-    return url
-      ? [
+    return url === undefined
+      ? []
+      : [
           compact({
             author: text(item.author),
             favicon: text(item.favicon),
@@ -43,14 +44,13 @@ export const webResults = (response: Json): SearchResult[] =>
             title: text(item.title),
             url,
           }),
-        ]
-      : [];
+        ];
   });
 
 export const newsItem = (entry: unknown): SearchResult[] => {
   const item = record(entry);
   const url = text(item.link);
-  if (!url) {
+  if (url === undefined) {
     return [];
   }
   const source = record(item.source);
@@ -91,8 +91,9 @@ export const shoppingResults = (response: Json): SearchResult[] => {
   return (items ?? []).flatMap((entry) => {
     const item = record(entry);
     const url = text(item.link) ?? text(item.product_link);
-    return url
-      ? [
+    return url === undefined
+      ? []
+      : [
           compact({
             image: text(item.thumbnail),
             kind: "shopping",
@@ -103,22 +104,21 @@ export const shoppingResults = (response: Json): SearchResult[] => {
             title: text(item.title),
             url,
           }),
-        ]
-      : [];
+        ];
   });
 };
 
 export const mapsUrl = (item: Json): string | undefined => {
   const website = text(item.website);
-  if (website) {
+  if (website !== undefined) {
     return website;
   }
   const id = text(item.place_id);
   const title = text(item.title);
   // Google's documented Maps URL for a place id; the result has no page of its own.
-  return id && title
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}&query_place_id=${encodeURIComponent(id)}`
-    : undefined;
+  return id === undefined || title === undefined
+    ? undefined
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}&query_place_id=${encodeURIComponent(id)}`;
 };
 
 export const placeResults = (response: Json): SearchResult[] => {
@@ -130,7 +130,7 @@ export const placeResults = (response: Json): SearchResult[] => {
   return items.flatMap((entry) => {
     const item = record(entry);
     const url = mapsUrl(item);
-    if (!url) {
+    if (url === undefined) {
       return [];
     }
     const coordinates = record(item.gps_coordinates);
@@ -159,24 +159,25 @@ export const scholarResults = (response: Json): SearchResult[] =>
     const item = record(entry);
     // Some citations have no page; a linked full text stands in for it.
     const url = text(item.link) ?? text(record(list(item.resources)[0]).link);
-    return url
-      ? [
+    return url === undefined
+      ? []
+      : [
           compact({
             kind: "scholar",
             snippet: text(item.snippet),
             title: text(item.title),
             url,
           }),
-        ]
-      : [];
+        ];
   });
 
 export const patentResults = (response: Json): SearchResult[] =>
   list(response.organic_results).flatMap((entry) => {
     const item = record(entry);
     const url = text(item.patent_link);
-    return url
-      ? [
+    return url === undefined
+      ? []
+      : [
           compact({
             author: text(item.inventor),
             image: text(item.thumbnail),
@@ -186,8 +187,7 @@ export const patentResults = (response: Json): SearchResult[] =>
             title: text(item.title),
             url,
           }),
-        ]
-      : [];
+        ];
   });
 
 export const answerText = (response: Json): string | undefined => {

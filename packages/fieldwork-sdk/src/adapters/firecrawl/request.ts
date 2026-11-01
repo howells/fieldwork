@@ -132,7 +132,7 @@ const timeFilter = (o: SearchSettings): string | undefined => {
 
 export const searchBody = (query: string, o: SearchSettings) => {
   refuseTogether(provider, o, "includeDomains", "excludeDomains");
-  if (o.categories?.includes("gov") && o.categories.length > 1) {
+  if (o.categories?.includes("gov") === true && o.categories.length > 1) {
     throw invalid(
       "firecrawl searches the gov category on its own; do not combine it with another category"
     );
@@ -147,7 +147,7 @@ export const searchBody = (query: string, o: SearchSettings) => {
     location: o.location,
     query,
     safe: o.safe,
-    scrapeOptions: o.content ? { formats: ["markdown"] } : undefined,
+    scrapeOptions: o.content === true ? { formats: ["markdown"] } : undefined,
     sources: o.sources?.map((type) => ({ type })),
     tbs: timeFilter(o),
   });
@@ -209,7 +209,10 @@ export const researchBody = (
 ) =>
   compact({
     effort: o.effort,
-    location: o.country ? { country: country(o.country) } : undefined,
+    location:
+      o.country === undefined || o.country === ""
+        ? undefined
+        : { country: country(o.country) },
     maxCredits: o.maxCredits,
     model: o.model,
     prompt: question,
@@ -222,7 +225,10 @@ export const researchBody = (
 export const sessionBody = (o: FirecrawlSessionSettings) =>
   compact({
     activityTtl: o.activityTtl ?? o.ttl,
-    location: o.country ? { country: country(o.country) } : undefined,
+    location:
+      o.country === undefined || o.country === ""
+        ? undefined
+        : { country: country(o.country) },
     profile: o.profile,
     ttl: o.ttl,
   });
@@ -264,7 +270,7 @@ export const parseForm = (
 ): FormData => {
   const extension = document.name.split(".").pop()?.toLowerCase() ?? "";
   const mediaType = MEDIA_TYPES.get(extension);
-  if (!mediaType) {
+  if (mediaType === undefined) {
     throw invalid(
       `firecrawl parses ${[...MEDIA_TYPES.keys()].join(", ")} files, not "${document.name}"`
     );
@@ -316,7 +322,7 @@ const monitorTarget = (o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) => {
     }
     return { type: "scrape", urls: o.urls };
   }
-  if (!o.query) {
+  if (o.query === undefined || o.query === "") {
     throw invalid("firecrawl monitors need urls to watch or a query");
   }
   if (o.query.length > MAX_MONITOR_QUERY) {
@@ -344,6 +350,9 @@ export const monitorBody = (
     retentionDays: o.retentionDays,
     schedule: compact({ cron: cronFor(o.schedule), timezone: o.timezone }),
     targets: [target],
-    webhook: o.webhookUrl ? { url: o.webhookUrl } : undefined,
+    webhook:
+      o.webhookUrl === undefined || o.webhookUrl === ""
+        ? undefined
+        : { url: o.webhookUrl },
   });
 };

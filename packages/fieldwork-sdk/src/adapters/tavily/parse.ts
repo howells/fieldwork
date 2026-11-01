@@ -25,7 +25,7 @@ export const invalid = (message: string): FieldworkError =>
 
 export const chunks = (value: unknown): string[] | undefined => {
   const content = text(value);
-  if (!content) {
+  if (content === undefined) {
     return undefined;
   }
   const parts = content
@@ -42,7 +42,7 @@ const countryName = (code: string, topic: string | undefined): string => {
     );
   }
   const name = COUNTRIES.get(code.toUpperCase());
-  if (!name) {
+  if (name === undefined) {
     throw invalid(
       `tavily has no country for "${code}"; pass an ISO 3166-1 alpha-2 code from its supported list`
     );
@@ -58,9 +58,9 @@ export const imageResults = (value: unknown): ImageResult[] | undefined => {
       }
       const image = record(item);
       const url = text(image.url);
-      return url
-        ? compact({ description: text(image.description), url })
-        : undefined;
+      return url === undefined
+        ? undefined
+        : compact({ description: text(image.description), url });
     })
     .filter((item): item is ImageResult => item !== undefined);
   return items.length > 0 ? items : undefined;
@@ -73,27 +73,34 @@ export const responseMeta = (response: Json) =>
     units: { responseTimeSeconds: response.response_time },
   });
 
-const checkSearch = (o: TavilySearchOptions): number | undefined => {
-  if (o.includeDomainsMode !== undefined && !o.includeDomains?.length) {
+const checkFilters = (o: TavilySearchOptions): void => {
+  if (
+    o.includeDomainsMode !== undefined &&
+    (o.includeDomains?.length ?? 0) === 0
+  ) {
     throw invalid("tavily includeDomainsMode needs includeDomains");
   }
-  if (o.filterByLanguage && o.language === undefined) {
+  if (o.filterByLanguage === true && o.language === undefined) {
     throw invalid("tavily filterByLanguage needs language");
   }
   if (
-    o.safeSearch &&
+    o.safeSearch === true &&
     (o.searchDepth === "fast" || o.searchDepth === "ultra-fast")
   ) {
     throw invalid(
       `tavily safeSearch is not available with searchDepth "${o.searchDepth}"`
     );
   }
+};
+
+const checkSearch = (o: TavilySearchOptions): number | undefined => {
+  checkFilters(o);
   if (o.chunksPerSource !== undefined && o.searchDepth === "ultra-fast") {
     throw invalid(
       'tavily chunksPerSource is not available with searchDepth "ultra-fast"'
     );
   }
-  if (o.imageDescriptions && !o.includeImages) {
+  if (o.imageDescriptions === true && o.includeImages !== true) {
     throw invalid("tavily imageDescriptions needs includeImages");
   }
   const maxAgeHours = hours(o.maxAge);
@@ -166,9 +173,9 @@ export const failures = (response: Json): FailedUrl[] =>
   list(response.failed_results).flatMap((item) => {
     const failure = record(item);
     const url = text(failure.url);
-    return url
-      ? [{ error: text(failure.error) ?? "no content returned", url }]
-      : [];
+    return url === undefined
+      ? []
+      : [{ error: text(failure.error) ?? "no content returned", url }];
   });
 
 export const page = (item: unknown, query: boolean): Page => {

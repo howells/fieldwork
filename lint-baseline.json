@@ -24,7 +24,6 @@
       "promise(avoid-new)": 1,
       "typescript(no-unnecessary-type-parameters)": 7,
       "typescript(no-unsafe-type-assertion)": 68,
-      "typescript(strict-boolean-expressions)": 74,
       "unicorn(no-await-expression-member)": 5,
       "vitest(max-expects)": 1
     }

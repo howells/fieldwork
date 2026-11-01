@@ -187,7 +187,12 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     const proxies: BrowserbaseReadOptions["proxies"] =
       o.proxies ?? (geolocation ? { geolocation } : undefined);
     const place = typeof proxies === "object" ? proxies.geolocation : undefined;
-    if (place?.state && place.country.toUpperCase() !== "US") {
+    if (
+      place !== undefined &&
+      place.state !== undefined &&
+      place.state !== "" &&
+      place.country.toUpperCase() !== "US"
+    ) {
       invalid("accepts a proxy state only with country US");
     }
     return proxies;

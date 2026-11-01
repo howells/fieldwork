@@ -172,7 +172,7 @@ const transportError = (
   error: unknown,
   signal: AbortSignal | undefined
 ) => {
-  if (signal?.aborted) {
+  if (signal?.aborted === true) {
     return new FieldworkError("Aborted", `${provider} request was cancelled`, {
       cause: error,
       provider,
@@ -208,14 +208,14 @@ const parseBody = (text: string): unknown => {
 };
 
 const describe = (parsed: unknown, text: string): string => {
-  if (parsed && typeof parsed === "object") {
+  if (typeof parsed === "object" && parsed !== null) {
     const record = parsed as Record<string, unknown>;
     for (const key of ["error", "message", "detail"]) {
       const value = record[key];
       if (typeof value === "string") {
         return value;
       }
-      if (value && typeof value === "object") {
+      if (typeof value === "object" && value !== null) {
         return JSON.stringify(value).slice(0, 300);
       }
     }
@@ -227,7 +227,7 @@ export const retryAfterSeconds = (
   header: string | null,
   now = Date.now()
 ): number | undefined => {
-  if (!header) {
+  if (header === null || header === "") {
     return undefined;
   }
   const seconds = Number(header);
@@ -254,7 +254,7 @@ export const poll = async <T>(
   const interval = options.interval ?? 2000;
   const deadline = Date.now() + (options.timeout ?? 600_000);
   for (;;) {
-    if (options.signal?.aborted) {
+    if (options.signal?.aborted === true) {
       throw new FieldworkError(
         "Aborted",
         `stopped waiting for ${provider} job ${jobId}; it may still be running`,
@@ -301,7 +301,7 @@ export const requireKey = (
   envName: string
 ): string => {
   const key = given ?? process.env[envName];
-  if (!key) {
+  if (key === undefined || key === "") {
     throw new FieldworkError(
       "Unauthorized",
       `${provider} needs an API key: pass apiKey or set ${envName}`,

@@ -402,9 +402,10 @@ export const extractBody = (urls: string[], o: ParallelReadOptions) =>
         max_chars_per_result: o.maxCharsPerResult,
       }),
       fetch_policy: fetchPolicy(o.maxAge),
-      full_content: o.maxContentChars
-        ? { max_chars_per_result: o.maxContentChars }
-        : true,
+      full_content:
+        o.maxContentChars !== undefined && o.maxContentChars !== 0
+          ? { max_chars_per_result: o.maxContentChars }
+          : true,
     }),
     max_chars_total: o.maxCharsTotal,
     objective: o.query,

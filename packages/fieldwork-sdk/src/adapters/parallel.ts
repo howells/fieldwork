@@ -116,7 +116,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         })
       );
       const failure = record(response.error);
-      if (response.status === "failed" || text(failure.message)) {
+      if (response.status === "failed" || text(failure.message) !== undefined) {
         throw new FieldworkError(
           "ProviderError",
           `parallel could not answer: ${text(failure.message) ?? "the response failed"}`,
@@ -158,9 +158,10 @@ export const parallel = (config: ParallelConfig = {}) => {
             output_tokens: usage.output_tokens,
             total_tokens: usage.total_tokens,
           },
-          warnings: incomplete
-            ? [`the answer is incomplete: ${incomplete}`]
-            : undefined,
+          warnings:
+            incomplete === undefined
+              ? undefined
+              : [`the answer is incomplete: ${incomplete}`],
         }),
         output: o.schema ? (parseJson(provider, answer) as T) : undefined,
         raw: response,
@@ -329,7 +330,10 @@ export const parallel = (config: ParallelConfig = {}) => {
             refuseTogether(provider, o, "taskRunId", name);
           }
         }
-        if (o.webhookEvents && !o.webhookUrl) {
+        if (
+          o.webhookEvents &&
+          (o.webhookUrl === undefined || o.webhookUrl === "")
+        ) {
           throw invalid("webhookEvents needs a webhookUrl");
         }
         const response = await raw.request("POST", "/v1/monitors", {
@@ -351,9 +355,13 @@ export const parallel = (config: ParallelConfig = {}) => {
                   })
                 : { task_run_id: o.taskRunId },
             type: o.taskRunId === undefined ? "event_stream" : "snapshot",
-            webhook: o.webhookUrl
-              ? compact({ event_types: o.webhookEvents, url: o.webhookUrl })
-              : undefined,
+            webhook:
+              o.webhookUrl === undefined || o.webhookUrl === ""
+                ? undefined
+                : compact({
+                    event_types: o.webhookEvents,
+                    url: o.webhookUrl,
+                  }),
           }),
         });
         return monitorInfo(response);
@@ -429,7 +437,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         })
       );
       const result = record(list(response.results)[0]);
-      if (!result.url) {
+      if (text(result.url) === undefined) {
         const failure = record(list(response.errors)[0]);
         throw new FieldworkError(
           "ProviderError",

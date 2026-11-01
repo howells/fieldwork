@@ -173,7 +173,7 @@ export const tavily = (config: TavilyConfig = {}) => {
         })
       );
       const [result] = list(response.results);
-      if (!text(record(result).url)) {
+      if (text(record(result).url) === undefined) {
         const [failure] = failures(response);
         const reason = failure?.error ?? "no content returned";
         throw new FieldworkError(
@@ -293,7 +293,9 @@ export const tavily = (config: TavilyConfig = {}) => {
         sources: list(run.sources).flatMap((item) => {
           const source = record(item);
           const url = text(source.url);
-          return url ? [compact({ title: text(source.title), url })] : [];
+          return url === undefined
+            ? []
+            : [compact({ title: text(source.title), url })];
         }),
         status: "completed" as const,
       });

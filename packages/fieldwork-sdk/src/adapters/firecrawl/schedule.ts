@@ -58,7 +58,7 @@ const runGaps = (minutes: number[], hours: number[] | undefined): number[] => {
   const [first] = minutes;
   const last = minutes.at(-1);
   const consecutive = hours?.some((hour) => hours.includes((hour + 1) % 24));
-  if (consecutive && first !== undefined && last !== undefined) {
+  if (consecutive === true && first !== undefined && last !== undefined) {
     gaps.push(60 - last + first);
   }
   return gaps;
@@ -98,13 +98,13 @@ export const cronFor = (schedule: MonitorSchedule): string => {
   }
   const every: string = schedule.every;
   const named = NAMED_CRON.get(every);
-  if (named) {
+  if (named !== undefined) {
     return named;
   }
   const groups = INTERVAL.exec(every)?.groups;
   const count = Number(groups?.count);
   const cron = groups?.unit === "h" ? hourlyCron(count) : DAILY_CRON.get(count);
-  if (cron) {
+  if (cron !== undefined) {
     return cron;
   }
   throw invalid(

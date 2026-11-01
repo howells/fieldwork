@@ -88,8 +88,9 @@ export const serpapi = (config: SerpApiConfig = {}) => {
       const results = list(response.images_results).flatMap((entry) => {
         const item = record(entry);
         const url = text(item.original);
-        return url
-          ? [
+        return url === undefined
+          ? []
+          : [
               compact({
                 height: num(item.original_height),
                 sourceUrl: text(item.link),
@@ -98,8 +99,7 @@ export const serpapi = (config: SerpApiConfig = {}) => {
                 url,
                 width: num(item.original_width),
               }),
-            ]
-          : [];
+            ];
       });
       return compact({ meta: searchMeta(response), raw: response, results });
     },
