@@ -8,6 +8,8 @@ import {
   list,
   meta,
   num,
+  presentPage,
+  presentPages,
   record,
   requireId,
   strings,
@@ -387,7 +389,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
       const { response, data } = await scrape(url, readFormats(o), o, call);
-      return toPage(data, url, response, response);
+      return presentPage(provider, toPage(data, url, response, response));
     },
 
     async readMany(urls, options) {
@@ -414,13 +416,16 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         error: "invalid URL",
         url,
       }));
+      const { pages, gone } = presentPages(
+        job.batches.flatMap((batch) =>
+          list(batch.data).map((item) => toPage(record(item), "", item))
+        )
+      );
       return compact({
-        failed: [...job.failed, ...rejected],
+        failed: [...job.failed, ...rejected, ...gone],
         id,
         meta: meta({ credits: job.first.creditsUsed, requestId: id }),
-        pages: job.batches.flatMap((batch) =>
-          list(batch.data).map((item) => toPage(record(item), "", item))
-        ),
+        pages,
         raw: { batches: job.batches, errors: job.errors, started },
       });
     },

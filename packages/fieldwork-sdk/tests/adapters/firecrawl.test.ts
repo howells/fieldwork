@@ -493,6 +493,35 @@ describe("firecrawl read", () => {
     expect(highlighted.excerpts).toStrictEqual(["The tile is 3x8."]);
     expect(answered.excerpts).toStrictEqual(["3x8 inches"]);
   });
+
+  it("fails as NotFound when the page answered 404 or 410, as Exa does", async () => {
+    const { web } = client(
+      {
+        body: {
+          data: {
+            markdown: "Sorry, we couldn't find anything here",
+            metadata: { statusCode: 404, title: "Not found", url },
+          },
+          success: true,
+        },
+      },
+      {
+        body: {
+          data: { markdown: "Gone", metadata: { statusCode: 410, url } },
+          success: true,
+        },
+      }
+    );
+    await expect(web.read(url)).rejects.toMatchObject({
+      code: "NotFound",
+      provider: "firecrawl",
+      status: 404,
+    });
+    await expect(web.read(url)).rejects.toMatchObject({
+      code: "NotFound",
+      status: 410,
+    });
+  });
 });
 
 describe("firecrawl readMany", () => {
@@ -543,6 +572,34 @@ describe("firecrawl readMany", () => {
       id: "b1",
       meta: { requestId: "b1", usage: { credits: 2 } },
     });
+  });
+
+  it("lists a page that answered 404 as failed, not as a page", async () => {
+    const { web } = client(
+      {
+        body: {
+          data: [
+            {
+              markdown: "a",
+              metadata: { statusCode: 200, url: "https://s.test/a" },
+            },
+            {
+              markdown: "gone",
+              metadata: { statusCode: 404, url: "https://s.test/b" },
+            },
+          ],
+          status: "completed",
+        },
+      },
+      { body: { errors: [] } }
+    );
+    const batch = await web.readMany([], { resume: "b8" });
+    expect(batch.pages.map((page) => page.url)).toStrictEqual([
+      "https://s.test/a",
+    ]);
+    expect(batch.failed).toStrictEqual([
+      { error: "the page returned 404", url: "https://s.test/b" },
+    ]);
   });
 
   it("resumes a job by id without starting another", async () => {

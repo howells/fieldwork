@@ -78,7 +78,7 @@ Options only one provider has keep that provider's meaning and values, such as T
 Every result is normalized and keeps the provider's response in `raw`. Most also carry `meta`: the provider's `requestId`, `usage` (credits, US dollars, or counted units such as tokens) and `warnings`, when the provider returns them.
 
 - `search` returns `{ results, answer, images, meta, raw }`. Each result has `url`, `title`, `snippet` and, when the provider has them, `content`, `publishedAt`, `author`, `image`, `favicon` and `score`. Shopping, place, news, scholar and patent results set `kind` and carry `price`, `rating`, `reviewCount` and `place`.
-- `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them.
+- `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them. A page that answered 404 or 410 is not returned: `read` throws `NotFound` on every provider, and `readMany` lists the URL in `failed`.
 - `readMany` returns `{ pages, failed }`. A URL that could not be read is listed in `failed` with the reason; it does not throw.
 - `extract` returns `{ data, fields }`. `data` follows your schema; `fields` lists each field's citations when the provider returns them.
 - `product` returns the product and its `variants`, each with `sku`, option `values`, `price` (`amount`, `currency`, `formatted`), `originalPrice`, `availability`, `gtin` and `images` (`{ url, alt }`).

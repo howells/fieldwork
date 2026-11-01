@@ -1,5 +1,11 @@
 import { FieldworkError } from "./errors.js";
-import type { Citation, CallOptions, Meta, ProductImage } from "./types.js";
+import type {
+  Citation,
+  CallOptions,
+  Meta,
+  Page,
+  ProductImage,
+} from "./types.js";
 
 export type Json = Record<string, unknown>;
 
@@ -172,3 +178,37 @@ export const hours = (seconds: number | undefined): number | undefined =>
     : seconds < 0
       ? -1
       : Math.ceil(seconds / 3600);
+
+/** Statuses that mean the page is not there, so a read of it has no page to return. */
+const GONE = new Set([404, 410]);
+
+/**
+ * A read whose page answered 404 or 410 fails as NotFound, as it does on
+ * providers that return no page at all, instead of returning the error page
+ * as if it were the content.
+ */
+export const presentPage = (provider: string, page: Page): Page => {
+  if (page.statusCode !== undefined && GONE.has(page.statusCode)) {
+    throw new FieldworkError(
+      "NotFound",
+      `${provider} could not read ${page.url}: the page returned ${page.statusCode}`,
+      { provider, status: page.statusCode }
+    );
+  }
+  return page;
+};
+
+/** Splits a batch's pages into those present and those that answered 404 or 410. */
+export const presentPages = (pages: Page[]) => ({
+  gone: pages
+    .filter(
+      (page) => page.statusCode !== undefined && GONE.has(page.statusCode)
+    )
+    .map((page) => ({
+      error: `the page returned ${page.statusCode}`,
+      url: page.url,
+    })),
+  pages: pages.filter(
+    (page) => page.statusCode === undefined || !GONE.has(page.statusCode)
+  ),
+});

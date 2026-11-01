@@ -247,6 +247,25 @@ describe("browserbase adapter", () => {
       expect(page.raw).toMatchObject({ id: "fetch-9" });
     });
 
+    it("fails as NotFound when the page answered 404", async () => {
+      const { web } = client([
+        {
+          body: {
+            content: "Not found",
+            contentType: "text/html",
+            encoding: "utf-8",
+            id: "fetch-10",
+            statusCode: 404,
+          },
+        },
+      ]);
+      await expect(web.read("https://example.com/gone")).rejects.toMatchObject({
+        code: "NotFound",
+        provider: "browserbase",
+        status: 404,
+      });
+    });
+
     it("returns raw HTML as rawHtml, and other types only in raw", async () => {
       const html = client([
         {
@@ -311,17 +330,17 @@ describe("browserbase adapter", () => {
       const { web } = client([
         {
           body: {
-            content: "not found",
+            content: "server error",
             contentType: "text/html",
             encoding: "utf-8",
             headers: {},
             id: "4",
-            statusCode: 404,
+            statusCode: 500,
           },
         },
       ]);
       const page = await web.read("https://example.com/x");
-      expect(page.statusCode).toBe(404);
+      expect(page.statusCode).toBe(500);
     });
 
     it("maps a 502 (too large) to a provider error", async () => {

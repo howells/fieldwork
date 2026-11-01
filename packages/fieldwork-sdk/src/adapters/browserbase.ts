@@ -14,6 +14,7 @@ import {
   list,
   meta,
   num,
+  presentPage,
   record,
   refuseTogether,
   requireId,
@@ -293,22 +294,25 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
         typeof response.content === "string" ? response.content : undefined;
       const binary = response.encoding === "base64";
       const contentType = text(response.contentType) ?? "";
-      return compact({
-        markdown: format === "markdown" && !binary ? content : undefined,
-        meta: meta({
-          requestId: response.id,
-          warnings: binary
-            ? ["the response is binary; its Base64 content is in raw"]
-            : undefined,
-        }),
-        raw: response,
-        rawHtml:
-          format === "raw" && !binary && contentType.includes("html")
-            ? content
-            : undefined,
-        statusCode: num(response.statusCode),
-        url,
-      });
+      return presentPage(
+        provider,
+        compact({
+          markdown: format === "markdown" && !binary ? content : undefined,
+          meta: meta({
+            requestId: response.id,
+            warnings: binary
+              ? ["the response is binary; its Base64 content is in raw"]
+              : undefined,
+          }),
+          raw: response,
+          rawHtml:
+            format === "raw" && !binary && contentType.includes("html")
+              ? content
+              : undefined,
+          statusCode: num(response.statusCode),
+          url,
+        })
+      );
     },
 
     async search(query, options) {
