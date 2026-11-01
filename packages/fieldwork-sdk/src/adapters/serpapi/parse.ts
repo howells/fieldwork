@@ -1,16 +1,13 @@
 import { FieldworkError } from "../../errors.js";
-import type { Price, SearchResult } from "../../types.js";
-import {
-  compact,
-  list,
-  meta,
-  num,
-  record,
-  scalar,
-  strings,
-  text,
-} from "../../util.js";
-import type { Json } from "../../util.js";
+import type { ImageResult, Price, SearchResult } from "../../types.js";
+import { compact, meta } from "../../util.js";
+import type {
+  AnswerBoxBlock,
+  PlaceBlock,
+  SearchBody,
+  ShoppingBlock,
+  StoryBlock,
+} from "./response.js";
 
 export const provider = "serpapi";
 
@@ -19,195 +16,198 @@ export const invalid = (message: string): FieldworkError =>
     provider,
   });
 
-export const priceOf = (item: Json): Price | undefined => {
+export const priceOf = (item: ShoppingBlock): Price | undefined => {
   const price = compact({
-    amount: scalar(item.extracted_price),
-    formatted: text(item.price),
+    amount: item.extracted_price,
+    formatted: item.price,
   });
   return Object.keys(price).length > 0 ? price : undefined;
 };
 
-export const webResults = (response: Json): SearchResult[] =>
-  list(response.organic_results).flatMap((entry) => {
-    const item = record(entry);
-    const url = text(item.link);
+export const webResults = (body: SearchBody): SearchResult[] =>
+  body.organic_results.flatMap((item) => {
+    const url = item.link;
     return url === undefined
       ? []
       : [
           compact({
-            author: text(item.author),
-            favicon: text(item.favicon),
-            image: text(item.thumbnail),
+            author: item.author,
+            favicon: item.favicon,
+            image: item.thumbnail,
             kind: "web",
-            publishedAt: text(item.date),
-            snippet: text(item.snippet),
-            title: text(item.title),
+            publishedAt: item.date,
+            snippet: item.snippet,
+            title: item.title,
             url,
           }),
         ];
   });
 
-export const newsItem = (entry: unknown): SearchResult[] => {
-  const item = record(entry);
-  const url = text(item.link);
+export const imageResults = (body: SearchBody): ImageResult[] =>
+  body.images_results.flatMap((item) => {
+    const url = item.original;
+    return url === undefined
+      ? []
+      : [
+          compact({
+            height: item.original_height,
+            sourceUrl: item.link,
+            thumbnailUrl: item.thumbnail,
+            title: item.title,
+            url,
+            width: item.original_width,
+          }),
+        ];
+  });
+
+export const newsItem = (item: StoryBlock): SearchResult[] => {
+  const url = item.link;
   if (url === undefined) {
     return [];
   }
-  const source = record(item.source);
-  const authors = strings(source.authors);
+  const { authors } = item.source;
   return [
     compact({
-      author: authors?.join(", "),
-      favicon: text(source.icon),
-      image: text(item.thumbnail),
+      author: authors.length > 0 ? authors.join(", ") : undefined,
+      favicon: item.source.icon,
+      image: item.thumbnail,
       kind: "news",
-      publishedAt: text(item.iso_date) ?? text(item.date),
-      title: text(item.title),
+      publishedAt: item.iso_date ?? item.date,
+      title: item.title,
       url,
     }),
   ];
 };
 
-export const newsResults = (response: Json): SearchResult[] =>
+export const newsResults = (body: SearchBody): SearchResult[] =>
   // A story group has a `highlight` and `stories` instead of one link.
-  list(response.news_results).flatMap((entry) => {
-    const item = record(entry);
-    return [
-      ...newsItem(item),
-      ...newsItem(item.highlight),
-      ...list(item.stories).flatMap((story) => newsItem(story)),
-    ];
-  });
+  body.news_results.flatMap((item) => [
+    ...newsItem(item),
+    ...newsItem(item.highlight),
+    ...item.stories.flatMap((story) => newsItem(story)),
+  ]);
 
-export const shoppingResults = (response: Json): SearchResult[] => {
-  const categorized = list(response.categorized_shopping_results).flatMap(
-    (group) => list(record(group).shopping_results)
+export const shoppingResults = (body: SearchBody): SearchResult[] => {
+  const categorized = body.categorized_shopping_results.flatMap(
+    (group) => group.shopping_results
   );
   const items = [
-    list(response.shopping_results),
+    body.shopping_results,
     categorized,
-    list(response.inline_shopping_results),
+    body.inline_shopping_results,
   ].find((group) => group.length > 0);
-  return (items ?? []).flatMap((entry) => {
-    const item = record(entry);
-    const url = text(item.link) ?? text(item.product_link);
+  return (items ?? []).flatMap((item) => {
+    const url = item.link ?? item.product_link;
     return url === undefined
       ? []
       : [
           compact({
-            image: text(item.thumbnail),
+            image: item.thumbnail,
             kind: "shopping",
             price: priceOf(item),
-            rating: num(item.rating),
-            reviewCount: num(item.reviews),
-            snippet: text(item.snippet),
-            title: text(item.title),
+            rating: item.rating,
+            reviewCount: item.reviews,
+            snippet: item.snippet,
+            title: item.title,
             url,
           }),
         ];
   });
 };
 
-export const mapsUrl = (item: Json): string | undefined => {
-  const website = text(item.website);
-  if (website !== undefined) {
-    return website;
+export const mapsUrl = (item: PlaceBlock): string | undefined => {
+  if (item.website !== undefined) {
+    return item.website;
   }
-  const id = text(item.place_id);
-  const title = text(item.title);
+  const id = item.place_id;
+  const { title } = item;
   // Google's documented Maps URL for a place id; the result has no page of its own.
   return id === undefined || title === undefined
     ? undefined
     : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}&query_place_id=${encodeURIComponent(id)}`;
 };
 
-export const placeResults = (response: Json): SearchResult[] => {
+export const placeResults = (body: SearchBody): SearchResult[] => {
   // A query that names one place returns a single `place_results` object instead.
-  const single = record(response.place_results);
-  const places = list(response.local_results);
+  const single = body.place_results;
+  const places = body.local_results;
   const items =
     places.length === 0 && Object.keys(single).length > 0 ? [single] : places;
-  return items.flatMap((entry) => {
-    const item = record(entry);
+  return items.flatMap((item) => {
     const url = mapsUrl(item);
     if (url === undefined) {
       return [];
     }
-    const coordinates = record(item.gps_coordinates);
+    const coordinates = item.gps_coordinates;
     const place = compact({
-      address: text(item.address),
-      latitude: num(coordinates.latitude),
-      longitude: num(coordinates.longitude),
+      address: item.address,
+      latitude: coordinates.latitude,
+      longitude: coordinates.longitude,
     });
     return [
       compact({
-        image: text(item.thumbnail),
+        image: item.thumbnail,
         kind: "place",
         place: Object.keys(place).length > 0 ? place : undefined,
-        rating: num(item.rating),
-        reviewCount: num(item.reviews),
-        snippet: text(item.description),
-        title: text(item.title),
+        rating: item.rating,
+        reviewCount: item.reviews,
+        snippet: item.description,
+        title: item.title,
         url,
       }),
     ];
   });
 };
 
-export const scholarResults = (response: Json): SearchResult[] =>
-  list(response.organic_results).flatMap((entry) => {
-    const item = record(entry);
+export const scholarResults = (body: SearchBody): SearchResult[] =>
+  body.organic_results.flatMap((item) => {
     // Some citations have no page; a linked full text stands in for it.
-    const url = text(item.link) ?? text(record(list(item.resources)[0]).link);
+    const url = item.link ?? item.resources[0]?.link;
     return url === undefined
       ? []
       : [
           compact({
             kind: "scholar",
-            snippet: text(item.snippet),
-            title: text(item.title),
+            snippet: item.snippet,
+            title: item.title,
             url,
           }),
         ];
   });
 
-export const patentResults = (response: Json): SearchResult[] =>
-  list(response.organic_results).flatMap((entry) => {
-    const item = record(entry);
-    const url = text(item.patent_link);
+export const patentResults = (body: SearchBody): SearchResult[] =>
+  body.organic_results.flatMap((item) => {
+    const url = item.patent_link;
     return url === undefined
       ? []
       : [
           compact({
-            author: text(item.inventor),
-            image: text(item.thumbnail),
+            author: item.inventor,
+            image: item.thumbnail,
             kind: "patent",
-            publishedAt: text(item.publication_date),
-            snippet: text(item.snippet),
-            title: text(item.title),
+            publishedAt: item.publication_date,
+            snippet: item.snippet,
+            title: item.title,
             url,
           }),
         ];
   });
 
-export const answerText = (response: Json): string | undefined => {
-  const box = record(response.answer_box ?? list(response.answer_box_list)[0]);
-  return text(box.answer) ?? text(scalar(box.result)) ?? text(box.snippet);
-};
+const answerOf = (box: AnswerBoxBlock | undefined): string | undefined =>
+  box?.answer ?? (box?.result === "" ? undefined : box?.result) ?? box?.snippet;
 
-export const searchMeta = (response: Json) =>
+export const answerText = (body: SearchBody): string | undefined =>
+  answerOf(body.answer_box ?? body.answer_box_list[0]);
+
+export const searchMeta = (body: SearchBody) =>
   meta({
-    requestId: record(response.search_metadata).id,
+    requestId: body.search_metadata.id,
     // A search that found nothing is a success that carries an `error` note.
-    warnings: response.error,
+    warnings: body.error.warnings,
   });
 
-export const failIfError = (response: Json) => {
-  if (record(response.search_metadata).status === "Error") {
-    throw new FieldworkError(
-      "ProviderError",
-      `serpapi search failed: ${text(response.error) ?? "no reason given"}`,
-      { cause: response, provider, retryable: true }
-    );
-  }
-};
+/** The reason a search failed, or undefined when it did not. */
+export const searchFailure = (body: SearchBody): string | undefined =>
+  body.search_metadata.status === "Error"
+    ? `serpapi search failed: ${body.error.message ?? "no reason given"}`
+    : undefined;

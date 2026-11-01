@@ -92,3 +92,45 @@ export const recordOf = <Item extends z.ZodMiniType>(item: Item) =>
     ]),
     {}
   );
+
+/**
+ * A string, number or boolean read as a string: `"a"` is `"a"` (an empty
+ * string stays empty), `3` is `"3"` and `true` is `"true"`. Any other value,
+ * or an absent one, reads as undefined. Numbers must be finite.
+ */
+export const optionalScalar = z.optional(
+  z.union([
+    z.string(),
+    z.pipe(z.number(), z.transform(String)),
+    z.pipe(z.boolean(), z.transform(String)),
+    absent,
+  ])
+);
+
+/** A warning entry: a string as it is, or an object's non-empty `message`, else its non-empty `detail`. */
+const warningEntry = z.union([
+  z.string(),
+  z.pipe(
+    looseObject({ detail: optionalString, message: optionalString }),
+    z.transform((entry) => entry.message ?? entry.detail)
+  ),
+]);
+
+/**
+ * The warnings a provider reports, as a list of strings. A string (an empty
+ * one too) is one warning. An array gives its strings as they are and, for
+ * each object, its non-empty `message` or else its non-empty `detail`; any
+ * other entry is dropped. Anything else, or an absent value, is no warnings.
+ */
+export const warnings = z.pipe(
+  z.union([
+    z.pipe(
+      z.string(),
+      z.transform((message) => [message])
+    ),
+    arrayOf(warningEntry),
+  ]),
+  z.transform((entries) =>
+    entries.filter((entry): entry is string => entry !== undefined)
+  )
+);

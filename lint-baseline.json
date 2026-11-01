@@ -4,7 +4,7 @@
     "packages/fieldwork-mcp": {},
     "packages/fieldwork-sdk": {
       "anti-slop(no-runtime-typeof)": 46,
-      "anti-slop(no-unknown-parameters)": 57,
+      "anti-slop(no-unknown-parameters)": 56,
       "anti-slop(no-unknown-returns)": 6,
       "anti-slop(no-unsafe-dictionary-type)": 23,
       "eslint(complexity)": 1,

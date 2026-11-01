@@ -22,6 +22,7 @@ import {
   webResults,
   invalid,
 } from "./parse.js";
+import type { SearchBody } from "./response.js";
 
 export type Query = Record<string, string | number | boolean | undefined>;
 
@@ -29,7 +30,7 @@ export interface EngineSpec {
   /** The option names the engine documents; any other set option is refused. */
   allowed: readonly string[];
   params: (o: Json) => Query;
-  results: (response: Json) => SearchResult[];
+  results: (body: SearchBody) => SearchResult[];
 }
 
 export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
