@@ -1,0 +1,53 @@
+---
+title: Options
+description: The option names every provider shares, the settings every call accepts, and how provider-only options and refused combinations work.
+---
+
+Options are typed per provider, so your editor offers only the options the provider you chose supports. An option means the same thing under the same name everywhere.
+
+## Shared names
+
+| Option | Meaning |
+| --- | --- |
+| `limit` | The most results or pages to return. |
+| `includeDomains`, `excludeDomains` | Plain domains such as `example.com`. Options that take regular expressions or paths have their own names, such as Firecrawl's `includePaths`. |
+| `publishedAfter`, `publishedBefore` | Dates as `YYYY-MM-DD`. |
+| `recency` | `"hour"`, `"day"`, `"week"`, `"month"` or `"year"`, narrowed to what the provider supports. |
+| `maxAge` | Seconds a cached copy may be old; `0` always fetches the page fresh. |
+| `country` | An ISO 3166-1 code such as `"GB"`. |
+| `language` | An ISO 639-1 code such as `"de"`. |
+| `schema`, `prompt` | A JSON Schema or a Standard Schema such as Zod for structured output, and extraction instructions in plain words. See [Structured output](/docs/structured-output). |
+| `query` | On `read`: return the passages that answer it as `excerpts`. |
+| `content` | On `search`: include each result's page text. |
+| `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
+| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks. See [Long jobs](/docs/long-jobs). |
+
+```ts
+const web = new Fieldwork({ adapter: firecrawl() });
+
+const { results } = await web.search("porcelain tile suppliers", {
+  limit: 10,
+  includeDomains: ["tilebar.com"],
+  recency: "month",
+  country: "GB",
+});
+```
+
+## Settings every call accepts
+
+Every method takes these, whatever the provider:
+
+<AutoTypeTable
+  path="../../packages/fieldwork-sdk/src/types.ts"
+  name="CallOptions"
+/>
+
+[Errors and retries](/docs/errors#retries) explains when a request is repeated.
+
+## Options only one provider has
+
+An option only one provider has keeps that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. It appears in the types only for that provider's adapter.
+
+## Refused combinations
+
+A combination a provider would reject or silently ignore throws `InvalidRequest` before anything is sent. For example, Parallel refuses `includeDomains` together with `excludeDomains`, and Firecrawl refuses `recency` together with `publishedAfter` or `publishedBefore`. The message names the options that clashed.

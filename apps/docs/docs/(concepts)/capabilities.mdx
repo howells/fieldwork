@@ -1,0 +1,57 @@
+---
+title: Capabilities
+description: Which of Fieldwork's 17 capabilities each of the eight providers offers, and how an instance reports them at run time.
+---
+
+Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
+
+| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `search(query)` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `images(query)` |  | ● | ● | ● |  | ● | ● |  |
+| `read(url)` | ● | ● | ● | ● |  |  |  | ● |
+| `readMany(urls)` | ● | ● | ● | ● |  |  |  |  |
+| `extract(url, { schema })` | ● | ● |  | ● |  |  |  |  |
+| `product(url)` |  | ● |  |  |  |  |  |  |
+| `map(url)` |  | ● | ● |  |  |  |  |  |
+| `crawl(url)` |  | ● | ● |  |  |  |  |  |
+| `answer(question)` | ● |  | ● | ● | ● | ● |  |  |
+| `research(question)` | ● | ● | ● | ● | ● |  |  |  |
+| `discover(objective, { entityType, conditions })` |  |  |  | ● |  |  |  |  |
+| `decide(context, questions)` |  |  |  | ● | ● |  |  |  |
+| `act(code)` |  | ● |  |  |  |  |  |  |
+| `browser.open()`, `browser.close(id)` |  | ● |  |  |  |  |  | ● |
+| `parse(document)` |  | ● |  |  |  |  |  |  |
+| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | ● | ● |  | ● |  |  |  |  |
+| `usage()` |  | ● | ● |  |  |  | ● | ● |
+
+## What each one does
+
+- `search` returns ranked pages for a query, and `images` returns images with the page each appears on.
+- `read` returns one page as Markdown. `readMany` reads several in one call and lists the ones it could not read.
+- `extract` returns the values a schema asks for from one page. `product` reads a product page's variants from its structured data, without a model.
+- `map` lists a site's URLs without reading them. `crawl` reads many pages from one starting URL.
+- `answer` is a provider's own cited answer, returned in one call. `research` is a longer job of many steps, polled until it finishes.
+- `discover` returns a list of entities, such as companies or products, that meet every condition you give.
+- `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
+- `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer. `act(code)` runs one script in a fresh session.
+- `parse` turns a document file into Markdown.
+- `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
+- `usage` reports the account's credits used and remaining.
+
+## Check at run time
+
+`web.capabilities` and `web.supports()` report the same table for the instance you have. `web.providerFor()` names the provider that serves a capability, which matters on a [router](/docs/router).
+
+```ts
+const web = new Fieldwork({ adapter: tavily() });
+
+web.supports("crawl"); // true
+web.supports("act"); // false
+web.capabilities.extract; // false
+web.providerFor("search"); // "tavily"
+```
+
+## Nothing falls back
+
+A capability the provider lacks is never served by another provider, and never imitated. A provider without an answer endpoint has no `answer`, even though search plus a model could imitate one. To use different providers for different capabilities, say so with a [router](/docs/router).

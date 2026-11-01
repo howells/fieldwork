@@ -1,0 +1,40 @@
+---
+import { HONEST_SAMPLE } from "../../lib/samples";
+import Panel from "./panel.astro";
+
+const PRINCIPLES = [
+  {
+    body: "A call goes to the provider you chose, or it doesn't go. Nothing quietly switches to another provider.",
+    title: "No fallbacks",
+  },
+  {
+    body: "An unsupported method is a type error. In plain JavaScript it throws before any request is sent.",
+    title: "Refused by the types",
+  },
+  {
+    body: "Every result is normalized, and the original response is on it as raw.",
+    title: "The provider's response, kept",
+  },
+  {
+    body: "Every failure is a FieldworkError with a code, whether repeating can succeed, and the job's id.",
+    title: "One error type",
+  },
+];
+---
+
+<section class="border-t border-rule bg-wash">
+  <div class="home-wrap py-16 md:py-[120px]">
+    <h2 class="home-heading max-w-[640px]">A call the provider can't serve doesn't compile.</h2>
+    <div class="mt-10 flex flex-col-reverse gap-12 md:mt-16 lg:flex-row lg:items-start lg:gap-16">
+      <dl class="m-0 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:w-[568px] lg:shrink-0">
+        {PRINCIPLES.map((principle) => (
+          <div class="border-t border-ink pt-6">
+            <dt class="text-[16px] leading-6 font-medium text-ink">{principle.title}</dt>
+            <dd class="m-0 mt-2 text-[14px] leading-[22px] text-graphite">{principle.body}</dd>
+          </div>
+        ))}
+      </dl>
+      <Panel caption="Tavily" class="lg:flex-1" code={HONEST_SAMPLE} file="honest.ts" />
+    </div>
+  </div>
+</section>

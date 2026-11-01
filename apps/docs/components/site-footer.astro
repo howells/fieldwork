@@ -1,0 +1,60 @@
+---
+// The footer from the Paper design, on the home page and every docs page. It
+// keeps the repository link the built-in footer would carry.
+const COLUMNS = [
+  {
+    links: [
+      { href: "/docs/capabilities", label: "Providers" },
+      { href: "/docs/agent-tools", label: "Agent tools" },
+      { href: "/docs/mcp-server", label: "MCP server" },
+    ],
+    title: "Product",
+  },
+  {
+    links: [
+      { href: "/docs", label: "Docs" },
+      { href: "/docs/errors", label: "Errors" },
+      { href: "/docs/router", label: "Router" },
+      { href: "/llms.txt", label: "llms.txt" },
+    ],
+    title: "Learn",
+  },
+  {
+    links: [
+      { href: "https://github.com/howells/fieldwork", label: "GitHub" },
+      { href: "https://www.npmjs.com/package/@howells/fieldwork-sdk", label: "npm" },
+      { href: "https://github.com/howells/fieldwork/issues", label: "Issues" },
+    ],
+    title: "Community",
+  },
+];
+---
+
+<footer class="site-footer border-t border-rule bg-wash">
+  <div class="home-wrap flex flex-col gap-12 py-12 md:flex-row md:justify-between md:py-16">
+    <div class="contents md:flex md:w-[340px] md:flex-col md:justify-between md:gap-10">
+      <div class="flex flex-col gap-3">
+        <a class="inline-flex items-center gap-2.5 text-[17px] leading-[22px] font-semibold tracking-[-0.01em] text-ink" href="/">
+          <img alt="" height="22" src="/logo.svg" width="22" />
+          Fieldwork
+        </a>
+        <p class="m-0 max-w-[280px] text-[14px] leading-[22px] text-graphite">One API for searching, reading and researching the web.</p>
+      </div>
+      <p class="order-last m-0 text-[14px] leading-[18px] text-graphite md:order-none">© 2026 Daniel Howells · MIT License</p>
+    </div>
+    <nav aria-label="Footer" class="grid grid-cols-2 gap-x-6 gap-y-10 sm:grid-cols-3 md:w-[620px]">
+      {COLUMNS.map((column) => (
+        <div>
+          <h2 class="m-0 font-sans text-[14px] leading-[18px] font-medium tracking-normal text-ink">{column.title}</h2>
+          <ul class="m-0 mt-5 flex list-none flex-col gap-1 p-0">
+            {column.links.map((link) => (
+              <li>
+                <a class="inline-flex min-h-[34px] items-center text-[14px] text-graphite transition-colors hover:text-ink" href={link.href}>{link.label}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </nav>
+  </div>
+</footer>

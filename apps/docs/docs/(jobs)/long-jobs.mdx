@@ -1,0 +1,44 @@
+---
+title: Long jobs
+description: How research, discovery, crawls and batch reads are polled, how to bound or cancel them, and how to collect a job after a timeout with resume.
+---
+
+Research, discovery, crawls, batch reads and Parallel extraction run as jobs on the provider. Fieldwork starts the job and polls it until it finishes, so the call returns the finished result.
+
+## Bound or cancel a call
+
+Pass `timeout` in milliseconds and `signal` to bound or cancel any call. `interval` sets the milliseconds between status checks on a job.
+
+```ts
+const controller = new AbortController();
+
+const report = await web.research(question, {
+  timeout: 120_000,
+  signal: controller.signal,
+});
+```
+
+## Collect a job after a timeout
+
+When a job outlasts `timeout`, or `signal` stops the wait, the provider keeps running it and charging for it. The error carries the job's id as `jobId`. Pass it back as `resume` to collect the result instead of starting another job:
+
+```ts
+import { FieldworkError } from "@howells/fieldwork-sdk";
+
+try {
+  return await web.research(question, { timeout: 60_000 });
+} catch (error) {
+  if (error instanceof FieldworkError && error.jobId) {
+    return await web.research(question, { resume: error.jobId });
+  }
+  throw error;
+}
+```
+
+An error with a `jobId` is never `retryable`, because repeating the call would start, and charge for, a second job.
+
+## What resuming can return
+
+- The finished result, when the job completed while you were away.
+- `status: "partial"` with `stopReason`, when the job stopped early on a credit, time or step limit but produced output.
+- `JobFailed`, when the job ended with no usable output. Resuming again fails the same way, so start a new job if you still need one.

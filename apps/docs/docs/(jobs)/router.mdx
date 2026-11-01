@@ -1,0 +1,46 @@
+---
+title: The router
+description: Send each capability to exactly one provider with router, checked by the types, or with runtimeRouter for routes from flags or configuration.
+---
+
+`router` sends each capability to exactly one adapter, so you can use the provider that does each job best:
+
+```ts
+import { Fieldwork, router } from "@howells/fieldwork-sdk";
+import { brave } from "@howells/fieldwork-sdk/brave";
+import { exa } from "@howells/fieldwork-sdk/exa";
+import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
+import { parallel } from "@howells/fieldwork-sdk/parallel";
+
+const web = new Fieldwork({
+  adapter: router({
+    search: brave(),
+    read: firecrawl(),
+    product: firecrawl(),
+    answer: parallel(),
+    research: exa(),
+  }),
+});
+```
+
+## What the router checks
+
+- A capability without a route is unsupported. `web.supports("crawl")` is `false` above, and calling it throws `Unsupported`.
+- A route to an adapter that lacks the capability is a type error, and throws when the router is built.
+- Nothing falls back. A failed call on one route is never retried on another provider.
+
+`web.providerFor("research")` names the provider behind a route, here `"exa"`.
+
+## Routes from configuration
+
+For routes known only at run time, such as from flags or configuration, use `runtimeRouter(routes)`. It makes the same check when it is called and throws `Unsupported` for a route to an adapter that lacks the capability.
+
+```ts
+import { runtimeRouter } from "@howells/fieldwork-sdk";
+
+const web = new Fieldwork({ adapter: runtimeRouter(routesFromConfig) });
+```
+
+## The raw API on a router
+
+On a router, `web.raw` is keyed by provider name, so `web.raw.firecrawl.request(...)` reaches Firecrawl's own API. See [The provider's own API](/docs/provider-api).

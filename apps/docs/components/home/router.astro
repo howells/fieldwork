@@ -1,0 +1,75 @@
+---
+import { ROUTER_SAMPLE } from "../../lib/samples";
+import Panel from "./panel.astro";
+
+// The diagram mirrors ROUTER_SAMPLE: each routed capability draws a line to
+// the one provider it goes to, and the rest have no route.
+const ROUTES = new Map([
+  ["product", "Firecrawl"],
+  ["read", "Firecrawl"],
+  ["research", "Exa"],
+  ["search", "Parallel"],
+]);
+const CAPABILITIES = ["search", "read", "extract", "product", "map", "crawl", "research", "act", "parse"];
+const PROVIDERS = [
+  { label: "Parallel", width: 86, y: 60 },
+  { label: "Firecrawl", width: 98, y: 180 },
+  { label: "Exa", width: 62, y: 300 },
+];
+
+const DOT_X = 96;
+const BOX_X = 410;
+const rowY = (index: number) => 20 + index * 40;
+const providerY = (label: string) => PROVIDERS.find((provider) => provider.label === label)?.y ?? 0;
+const curve = (y1: number, y2: number) =>
+  `M${DOT_X} ${y1}C${DOT_X + 170} ${y1} ${BOX_X - 150} ${y2} ${BOX_X} ${y2}`;
+---
+
+<section class="border-t border-rule">
+  <div class="home-wrap py-16 md:py-[120px]">
+    <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-14">
+      <h2 class="home-heading md:max-w-[520px]">One provider for each capability.</h2>
+      <p class="home-lead md:max-w-[520px] md:pt-3">
+        Use the provider that does each job best. A capability without a route is unsupported, and a route to a provider that lacks it is a type error.
+      </p>
+    </div>
+    <div class="mt-10 flex flex-col gap-12 md:mt-16 lg:flex-row lg:items-center lg:justify-between lg:gap-16">
+      <Panel class="lg:w-[616px] lg:shrink-0" code={ROUTER_SAMPLE} file="router.ts" tone="light" />
+      <figure class="m-0 hidden md:block lg:w-[520px]">
+        <svg class="h-auto w-full max-w-[520px]" fill="none" role="img" viewBox="0 0 520 360">
+          <title>search goes to Parallel, read and product to Firecrawl, research to Exa; extract, map, crawl, act and parse have no route</title>
+          {CAPABILITIES.map((name, index) => {
+            const target = ROUTES.get(name);
+            const y = rowY(index);
+            return (
+              <g>
+                {target !== undefined && (
+                  <path d={curve(y, providerY(target))} stroke="var(--color-map-blue)" stroke-width="1.2" />
+                )}
+                <text
+                  class="font-mono"
+                  fill={target === undefined ? "#8A8F97" : "var(--color-ink)"}
+                  font-size="13"
+                  text-anchor="end"
+                  x={DOT_X - 12}
+                  y={y + 4.5}
+                >{name}</text>
+                {target === undefined ? (
+                  <circle cx={DOT_X} cy={y} fill="var(--color-paper)" r="2.6" stroke="#B4B8BE" />
+                ) : (
+                  <circle cx={DOT_X} cy={y} fill="var(--color-map-blue)" r="3" />
+                )}
+              </g>
+            );
+          })}
+          {PROVIDERS.map((provider) => (
+            <g>
+              <rect fill="var(--color-paper)" height="42" rx="6" stroke="var(--color-ink)" width={provider.width} x={BOX_X} y={provider.y - 21} />
+              <text fill="var(--color-ink)" font-family="var(--blume-font-body)" font-size="14" x={BOX_X + 18} y={provider.y + 5}>{provider.label}</text>
+            </g>
+          ))}
+        </svg>
+      </figure>
+    </div>
+  </div>
+</section>

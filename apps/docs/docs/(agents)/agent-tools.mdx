@@ -1,0 +1,89 @@
+---
+title: Agent tools
+description: Turn a Fieldwork instance into tool definitions for a model, with JSON Schema inputs that list only the options its provider supports.
+---
+
+`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method. The definitions are plain JSON Schema with MCP annotations, so they work with the AI SDK, MCP servers and any framework that accepts JSON Schema tools.
+
+## With the AI SDK
+
+```ts
+import { jsonSchema, tool } from "ai";
+import { toolsFor } from "@howells/fieldwork-sdk/tools";
+
+const tools = Object.fromEntries(
+  toolsFor(web).map((t) => [
+    t.name,
+    tool({
+      description: t.description,
+      inputSchema: jsonSchema(t.inputSchema),
+      execute: (input, { abortSignal }) =>
+        t.execute(input, { signal: abortSignal }),
+    }),
+  ])
+);
+```
+
+## What each tool has
+
+- a description that says when to use it and which tool to use instead;
+- a JSON Schema input that lists only the options its provider supports;
+- an output schema;
+- MCP annotations: whether it is read-only, destructive or idempotent, and whether it reaches the open web.
+
+`execute(input)` checks the input, calls the capability, and returns the result without `raw`, with long text cut to a shared budget of 20,000 characters. Bad input throws `InvalidRequest`.
+
+## The tools
+
+| Tool | Capability |
+| --- | --- |
+| `search_web` | `search` |
+| `search_images` | `images` |
+| `read_page` | `read` |
+| `read_pages` | `readMany` |
+| `extract_values` | `extract` |
+| `read_product` | `product` |
+| `map_site` | `map` |
+| `crawl_site` | `crawl` |
+| `answer_question` | `answer` |
+| `research_question` | `research` |
+| `find_entities` | `discover` |
+| `make_decisions` | `decide` |
+| `parse_document` | `parse` |
+| `check_usage` | `usage` |
+| `run_browser_script` | `act` |
+| `open_browser`, `close_browser` | `browser` |
+| `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor`, `list_monitor_events` | `monitor` |
+
+`toolsFor` makes a tool only for the capabilities the instance supports. On a [router](/docs/router), each tool is served by the provider its capability routes to.
+
+## Tools left out by default
+
+Tools that start remote browsers or create lasting, billed resources are left out unless you allow them:
+
+```ts
+toolsFor(web, { allow: ["act", "browser", "monitor"] });
+```
+
+<AutoTypeTable
+  path="../../packages/fieldwork-sdk/src/tools.ts"
+  name="ToolsOptions"
+/>
+
+## Errors for a model
+
+`toolError(error)` formats an error for a model: the code, the message, whether repeating can succeed, and the `jobId` of a job that may still be running, without the provider's response.
+
+```ts
+import { toolError } from "@howells/fieldwork-sdk/tools";
+
+try {
+  return await tool.execute(input);
+} catch (error) {
+  return toolError(error);
+}
+```
+
+## Over MCP
+
+For MCP clients such as Claude, Cursor and Codex, the [MCP server](/docs/mcp-server) serves these tools over stdio.

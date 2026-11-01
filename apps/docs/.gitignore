@@ -1,0 +1,4 @@
+# Blume's generated Astro project and build output
+/.blume/
+/.astro/
+/dist/

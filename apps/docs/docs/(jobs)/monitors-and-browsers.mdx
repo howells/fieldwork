@@ -1,0 +1,64 @@
+---
+title: Monitors and browsers
+description: Watch a query or a page on a schedule with monitor, and open a remote browser for Playwright or Puppeteer with browser.
+---
+
+`monitor` and `browser` are groups of methods rather than single calls. Both create something that keeps running, and billing, until it is deleted, closed or expires.
+
+## Monitors
+
+A monitor repeats a search or a page check on a schedule and reports what changed. Exa, Firecrawl and Parallel offer monitors. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
+
+```ts
+const watch = await web.monitor.create({
+  urls: ["https://www.tilebar.com/portmore-aqua"],
+  query: "price or stock changes",
+  schedule: { every: "day" },
+  webhookUrl: "https://example.com/hooks/fieldwork",
+});
+
+const { events } = await web.monitor.events(watch.id);
+
+await web.monitor.delete(watch.id);
+```
+
+`monitor.get(id)` and `monitor.list()` read one monitor or all of them. `monitor.events(id)` returns what the monitor found, with `next` as a cursor for the next page.
+
+### Schedules
+
+A schedule is a named interval or a cron expression:
+
+```txt
+schedule: { every: "day" }
+schedule: { every: "6h" }
+schedule: { cron: "0 9 * * 1" }
+```
+
+A schedule the provider cannot express throws `InvalidRequest`.
+
+## Browsers
+
+`browser.open()` starts a remote browser and returns its Chrome DevTools Protocol URL, for Playwright or Puppeteer. Firecrawl and Browserbase offer browsers.
+
+```ts
+const session = await web.browser.open();
+// connect Playwright to session.cdpUrl
+await web.browser.close(session.id);
+```
+
+A session also carries `liveViewUrl`, where a person can watch it, and `expiresAt`, when the provider will close it, when the provider returns them.
+
+## Run one script
+
+`act(code)` runs one script in a fresh browser session and returns what it printed and returned. Firecrawl offers it.
+
+```ts
+const run = await web.act(script);
+
+run.stdout; // what the script printed
+run.result; // the value it returned
+```
+
+## For agents
+
+[Agent tools](/docs/agent-tools) leave monitors and browsers out unless you allow them, because each starts a remote browser or creates a lasting, billed resource.

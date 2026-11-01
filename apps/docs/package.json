@@ -1,0 +1,22 @@
+{
+  "name": "fieldwork-docs",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "blume dev",
+    "build": "blume build",
+    "typecheck": "tsc --noEmit",
+    "lint": "howells-check .",
+    "lint:fix": "howells-fix ."
+  },
+  "dependencies": {
+    "@howells/fieldwork-sdk": "workspace:*",
+    "blume": "catalog:"
+  },
+  "devDependencies": {
+    "@howells/lint": "catalog:",
+    "@howells/typescript-config": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:"
+  }
+}

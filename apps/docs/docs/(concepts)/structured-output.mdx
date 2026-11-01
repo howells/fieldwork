@@ -1,0 +1,45 @@
+---
+title: Structured output
+description: Pass a Zod, Valibot or ArkType schema, or plain JSON Schema, to get typed data back from extract, answer and research.
+---
+
+`schema` takes a plain JSON Schema, or a Zod, Valibot or ArkType schema. Any library that implements Standard Schema with JSON Schema support works.
+
+## With Zod
+
+```ts
+import { z } from "zod";
+
+const page = await web.extract(url, {
+  schema: z.object({ price: z.number(), title: z.string() }),
+});
+page.data; // { price: number; title: string }
+```
+
+Use the full `zod` package. `zod/mini` schemas do not write JSON Schema.
+
+Fieldwork turns the schema into the JSON Schema the provider reads, and checks the provider's output against your schema before returning it. `data` and `output` are what your schema returns, so defaults and transforms apply.
+
+## When the output doesn't match
+
+Output that does not match throws `ProviderError` with the first paths that failed:
+
+```txt
+price: Invalid input: expected number, received string
+```
+
+The error carries `jobId` when the call was a job, so you can [resume](/docs/long-jobs) it rather than paying for another run.
+
+## With plain JSON Schema
+
+A plain JSON Schema is sent as written and the output is not checked. Pass the type yourself:
+
+```ts
+const page = await web.extract<{ price: number }>(url, { schema });
+```
+
+Without a type argument, `data` is `unknown`. [Agent tools](/docs/agent-tools) take plain JSON Schema only.
+
+## What providers accept
+
+Providers differ in which keywords they accept. Exa reads draft 7 and the others draft 2020-12, and Fieldwork drops the `$schema` key. Tavily and Parallel accept only a subset, so keep schemas for them simple.

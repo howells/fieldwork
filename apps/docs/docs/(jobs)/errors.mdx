@@ -1,0 +1,64 @@
+---
+title: Errors and retries
+description: The one error type, its nine codes and what to do about each, and when Fieldwork repeats a failed request for you.
+---
+
+Every failure is a `FieldworkError`. It carries:
+
+- `code`, one of the codes below;
+- `provider` and the HTTP `status`;
+- `retryable`: whether repeating the same call can succeed;
+- `retryAfter`, in seconds, when the provider sent one;
+- `jobId`, when a job had already started;
+- the provider's response, as `cause`.
+
+`error.toJSON()` returns these fields without the provider's response.
+
+```ts
+import { FieldworkError } from "@howells/fieldwork-sdk";
+
+try {
+  await web.crawl("https://www.tilebar.com");
+} catch (error) {
+  if (error instanceof FieldworkError) {
+    error.code; // "RateLimited"
+    error.retryable; // true
+    error.retryAfter; // 30
+  }
+}
+```
+
+## Codes
+
+| Code | What happened | What to do |
+| --- | --- | --- |
+| `Unsupported` | The provider does not offer this capability. | Use an adapter that does. Nothing was sent. |
+| `Unauthorized` | The key is missing, wrong or not allowed. | Fix the key. Repeating does not help. |
+| `RateLimited` | A rate or plan limit was reached. | Wait `retryAfter` seconds, then repeat. |
+| `NotFound` | The page, product or job does not exist. | Check the URL or id. |
+| `InvalidRequest` | The input was refused, by Fieldwork or by the provider. | Correct the input; the message says what is wrong. |
+| `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
+| `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat. |
+| `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
+| `ProviderError` | Any other provider failure. | Repeat when `retryable` is true (5xx and network failures). |
+
+An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job. Pass the id as `resume` instead; see [Long jobs](/docs/long-jobs).
+
+## Retries
+
+Fieldwork repeats a request that fails in a way that can succeed on repeat, twice by default, before throwing: a rate limit, a 5xx or a dropped connection. It waits as long as the provider's `retry-after` asks, up to 30 seconds, or backs off from half a second with jitter. A provider that asks for a longer wait gets the `RateLimited` error at once, with `retryAfter` set.
+
+A request that starts a job, session or monitor, or runs a browser script, is repeated only after a rate limit. After a 5xx the provider may already have started it, and a second attempt could charge twice.
+
+`timeout` bounds the whole call, retries included, and `signal` stops the wait between attempts.
+
+Set `retries` on the adapter for every call, or on one call:
+
+```ts
+const web = new Fieldwork({ adapter: exa({ retries: 4 }) }); // every call
+await web.search("tiles", { retries: 0 }); // this call only
+```
+
+## For a model
+
+`toolError(error)` from `@howells/fieldwork-sdk/tools` formats any error for a model: the code, the message, whether to retry, and the `jobId` to resume. See [Agent tools](/docs/agent-tools).

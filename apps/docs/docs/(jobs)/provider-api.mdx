@@ -1,0 +1,28 @@
+---
+title: The provider's own API
+description: Call any endpoint of the provider's HTTP API with authentication applied, through web.raw.request, for anything Fieldwork does not wrap.
+---
+
+`web.raw.request(method, path, options)` calls the provider's HTTP API with authentication applied. Paths are relative to the provider's base URL.
+
+```ts
+const check = await new Fieldwork({ adapter: firecrawl() }).raw.request(
+  "GET",
+  `/monitor/${monitorId}/checks/${checkId}`
+);
+```
+
+`options` takes a JSON `body`, a multipart `form`, `query` parameters, and the same `signal`, `timeout` and `retries` every call accepts.
+
+## On a router
+
+On a [router](/docs/router), `raw` is keyed by provider name:
+
+```ts
+await web.raw.firecrawl.request(
+  "GET",
+  `/monitor/${monitorId}/checks/${checkId}`
+);
+```
+
+Only the providers the router has a route to appear on `raw`.

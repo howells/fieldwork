@@ -1,0 +1,41 @@
+---
+title: Keys
+description: The environment variable each adapter reads its API key from, and how to pass a key, a project or your own fetch in code.
+---
+
+Each adapter reads its key from the environment when you construct it.
+
+| Adapter | Environment variable |
+| --- | --- |
+| `exa()` | `EXA_API_KEY` |
+| `firecrawl()` | `FIRECRAWL_API_KEY` |
+| `tavily()` | `TAVILY_API_KEY` |
+| `parallel()` | `PARALLEL_API_KEY` |
+| `perplexity()` | `PERPLEXITY_API_KEY` |
+| `brave()` | `BRAVE_API_KEY` |
+| `serpapi()` | `SERPAPI_API_KEY` |
+| `browserbase()` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` |
+
+A missing key throws `Unauthorized` when the adapter is built, before any request.
+
+## Pass a key in code
+
+Pass `apiKey` to use a key from somewhere other than the environment, and Browserbase's `projectId` the same way:
+
+```ts
+const web = new Fieldwork({
+  adapter: browserbase({ apiKey: secrets.browserbase, projectId: "…" }),
+});
+```
+
+## Supply your own fetch
+
+Pass `fetch` to send requests through your own implementation, for logging, proxies or tests:
+
+```ts
+const web = new Fieldwork({ adapter: exa({ fetch: loggedFetch }) });
+```
+
+## Where the key goes
+
+Requests follow redirects only within the provider's origin. A redirect to any other host, scheme or port fails before the key is sent there.

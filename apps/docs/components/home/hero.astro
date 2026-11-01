@@ -1,0 +1,123 @@
+---
+import { CAPABILITY_ROWS, PROVIDERS } from "../../lib/capabilities";
+import { HERO_SAMPLES } from "../../lib/samples";
+import Code from "./code.astro";
+import Contours from "./contours.astro";
+import InstallCommand from "./install-command.astro";
+
+const STATS = [
+  { label: "Providers", value: PROVIDERS.length },
+  { label: "Capabilities", value: CAPABILITY_ROWS.length },
+  { label: "Dependency", value: 1 },
+  { label: "Error type", value: 1 },
+];
+
+const initial = HERO_SAMPLES.findIndex((sample) => sample.label === "Firecrawl");
+---
+
+<section class="relative overflow-clip">
+  <Contours class="top-[-30px] left-[37.5%] hidden md:block" />
+  <div class="home-wrap relative pt-12 pb-14 md:pt-[104px] md:pb-24">
+    <a
+      class="group inline-flex items-baseline gap-2.5 text-[14px] leading-[18px]"
+      href="/docs/capabilities"
+    >
+      <span class="font-medium text-map-blue">0.3</span>
+      <span class="text-graphite group-hover:text-ink">Answers, monitors, browsers and three more providers</span>
+      <span aria-hidden="true" class="text-ink transition-transform group-hover:translate-x-0.5">→</span>
+    </a>
+    <h1 class="mt-6 max-w-[1180px] font-display text-[48px] leading-[52px] font-light tracking-[-0.025em] text-ink md:mt-7 md:text-[72px] md:leading-[78px] xl:text-[88px] xl:leading-[92px]">
+      Search, read and research the web through one API.
+    </h1>
+
+    <div class="mt-8 flex flex-col gap-12 md:mt-[52px] lg:flex-row lg:items-start lg:justify-between lg:gap-14">
+      <div class="flex flex-col gap-8 pt-2 lg:w-[520px] lg:shrink-0 lg:gap-10">
+        <p class="text-[16px] leading-[26px] text-graphite md:text-[20px] md:leading-[31px]">
+          Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase behind the same methods. Each instance has only the methods its provider offers, and every result keeps the provider's own response.
+        </p>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <InstallCommand />
+          <a
+            class="inline-flex h-12 items-center justify-center rounded-[6px] border border-rule bg-paper px-[18px] text-[14px] font-medium text-ink transition-colors hover:border-[#c9cbc6]"
+            href="/docs"
+          >Read the docs</a>
+        </div>
+        <dl class="grid grid-cols-2 gap-y-6 border-t border-rule pt-6 sm:grid-cols-4">
+          {STATS.map((stat) => (
+            <div class="flex flex-col-reverse gap-1">
+              <dt class="text-[14px] leading-[18px] text-graphite">{stat.label}</dt>
+              <dd class="m-0 font-display text-[48px] leading-[52px] font-light tracking-[-0.02em] text-ink">{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div class="hero-panel min-w-0 overflow-clip rounded-[12px] border border-rule bg-paper lg:w-[672px] lg:shrink" data-provider-tabs>
+        <div class="flex h-[52px] items-center overflow-x-auto border-b border-rule bg-wash px-2" role="tablist" aria-label="Provider">
+          {HERO_SAMPLES.map((sample, index) => (
+            <button
+              aria-controls={`hero-sample-${index}`}
+              aria-selected={index === initial ? "true" : "false"}
+              class="provider-tab h-9 shrink-0 rounded-[6px] px-2.5 text-[14px] leading-[18px] text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
+              id={`hero-tab-${index}`}
+              role="tab"
+              tabindex={index === initial ? 0 : -1}
+              type="button"
+            >{sample.label}</button>
+          ))}
+        </div>
+        {HERO_SAMPLES.map((sample, index) => (
+          <div
+            aria-labelledby={`hero-tab-${index}`}
+            class="py-6 pr-7 pl-5"
+            hidden={index !== initial}
+            id={`hero-sample-${index}`}
+            role="tabpanel"
+          >
+            <Code code={sample.code} numbered />
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const bind = () => {
+    for (const root of document.querySelectorAll<HTMLElement>(
+      "[data-provider-tabs]:not([data-bound])"
+    )) {
+      root.dataset.bound = "";
+      const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      const select = (next: HTMLButtonElement) => {
+        for (const tab of tabs) {
+          const selected = tab === next;
+          tab.setAttribute("aria-selected", String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          const panel = root.querySelector<HTMLElement>(`#${tab.getAttribute("aria-controls") ?? ""}`);
+          if (panel) {
+            panel.hidden = !selected;
+          }
+        }
+      };
+      for (const [index, tab] of tabs.entries()) {
+        tab.addEventListener("click", () => select(tab));
+        tab.addEventListener("keydown", (event) => {
+          const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+          if (step === undefined) {
+            return;
+          }
+          event.preventDefault();
+          const next = tabs.at((index + step) % tabs.length);
+          if (next) {
+            select(next);
+            next.focus();
+          }
+        });
+      }
+    }
+  };
+
+  bind();
+  document.addEventListener("astro:page-load", bind);
+</script>

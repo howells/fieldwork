@@ -1,0 +1,26 @@
+---
+import { tokenize } from "../../lib/code";
+
+interface Props {
+  code: string;
+  /** "light" sets ink on paper; "dark" sets paper on an ink panel. */
+  tone?: "dark" | "light";
+  numbered?: boolean;
+  size?: "md" | "sm";
+  label?: string;
+}
+
+const { code, label, numbered = false, size = "md", tone = "light" } = Astro.props;
+const lines = tokenize(code);
+const text = size === "md" ? "text-[14px] leading-[26px]" : "text-[13px] leading-[22px]";
+---
+
+<pre
+  tabindex="0"
+  aria-label={label}
+  class:list={["code-tokens m-0 overflow-x-auto rounded-[4px] font-mono focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-map-blue", text, tone === "dark" ? "code-dark" : "code-light"]}
+><code class="grid">{lines.map((tokens, index) => (
+  <span class="flex">{numbered && (<span aria-hidden="true" class="code-gutter w-5 shrink-0 select-none text-right">{index + 1}</span>)}<span class:list={["whitespace-pre", numbered && "pl-5"]}>{tokens.length === 0 ? " " : tokens.map((token) => (
+    <span class={`tok-${token.kind}`}>{token.text}</span>
+  ))}</span></span>
+))}</code></pre>

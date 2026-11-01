@@ -1,0 +1,173 @@
+/*
+ * Fieldwork's theme, from the Paper design: ink on paper, a wash for quiet
+ * sections, one map blue, and contour lines as the only graphic. Signifier
+ * Light sets the display type, Inter the body, Geist Mono the code.
+ */
+
+@theme {
+  --color-paper: #ffffff;
+  --color-ink: #121417;
+  --color-graphite: #565b63;
+  --color-rule: #e4e5e2;
+  --color-wash: #f5f6f3;
+  --color-map-blue: #1f3fd1;
+  --color-contour: #dce3fb;
+}
+
+:root {
+  --blume-background: #ffffff;
+  --blume-foreground: #121417;
+  --blume-muted: #f5f6f3;
+  --blume-muted-foreground: #565b63;
+  --blume-border: #e4e5e2;
+  --blume-accent: #1f3fd1;
+  --blume-accent-foreground: #ffffff;
+  --blume-code-background: #f5f6f3;
+  --blume-radius: 0.375rem;
+}
+
+::selection {
+  background-color: var(--color-contour);
+  color: var(--color-ink);
+}
+
+/* Page frame: the design's 96px gutters on a 1440px board, narrowing with
+   the window. */
+@utility home-wrap {
+  margin-inline: auto;
+  max-width: 1440px;
+  padding-inline: 20px;
+
+  @variant md {
+    padding-inline: 48px;
+  }
+
+  @variant xl {
+    padding-inline: 96px;
+  }
+}
+
+@utility home-heading {
+  margin: 0;
+  color: var(--color-ink);
+  font-family: var(--blume-font-display);
+  font-size: 36px;
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  line-height: 40px;
+
+  @variant md {
+    font-size: 48px;
+    line-height: 54px;
+  }
+}
+
+@utility home-lead {
+  margin: 0;
+  color: var(--color-graphite);
+  font-size: 16px;
+  line-height: 26px;
+
+  @variant md {
+    font-size: 20px;
+    line-height: 31px;
+  }
+}
+
+.hero-panel {
+  box-shadow:
+    0 1px 2px rgb(18 20 23 / 4%),
+    0 24px 48px -24px rgb(18 20 23 / 18%);
+}
+
+/* Token colours for the home page's hand-set code (lib/code.ts). */
+.code-light {
+  --tok-plain: var(--color-ink);
+  --tok-keyword: var(--color-map-blue);
+  --tok-string: #2f6b4f;
+  --tok-comment: #6b7078;
+  --tok-gutter: #6b7078;
+}
+
+.code-dark {
+  --tok-plain: #e9eae6;
+  --tok-keyword: #8ea2ff;
+  --tok-string: #9fd3b0;
+  --tok-comment: #8b9199;
+  --tok-gutter: #8b9199;
+}
+
+.code-tokens {
+  color: var(--tok-plain);
+}
+
+.code-tokens .tok-keyword {
+  color: var(--tok-keyword);
+}
+
+.code-tokens .tok-string {
+  color: var(--tok-string);
+}
+
+.code-tokens .tok-comment {
+  color: var(--tok-comment);
+}
+
+.code-tokens .code-gutter {
+  color: var(--tok-gutter);
+}
+
+/* The install command's copy icon crossfades to a tick. */
+[data-install-command] :is(.copy-icon, .check-icon) {
+  transition: opacity 160ms ease-out;
+}
+
+[data-install-command] .check-icon,
+[data-install-command][data-copied] .copy-icon {
+  opacity: 0;
+}
+
+[data-install-command][data-copied] .check-icon {
+  opacity: 1;
+}
+
+/* Docs pages: Signifier Light for the page title and section headings, as in
+   the design; smaller headings stay in Inter so they read as labels. */
+.prose :where(h1, h2) {
+  font-weight: 300;
+  letter-spacing: -0.02em;
+}
+
+.prose :where(h3, h4) {
+  font-family: var(--blume-font-body);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* Geist Mono's ligatures join across Shiki's token spans; keep code literal. */
+code,
+pre,
+.font-mono {
+  font-feature-settings:
+    "liga" 0,
+    "calt" 0;
+  font-variant-ligatures: none;
+}
+
+/* Header, as in the design: a hairline under the bar and the one call to
+   action as an ink button rather than a blue pill. */
+[data-blume-header] {
+  border-bottom: 1px solid var(--color-rule);
+}
+
+[data-blume-header] a.bg-accent {
+  border-radius: 6px;
+  background-color: var(--color-ink);
+  color: var(--color-paper);
+  padding-block: 0.5rem;
+  padding-inline: 1rem;
+}
+
+[data-blume-header] a.bg-accent svg {
+  display: none;
+}

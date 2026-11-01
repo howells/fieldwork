@@ -1,0 +1,8 @@
+{
+  "extends": "@howells/typescript-config/bundler-no-dom-app",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0",
+    "types": ["node"]
+  },
+  "include": ["*.ts", "docs/**/*.ts", "lib/**/*.ts"]
+}

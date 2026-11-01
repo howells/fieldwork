@@ -1,0 +1,67 @@
+---
+title: Installation
+description: Install @howells/fieldwork-sdk, pick a provider's adapter and make a first call.
+---
+
+```package-install
+npm i @howells/fieldwork-sdk
+```
+
+Fieldwork is ESM only and needs Node 22 or later. Its one dependency is Zod.
+
+## Make a first call
+
+Import `Fieldwork` and one provider's adapter. Each adapter reads its key from the environment, so set the key before you construct it.
+
+```ts
+import { Fieldwork } from "@howells/fieldwork-sdk";
+import { exa } from "@howells/fieldwork-sdk/exa";
+
+// Reads EXA_API_KEY
+const web = new Fieldwork({ adapter: exa() });
+
+const { results } = await web.search("frost-proof porcelain tiles");
+```
+
+[Keys](/docs/keys) lists the environment variable for every provider, and how to pass a key in code instead.
+
+## Adapters
+
+Each provider is its own subpath, so you only load the adapters you import.
+
+| Provider | Import |
+| --- | --- |
+| Exa | `import { exa } from "@howells/fieldwork-sdk/exa"` |
+| Firecrawl | `import { firecrawl } from "@howells/fieldwork-sdk/firecrawl"` |
+| Tavily | `import { tavily } from "@howells/fieldwork-sdk/tavily"` |
+| Parallel | `import { parallel } from "@howells/fieldwork-sdk/parallel"` |
+| Perplexity | `import { perplexity } from "@howells/fieldwork-sdk/perplexity"` |
+| Brave | `import { brave } from "@howells/fieldwork-sdk/brave"` |
+| SerpApi | `import { serpapi } from "@howells/fieldwork-sdk/serpapi"` |
+| Browserbase | `import { browserbase } from "@howells/fieldwork-sdk/browserbase"` |
+
+`Fieldwork`, `router`, `runtimeRouter`, `FieldworkError` and the result types come from the package root. Agent tools come from `@howells/fieldwork-sdk/tools`.
+
+## Switch providers
+
+Change the adapter and keep the calls. Everything below the constructor stays the same, as long as the new provider offers the capability.
+
+```ts
+import { tavily } from "@howells/fieldwork-sdk/tavily";
+
+const web = new Fieldwork({ adapter: tavily() });
+
+const { results } = await web.search("frost-proof porcelain tiles");
+```
+
+If you call a method the new provider doesn't offer, TypeScript tells you before anything runs. [Capabilities](/docs/capabilities) shows what each provider has.
+
+## For an MCP client
+
+To give Claude, Cursor or Codex these capabilities as tools, run the MCP server instead of writing code:
+
+```sh
+npx -y @howells/fieldwork-mcp --provider firecrawl
+```
+
+[MCP server](/docs/mcp-server) covers choosing providers and configuring clients.

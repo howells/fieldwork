@@ -1,0 +1,46 @@
+---
+import PageLayout from "blume/components/layout/PageLayout.astro";
+import data from "blume:data";
+
+import CapabilityMatrix from "../components/home/capability-matrix.astro";
+import FinalCall from "../components/home/final-call.astro";
+import Hero from "../components/home/hero.astro";
+import Honest from "../components/home/honest.astro";
+import LongJobs from "../components/home/long-jobs.astro";
+import Router from "../components/home/router.astro";
+import Surfaces from "../components/home/surfaces.astro";
+import SiteFooter from "../components/site-footer.astro";
+
+const { config } = data;
+---
+
+<PageLayout
+  analytics={config.analytics}
+  appleIcon={config.appleIcon}
+  banner={config.banner}
+  favicon={config.favicon}
+  fontCssVars={data.fontCssVars}
+  logo={config.logo}
+  navigation={data.navigation}
+  ogEnabled={config.og.enabled}
+  page={{
+    description: config.description,
+    title: "Fieldwork · Search, read and research the web through one API",
+  }}
+  searchEnabled={config.search.enabled}
+  site={{ description: config.description, title: config.title }}
+  siteUrl={config.site}
+  themeMode={config.theme.mode}
+  ui={data.ui}
+>
+  <div class="home" data-home>
+    <Hero />
+    <CapabilityMatrix />
+    <Honest />
+    <Router />
+    <Surfaces />
+    <LongJobs />
+    <FinalCall />
+  </div>
+  <SiteFooter slot="footer" />
+</PageLayout>

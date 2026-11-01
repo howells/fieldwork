@@ -1,0 +1,23 @@
+---
+import Contours from "./contours.astro";
+import InstallCommand from "./install-command.astro";
+---
+
+<section class="relative overflow-clip border-t border-rule">
+  <Contours class="top-[-140px] left-[44%] hidden md:block" />
+  <div class="home-wrap relative py-16 md:py-[152px]">
+    <h2 class="m-0 max-w-[1000px] font-display text-[48px] leading-[52px] font-light tracking-[-0.025em] text-ink md:text-[72px] md:leading-[80px] xl:text-[88px] xl:leading-[92px]">
+      Choose a provider today. Change it whenever you like.
+    </h2>
+    <p class="mt-6 text-[16px] leading-[26px] text-graphite md:mt-9 md:text-[20px] md:leading-[31px]">
+      Open source under the MIT License. ESM only, Node 22 or later.
+    </p>
+    <div class="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center md:mt-10">
+      <InstallCommand />
+      <a
+        class="inline-flex h-12 items-center justify-center rounded-[6px] border border-rule bg-paper px-[18px] text-[14px] font-medium text-ink transition-colors hover:border-[#c9cbc6]"
+        href="/docs"
+      >Read the docs</a>
+    </div>
+  </div>
+</section>
