@@ -111,7 +111,7 @@ export const optionalScalar = z.optional(
 );
 
 /** A warning entry: a string as it is, or an object's non-empty `message`, else its non-empty `detail`. */
-const warningEntry = z.union([
+export const warningEntry = z.union([
   z.string(),
   z.pipe(
     looseObject({ detail: optionalString, message: optionalString }),
@@ -215,3 +215,13 @@ export const sourceShape = {
 export const Source = looseObject(sourceShape);
 
 export type SourceBlock = z.output<typeof Source>;
+
+/** A non-empty string, else a finite number, else undefined. */
+export const optionalStringOrNumber = z.optional(
+  z.union([nonEmptyString, z.number(), absent])
+);
+
+/** An object or an array as it arrived, or undefined for any other value, or an absent one. */
+export const optionalStructure = z.optional(
+  z.union([z.array(z.unknown()), z.record(z.string(), z.unknown()), absent])
+);

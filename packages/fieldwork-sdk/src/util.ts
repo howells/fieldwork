@@ -96,6 +96,12 @@ export const citationOf = (source: SourceBlock): Citation | undefined =>
         url: source.url,
       });
 
+/** The citations the parsed sources amount to; a source without a URL is left out. */
+export const citationsOf = (sources: readonly SourceBlock[]): Citation[] =>
+  sources
+    .map((source) => citationOf(source))
+    .filter((item): item is Citation => item !== undefined);
+
 export const citations = (value: unknown): Citation[] =>
   list(value)
     .map((item) => citation(item))

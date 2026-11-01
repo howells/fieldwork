@@ -1,3 +1,5 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
@@ -5,16 +7,12 @@ import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
   callSettings,
-  hours,
-  list,
-  num,
-  parseJson,
-  record,
-  requireId,
-  text,
-  uniqueCitations,
-  citations,
+  citationsOf,
   compact,
+  hours,
+  parseJson,
+  requireJobId,
+  uniqueCitations,
 } from "../util.js";
 import type {
   ExaAnswerOptions,
@@ -46,6 +44,16 @@ import {
   searchResult,
   statusReason,
 } from "./exa/parse.js";
+import {
+  AnswerResponse,
+  ContentsResponse,
+  MonitorEntry,
+  MonitorsPage,
+  RunEntry,
+  RunStart,
+  RunsPage,
+  SearchResponse,
+} from "./exa/response.js";
 
 export type {
   ExaAnswerOptions,
@@ -79,30 +87,30 @@ export const exa = (config: ExaConfig = {}) => {
     urls: string[],
     body: Record<string, unknown>,
     call: CallOptions
-  ) =>
-    record(
-      await raw.request("POST", "/contents", {
-        ...call,
-        body: { urls, ...body },
-      })
-    );
+  ) => {
+    const response = await raw.request("POST", "/contents", {
+      ...call,
+      body: { urls, ...body },
+    });
+    return { body: z.parse(ContentsResponse, response), response };
+  };
 
   const readOne = async (
     url: string,
     body: Record<string, unknown>,
     call: CallOptions
   ) => {
-    const response = await fetchContents([url], body, call);
-    const [failed] = failedStatuses(response);
+    const { body: parsed, response } = await fetchContents([url], body, call);
+    const [failed] = failedStatuses(parsed.statuses);
     if (failed) {
-      const error = record(failed.error);
+      const { httpStatusCode, tag } = failed.error;
       throw new FieldworkError(
-        failureCode(text(error.tag), num(error.httpStatusCode)),
+        failureCode(tag, httpStatusCode),
         `exa could not read ${url}: ${statusReason(failed)}`,
-        { cause: response, provider, status: num(error.httpStatusCode) }
+        { cause: response, provider, status: httpStatusCode }
       );
     }
-    const [result] = list(response.results);
+    const [result] = parsed.results;
     if (result === undefined) {
       throw new FieldworkError(
         "ProviderError",
@@ -110,7 +118,7 @@ export const exa = (config: ExaConfig = {}) => {
         { cause: response, provider }
       );
     }
-    return { response, result };
+    return { body: parsed, response, result: result.value };
   };
 
   const monitor: ExaMonitor = {
@@ -133,7 +141,14 @@ export const exa = (config: ExaConfig = {}) => {
         webhook: compact({ events: o.webhookEvents, url: o.webhookUrl }),
       });
       return monitorInfo(
-        await raw.request("POST", "/monitors", { creates: true, ...call, body })
+        z.parse(
+          MonitorEntry,
+          await raw.request("POST", "/monitors", {
+            creates: true,
+            ...call,
+            body,
+          })
+        )
       );
     },
 
@@ -144,15 +159,15 @@ export const exa = (config: ExaConfig = {}) => {
 
     async events(id, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("GET", `/monitors/${encodeURIComponent(id)}/runs`, {
-          ...call,
-          query: { cursor: o.cursor, limit: o.limit },
-        })
+      const response = await raw.request(
+        "GET",
+        `/monitors/${encodeURIComponent(id)}/runs`,
+        { ...call, query: { cursor: o.cursor, limit: o.limit } }
       );
+      const page = z.parse(RunsPage, response);
       return compact({
-        events: list(response.data).map((item) => monitorEvent(item)),
-        next: response.hasMore === true ? text(response.nextCursor) : undefined,
+        events: page.data.map((entry) => monitorEvent(entry)),
+        next: page.hasMore === true ? page.nextCursor : undefined,
         raw: response,
       });
     },
@@ -160,7 +175,10 @@ export const exa = (config: ExaConfig = {}) => {
     async get(id, options) {
       const { call } = callSettings(options);
       return monitorInfo(
-        await raw.request("GET", `/monitors/${encodeURIComponent(id)}`, call)
+        z.parse(
+          MonitorEntry,
+          await raw.request("GET", `/monitors/${encodeURIComponent(id)}`, call)
+        )
       );
     },
 
@@ -170,14 +188,15 @@ export const exa = (config: ExaConfig = {}) => {
       const seen = new Set<string>();
       let cursor: string | undefined;
       for (;;) {
-        const page = record(
+        const page = z.parse(
+          MonitorsPage,
           await raw.request("GET", "/monitors", {
             ...call,
             query: { cursor, limit: 100 },
           })
         );
-        monitors.push(...list(page.data).map((item) => monitorInfo(item)));
-        cursor = text(page.nextCursor);
+        monitors.push(...page.data.map((entry) => monitorInfo(entry)));
+        cursor = page.nextCursor;
         if (page.hasMore !== true || cursor === undefined || seen.has(cursor)) {
           return monitors;
         }
@@ -189,40 +208,42 @@ export const exa = (config: ExaConfig = {}) => {
   const operations: ExaOperations = {
     async answer<T>(question: string, options?: ExaAnswerOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/answer", {
-          ...call,
-          body: compact({
-            model: o.model,
-            outputSchema:
-              o.schema === undefined
-                ? undefined
-                : jsonSchemaOf(o.schema, "draft-07"),
-            query: question,
-            systemPrompt: o.systemPrompt,
-            userLocation:
-              o.country === undefined || o.country === ""
-                ? undefined
-                : { country: o.country },
-          }),
-        })
-      );
-      const { answer: value } = response;
-      const structured = typeof value === "object" && value !== null;
+      const response = await raw.request("POST", "/answer", {
+        ...call,
+        body: compact({
+          model: o.model,
+          outputSchema:
+            o.schema === undefined
+              ? undefined
+              : jsonSchemaOf(o.schema, "draft-07"),
+          query: question,
+          systemPrompt: o.systemPrompt,
+          userLocation:
+            o.country === undefined || o.country === ""
+              ? undefined
+              : { country: o.country },
+        }),
+      });
+      const body = z.parse(AnswerResponse, response);
+      const { structure } = body.answer;
       return compact({
-        answer: structured ? JSON.stringify(value) : (text(value) ?? ""),
-        citations: uniqueCitations(citations(response.citations)),
-        meta: responseMeta(response),
-        output: structured
-          ? await checkOutput(o.schema, value, { provider })
-          : undefined,
+        answer:
+          structure === undefined
+            ? (body.answer.text ?? "")
+            : JSON.stringify(structure),
+        citations: uniqueCitations(citationsOf(body.citations)),
+        meta: responseMeta(body),
+        output:
+          structure === undefined
+            ? undefined
+            : await checkOutput(o.schema, structure, { provider }),
         raw: response,
       });
     },
 
     async extract<T>(url: string, options: ExaExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const { response, result } = await readOne(
+      const { body, response, result } = await readOne(
         url,
         compact({
           maxAgeHours: hours(o.maxAge),
@@ -233,7 +254,7 @@ export const exa = (config: ExaConfig = {}) => {
         }),
         call
       );
-      const { summary } = record(result);
+      const { value: summary } = result.summary;
       if (summary === undefined) {
         throw new FieldworkError(
           "ProviderError",
@@ -245,7 +266,7 @@ export const exa = (config: ExaConfig = {}) => {
         data: await checkOutput(o.schema, parseJson(provider, summary), {
           provider,
         }),
-        meta: responseMeta(response),
+        meta: responseMeta(body),
         raw: response,
       });
     },
@@ -254,10 +275,11 @@ export const exa = (config: ExaConfig = {}) => {
 
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
-      const { response, result } = await readOne(url, readBody(o), call);
+      const { body, response, result } = await readOne(url, readBody(o), call);
       return compact({
-        ...pageFrom(url, result, response),
-        meta: responseMeta(response),
+        ...pageFrom(url, result),
+        meta: responseMeta(body),
+        raw: response,
       });
     },
 
@@ -269,15 +291,20 @@ export const exa = (config: ExaConfig = {}) => {
       if (urls.length > MAX_READ_URLS) {
         invalid(`readMany reads at most ${MAX_READ_URLS} URLs per call`);
       }
-      const response = await fetchContents(urls, readBody(o), call);
-      const failed: FailedUrl[] = failedStatuses(response).map((status) => ({
-        error: statusReason(status),
-        url: text(status.id) ?? "",
-      }));
+      const { body, response } = await fetchContents(urls, readBody(o), call);
+      const failed: FailedUrl[] = failedStatuses(body.statuses).map(
+        (status) => ({
+          error: statusReason(status),
+          url: status.id ?? "",
+        })
+      );
       return {
         failed,
-        meta: responseMeta(response),
-        pages: list(response.results).map((item) => pageFrom("", item, item)),
+        meta: responseMeta(body),
+        pages: body.results.map((entry) => ({
+          ...pageFrom("", entry.value),
+          raw: entry.original,
+        })),
         raw: response,
       };
     },
@@ -287,9 +314,10 @@ export const exa = (config: ExaConfig = {}) => {
       checkResearch(o);
       const id =
         o.resume ??
-        requireId(
+        requireJobId(
           provider,
-          record(
+          z.parse(
+            RunStart,
             await raw.request("POST", "/agent/runs", {
               creates: true,
               ...call,
@@ -301,21 +329,23 @@ export const exa = (config: ExaConfig = {}) => {
         provider,
         id,
         async () => {
-          const current = record(
+          const current = z.parse(
+            RunEntry,
             await raw.request("GET", `/agent/runs/${encodeURIComponent(id)}`, {
               signal: call.signal,
             })
           );
-          return current.status === "completed" ||
-            current.status === "failed" ||
-            current.status === "cancelled"
+          const { status } = current.value;
+          return status === "completed" ||
+            status === "failed" ||
+            status === "cancelled"
             ? current
             : undefined;
         },
         { ...call, interval: o.interval }
       );
       // A resumed run echoes the request it was started with.
-      const { outputSchema } = record(run.request);
+      const { outputSchema } = run.value.request;
       const structured =
         o.schema !== undefined ||
         (outputSchema !== undefined && outputSchema !== null);
@@ -332,38 +362,39 @@ export const exa = (config: ExaConfig = {}) => {
     async search(query, options) {
       const { call, rest: o } = callSettings(options);
       checkSearch(o);
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: compact({
-            additionalQueries: o.additionalQueries,
-            category: o.category,
-            contents: searchContents(o),
-            endPublishedDate: dateTime(o.publishedBefore, true),
-            excludeDomains: o.excludeDomains,
-            includeDomains: o.includeDomains,
-            moderation: o.moderation,
-            numResults: o.limit,
-            outputSchema: o.outputSchema,
-            query,
-            startPublishedDate: dateTime(o.publishedAfter, false),
-            systemPrompt: o.systemPrompt,
-            type: o.type,
-            userLocation:
-              o.country === undefined || o.country === ""
-                ? undefined
-                : { country: o.country },
-          }),
-        })
-      );
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: compact({
+          additionalQueries: o.additionalQueries,
+          category: o.category,
+          contents: searchContents(o),
+          endPublishedDate: dateTime(o.publishedBefore, true),
+          excludeDomains: o.excludeDomains,
+          includeDomains: o.includeDomains,
+          moderation: o.moderation,
+          numResults: o.limit,
+          outputSchema: o.outputSchema,
+          query,
+          startPublishedDate: dateTime(o.publishedAfter, false),
+          systemPrompt: o.systemPrompt,
+          type: o.type,
+          userLocation:
+            o.country === undefined || o.country === ""
+              ? undefined
+              : { country: o.country },
+        }),
+      });
+      const body = z.parse(SearchResponse, response);
       return compact({
-        answer: generatedAnswer(record(response.output)),
-        meta: responseMeta(response, [
-          ...list(response.warnings),
-          ...list(response.notices),
-        ]),
+        answer: generatedAnswer(body.output),
+        meta: responseMeta(
+          body,
+          [...body.warnings, ...body.notices].filter(
+            (note) => note !== undefined
+          )
+        ),
         raw: response,
-        results: list(response.results).map((item) => searchResult(item)),
+        results: body.results.map((item) => searchResult(item)),
       });
     },
   };

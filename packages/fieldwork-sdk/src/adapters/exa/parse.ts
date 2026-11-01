@@ -1,5 +1,6 @@
 import { FieldworkError } from "../../errors.js";
 import type { FieldworkErrorCode } from "../../errors.js";
+import type { Original } from "../../parse.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type {
   FieldSource,
@@ -11,19 +12,14 @@ import type {
   SearchResult,
 } from "../../types.js";
 import {
-  citations,
+  citationsOf,
   compact,
   hours,
-  list,
   meta,
-  num,
   record,
-  requireId,
-  strings,
-  text,
+  requireJobId,
   uniqueCitations,
 } from "../../util.js";
-import type { Json } from "../../util.js";
 import type {
   ExaHighlightOptions,
   ExaMonitorCreateOptions,
@@ -31,6 +27,16 @@ import type {
   ExaResearchOptions,
   ExaSearchOptions,
 } from "./options.js";
+import type {
+  MeteredBody,
+  MonitorBlock,
+  MonitorRunBlock,
+  ResultBlock,
+  RunBlock,
+  RunBody,
+  SearchBody,
+  UrlStatusBlock,
+} from "./response.js";
 
 export const provider = "exa";
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/u;
@@ -48,12 +54,10 @@ export const dateTime = (value: string | undefined, endOfDay: boolean) => {
   return endOfDay ? `${value}T23:59:59.999Z` : `${value}T00:00:00.000Z`;
 };
 
-const costOf = (response: Json) => num(record(response.costDollars).total);
-
-export const responseMeta = (response: Json, warnings?: unknown) =>
+export const responseMeta = (body: MeteredBody, warnings?: string[]) =>
   meta({
-    costUsd: costOf(response),
-    requestId: response.requestId,
+    costUsd: body.costDollars.total,
+    requestId: body.requestId,
     warnings,
   });
 
@@ -125,29 +129,30 @@ export const searchContents = (o: ExaSearchOptions) => {
   return Object.keys(contents).length > 0 ? contents : undefined;
 };
 
-export const searchResult = (item: unknown): SearchResult => {
-  const result = record(item);
-  return compact({
-    author: text(result.author),
-    content: text(result.text),
-    favicon: text(result.favicon),
-    image: text(result.image),
-    publishedAt: text(result.publishedDate),
-    score: num(result.score),
-    snippet: strings(result.highlights)?.join(" … "),
-    title: text(result.title),
-    url: text(result.url) ?? "",
+export const searchResult = (result: ResultBlock): SearchResult =>
+  compact({
+    author: result.author,
+    content: result.text,
+    favicon: result.favicon,
+    image: result.image,
+    publishedAt: result.publishedDate,
+    score: result.score,
+    snippet:
+      result.highlights.length > 0 ? result.highlights.join(" … ") : undefined,
+    title: result.title,
+    url: result.url ?? "",
   });
-};
 
-export const generatedAnswer = (output: Json): string | undefined => {
-  const { content } = output;
-  if (typeof content === "string") {
-    return text(content);
+export const generatedAnswer = (
+  output: SearchBody["output"]
+): string | undefined => {
+  const { text, value } = output.content;
+  if (text !== undefined) {
+    return text === "" ? undefined : text;
   }
-  return content === undefined || content === null
+  return value === undefined || value === null
     ? undefined
-    : JSON.stringify(content);
+    : JSON.stringify(value);
 };
 
 // --- contents ------------------------------------------------------------
@@ -187,60 +192,53 @@ export const failureCode = (
   return httpStatus === 408 || httpStatus === 504 ? "Timeout" : "ProviderError";
 };
 
-export const statusReason = (status: Json): string => {
-  const error = record(status.error);
-  const httpStatus = num(error.httpStatusCode);
+export const statusReason = (status: UrlStatusBlock): string => {
+  const { httpStatusCode, tag } = status.error;
   return (
-    text(error.tag) ??
-    (httpStatus === undefined ? undefined : `HTTP ${httpStatus}`) ??
-    text(status.status) ??
+    tag ??
+    (httpStatusCode === undefined ? undefined : `HTTP ${httpStatusCode}`) ??
+    status.status.text ??
     "unknown"
   );
 };
 
-export const failedStatuses = (response: Json): Json[] =>
-  list(response.statuses)
-    .map((item) => record(item))
-    .filter(
-      (status) => status.status !== undefined && status.status !== "success"
-    );
+export const failedStatuses = (
+  statuses: readonly UrlStatusBlock[]
+): UrlStatusBlock[] =>
+  statuses.filter(
+    ({ status }) => status.value !== undefined && status.value !== "success"
+  );
 
-export const pageFrom = (
-  url: string,
-  item: unknown,
-  rawValue: unknown
-): Page => {
-  const result = record(item);
-  const extras = record(result.extras);
-  return compact({
-    author: text(result.author),
-    excerpts: strings(result.highlights),
-    favicon: text(result.favicon),
-    image: text(result.image),
-    images: strings(extras.imageLinks),
-    links: strings(extras.links),
-    markdown: text(result.text),
-    publishedAt: text(result.publishedDate),
-    raw: rawValue,
-    summary: text(result.summary),
-    title: text(result.title),
-    url: text(result.url) ?? url,
+/** A page from a result; the caller adds `raw`. */
+export const pageFrom = (url: string, result: ResultBlock): Omit<Page, "raw"> =>
+  compact({
+    author: result.author,
+    excerpts: result.highlights.length > 0 ? result.highlights : undefined,
+    favicon: result.favicon,
+    image: result.image,
+    images:
+      result.extras.imageLinks.length > 0
+        ? result.extras.imageLinks
+        : undefined,
+    links: result.extras.links.length > 0 ? result.extras.links : undefined,
+    markdown: result.text,
+    publishedAt: result.publishedDate,
+    summary: result.summary.text,
+    title: result.title,
+    url: result.url ?? url,
   });
-};
 
 // --- research ------------------------------------------------------------
 
-const hasOutput = (run: Json, structured: boolean): boolean => {
-  const output = record(run.output);
-  return structured
-    ? output.structured !== undefined && output.structured !== null
-    : text(output.text) !== undefined;
-};
+const hasOutput = (run: RunBody, structured: boolean): boolean =>
+  structured
+    ? run.output.structured !== undefined && run.output.structured !== null
+    : run.output.text !== undefined;
 
-const runMeta = (run: Json) => {
-  const usage = record(run.usage);
+const runMeta = (run: RunBody) => {
+  const { usage } = run;
   return meta({
-    costUsd: costOf(run),
+    costUsd: run.costDollars.total,
     units: {
       agentComputeUnits: usage.agentComputeUnits,
       emails: usage.emails,
@@ -284,33 +282,32 @@ export const researchBody = (question: string, o: ExaResearchOptions) => {
 
 export const researchResult = (
   id: string,
-  run: Json,
+  entry: RunBlock,
   structured: boolean
 ): Research<unknown> => {
-  const stopReason = text(run.stopReason);
-  const status = text(run.status) ?? "unknown";
+  const run = entry.value;
+  const { stopReason } = run;
+  const status = run.status ?? "unknown";
   if (status !== "completed" && !hasOutput(run, structured)) {
-    const error = record(run.error);
-    const message = text(error.message);
+    const { error } = run;
     const detail =
-      message === undefined
+      error.message === undefined
         ? stopReason
-        : `${text(error.code) ?? text(error.type) ?? "error"}: ${message}`;
+        : `${error.code ?? error.type ?? "error"}: ${error.message}`;
     throw new FieldworkError(
       "JobFailed",
       `exa research run ${id} ended ${status}${detail === undefined ? "" : ` (${detail})`}`,
-      { cause: run, jobId: id, provider }
+      { cause: entry.original, jobId: id, provider }
     );
   }
-  const output = record(run.output);
-  const fields: FieldSource[] = list(output.grounding).map((item) => {
-    const grounding = record(item);
-    return compact({
-      citations: citations(grounding.citations),
-      confidence: text(grounding.confidence) ?? num(grounding.confidence),
-      field: text(grounding.field) ?? "",
-    });
-  });
+  const { output } = run;
+  const fields: FieldSource[] = output.grounding.map((grounding) =>
+    compact({
+      citations: citationsOf(grounding.citations),
+      confidence: grounding.confidence,
+      field: grounding.field ?? "",
+    })
+  );
   const finished =
     status === "completed" &&
     (stopReason === undefined || stopReason === "schema_satisfied");
@@ -320,7 +317,7 @@ export const researchResult = (
     id,
     meta: runMeta(run),
     output: structured ? output.structured : output.text,
-    raw: run,
+    raw: entry.original,
     sources: uniqueCitations(fields.flatMap((field) => field.citations)),
     status: finished ? ("completed" as const) : ("partial" as const),
     stopReason: finished ? undefined : (stopReason ?? status),
@@ -357,47 +354,48 @@ const intervalPeriod = (
 export const period = (schedule: ExaMonitorCreateOptions["schedule"]) =>
   schedule === undefined ? undefined : intervalPeriod(schedule);
 
-export const monitorInfo = (value: unknown): MonitorInfo => {
-  const found = record(value);
+export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
+  const found = entry.value;
   return compact({
-    createdAt: text(found.createdAt),
-    id: requireId(provider, found.id),
-    raw: value,
-    schedule: text(record(found.trigger).period),
-    status: text(found.status),
-    watch: text(record(found.search).query),
-    webhookUrl: text(record(found.webhook).url),
+    createdAt: found.createdAt,
+    id: requireJobId(provider, found.id),
+    raw: entry.original,
+    schedule: found.trigger.period,
+    status: found.status,
+    watch: found.search.query,
+    webhookUrl: found.webhook.url,
   });
 };
 
-const eventSummary = (run: Json, content: unknown): string | undefined => {
-  if (typeof content === "string") {
-    return text(content);
+const eventSummary = (run: MonitorRunBlock): string | undefined => {
+  const { text } = run.output.content;
+  if (text !== undefined) {
+    return text === "" ? undefined : text;
   }
   if (run.status === "failed") {
-    const reason = text(run.failReason);
-    return `Run failed${reason === undefined ? "" : `: ${reason}`}`;
+    return `Run failed${run.failReason === undefined ? "" : `: ${run.failReason}`}`;
   }
   return undefined;
 };
 
-export const monitorEvent = (item: unknown): MonitorEvent => {
-  const run = record(item);
-  const output = record(run.output);
-  const { content } = output;
+export const monitorEvent = (
+  entry: Original<MonitorRunBlock>
+): MonitorEvent => {
+  const run = entry.value;
+  const { text, value } = run.output.content;
   const grounded = uniqueCitations(
-    list(output.grounding).flatMap((entry) =>
-      citations(record(entry).citations)
+    run.output.grounding.flatMap((grounding) =>
+      citationsOf(grounding.citations)
     )
   );
   const structured =
-    content !== undefined && content !== null && typeof content !== "string";
+    text === undefined && value !== undefined && value !== null;
   return compact({
-    at: text(run.completedAt) ?? text(run.createdAt),
+    at: run.completedAt ?? run.createdAt,
     citations: grounded.length > 0 ? grounded : undefined,
-    id: text(run.id),
-    output: structured ? content : undefined,
-    raw: item,
-    summary: eventSummary(run, content),
+    id: run.id,
+    output: structured ? value : undefined,
+    raw: entry.original,
+    summary: eventSummary(run),
   });
 };
