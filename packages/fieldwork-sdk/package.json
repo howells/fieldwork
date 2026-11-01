@@ -1,0 +1,81 @@
+{
+  "name": "@howells/fieldwork-sdk",
+  "version": "0.1.0",
+  "description": "One API for web search, page reading, extraction, crawling, research, browser actions and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity.",
+  "keywords": [
+    "agents",
+    "exa",
+    "extraction",
+    "firecrawl",
+    "parallel",
+    "perplexity",
+    "research",
+    "scraping",
+    "sdk",
+    "tavily",
+    "web-search"
+  ],
+  "license": "MIT",
+  "author": "Daniel Howells",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/howells/fieldwork.git",
+    "directory": "packages/fieldwork-sdk"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./exa": {
+      "types": "./dist/exa.d.ts",
+      "import": "./dist/exa.js"
+    },
+    "./firecrawl": {
+      "types": "./dist/firecrawl.d.ts",
+      "import": "./dist/firecrawl.js"
+    },
+    "./tavily": {
+      "types": "./dist/tavily.d.ts",
+      "import": "./dist/tavily.js"
+    },
+    "./parallel": {
+      "types": "./dist/parallel.d.ts",
+      "import": "./dist/parallel.js"
+    },
+    "./perplexity": {
+      "types": "./dist/perplexity.d.ts",
+      "import": "./dist/perplexity.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsdown",
+    "lint": "howells-check .",
+    "lint:fix": "howells-fix .",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@howells/lint": "catalog:",
+    "@howells/typescript-config": "catalog:",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "fieldwork",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "prepare": "howells-husky",
+    "prepush": "pnpm typecheck && pnpm lint && pnpm test",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck"
+  },
+  "devDependencies": {
+    "@howells/husky": "catalog:",
+    "@howells/lint": "catalog:",
+    "@howells/typescript-config": "catalog:",
+    "husky": "catalog:",
+    "lint-staged": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  },
+  "lint-staged": {
+    "*.{js,ts,json,jsonc,md}": "howells-oxfmt --write"
+  },
+  "engines": {
+    "node": ">=24.15.0"
+  },
+  "packageManager": "pnpm@10.23.0"
+}

@@ -1,0 +1,6 @@
+{
+  "extends": "@howells/typescript-config/bundler-no-dom-app",
+  "compilerOptions": {
+    "ignoreDeprecations": "6.0"
+  }
+}

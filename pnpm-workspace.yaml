@@ -1,0 +1,14 @@
+packages:
+  - packages/*
+
+catalog:
+  "@howells/husky": "^0.2.5"
+  "@howells/lint": "^3.5.1"
+  "@howells/typescript-config": "^0.1.8"
+  "@types/node": "^26.6.2"
+  "husky": "^9.1.7"
+  "lint-staged": "^17.5.1"
+  "tsdown": "^0.23.0"
+  "turbo": "2.11.3"
+  "typescript": "7.0.2"
+  "vitest": "^5.0.1"
