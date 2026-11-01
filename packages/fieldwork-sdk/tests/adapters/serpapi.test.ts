@@ -917,7 +917,7 @@ describe("serpapi adapter: errors and setup", () => {
     const failure = await web.search("x").catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(FieldworkError);
     expect(failure).toMatchObject({ code: "Unauthorized", status: 401 });
-    expect((failure as Error).message).not.toContain("api_key=k");
+    expect(String(failure)).not.toContain("api_key=k");
   });
 
   it("maps a spent allowance to RateLimited", async () => {

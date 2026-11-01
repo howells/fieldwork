@@ -26,7 +26,7 @@ const refusesSearch = async (
   options: Record<string, unknown>,
   pattern: RegExp
 ) => {
-  await expect(web.search("tile", options as never)).rejects.toMatchObject({
+  await expect(web.search("tile", options)).rejects.toMatchObject({
     code: "InvalidRequest",
     message: expect.stringMatching(pattern),
   });
@@ -79,9 +79,10 @@ describe("exa search", () => {
   it("never sends the crawl-date or text-match fields Exa ignores or deprecates", async () => {
     const { web, calls } = client({ body: { results: [] } });
     await web.search("tile", {
+      // @ts-expect-error Exa's deprecated fields are not in the types
       crawledAfter: "2026-01-01",
       includeText: ["x"],
-    } as never);
+    });
     expect(nth(calls, 0).body).toStrictEqual({
       contents: { highlights: true },
       query: "tile",
@@ -156,10 +157,7 @@ describe("exa search", () => {
       warnings: ["x was ignored", "y was adjusted"],
     });
     expect(response.answer).toBeUndefined();
-    expect(
-      nth((response.raw as { results: { entities: unknown[] }[] }).results, 0)
-        .entities
-    ).toHaveLength(1);
+    expect(response.raw).toHaveProperty("results.0.entities.length", 1);
   });
 
   it("fills answer from the generated output", async () => {
@@ -755,9 +753,7 @@ describe("exa monitor", () => {
       watch: "glazed tile launches",
       webhookUrl: "https://hooks.test/exa",
     });
-    expect((info.raw as { webhookSecret: string }).webhookSecret).toBe(
-      "whsec_1"
-    );
+    expect(info.raw).toHaveProperty("webhookSecret", "whsec_1");
   });
 
   it.each([
@@ -791,7 +787,8 @@ describe("exa monitor", () => {
     const create = async (schedule: unknown) =>
       await web.monitor.create({
         query: "q",
-        schedule: schedule as never,
+        // @ts-expect-error each schedule is one the types refuse
+        schedule,
         webhookUrl: "https://hooks.test/exa",
       });
     await expect(create({ cron: "0 9 * * *" })).rejects.toMatchObject({

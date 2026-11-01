@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { parallel } from "../../src/adapters/parallel.js";
-import { Fieldwork } from "../../src/index.js";
+import { Fieldwork, FieldworkError } from "../../src/index.js";
 import { fakeFetch, nth } from "../helpers.js";
 
 const schema = {
@@ -1365,9 +1365,9 @@ describe("parallel monitor", () => {
     for (const [schedule] of frequencies) {
       await web.monitor.create({ query: "q", schedule });
     }
-    expect(
-      calls.map((call) => (call.body as { frequency: string }).frequency)
-    ).toStrictEqual(frequencies.map(([, expected]) => expected));
+    expect(calls.map((call) => call.body)).toMatchObject(
+      frequencies.map(([, frequency]) => ({ frequency }))
+    );
   });
 
   it("refuses schedules Parallel cannot express, before sending", async () => {
@@ -1404,12 +1404,11 @@ describe("parallel monitor", () => {
     const codes: unknown[] = [];
     for (const options of refused) {
       try {
-        await web.monitor.create(
-          options as Parameters<typeof web.monitor.create>[0]
-        );
+        // @ts-expect-error each set of options is one the types refuse
+        await web.monitor.create(options);
         codes.push("sent");
       } catch (error) {
-        codes.push((error as { code?: unknown }).code);
+        codes.push(error instanceof FieldworkError ? error.code : error);
       }
     }
     expect(codes).toStrictEqual(refused.map(() => "InvalidRequest"));

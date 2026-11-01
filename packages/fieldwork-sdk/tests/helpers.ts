@@ -14,13 +14,13 @@ interface Reply {
 export const fakeFetch = (...replies: Reply[]) => {
   const calls: RecordedCall[] = [];
   const queue = [...replies];
-  const fetchImpl = async (input: URL | string, init: RequestInit = {}) => {
+  const fetchImpl: typeof fetch = async (input, init = {}) => {
     const { body } = init;
     const call: RecordedCall = {
       body: typeof body === "string" ? JSON.parse(body) : body,
       headers: Object.fromEntries(new Headers(init.headers).entries()),
       method: init.method ?? "GET",
-      url: new URL(String(input)),
+      url: new URL(input instanceof Request ? input.url : input),
     };
     calls.push(call);
     const reply = queue.shift();
@@ -32,7 +32,7 @@ export const fakeFetch = (...replies: Reply[]) => {
       { headers: reply.headers, status: reply.status ?? 200 }
     );
   };
-  return { calls, fetch: fetchImpl as typeof fetch };
+  return { calls, fetch: fetchImpl };
 };
 
 /** The item at `index`, or a thrown error naming what is missing. */

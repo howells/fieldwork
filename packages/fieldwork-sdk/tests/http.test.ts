@@ -10,10 +10,10 @@ const KEY = "secret-key";
 describe("redirects", () => {
   it("asks fetch not to follow redirects itself", async () => {
     const modes: RequestInit["redirect"][] = [];
-    const fetch = (async (_input: URL | string, init: RequestInit = {}) => {
+    const fetch: typeof globalThis.fetch = async (_input, init = {}) => {
       modes.push(init.redirect);
       return Response.json({ results: [] });
-    }) as typeof globalThis.fetch;
+    };
     const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
     await web.search("tiles");
     expect(modes).toStrictEqual(["manual"]);

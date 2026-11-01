@@ -104,11 +104,13 @@ describe("brave adapter", () => {
       search: true,
       usage: false,
     });
-    await expect(
-      (web as unknown as { read: (url: string) => Promise<unknown> }).read(
-        "https://a.test"
-      )
-    ).rejects.toMatchObject({ code: "Unsupported" });
+    // Untyped JavaScript can still reach for a method Brave lacks.
+    const untyped: Pick<typeof web, "supports"> & {
+      read?: (url: string) => Promise<unknown>;
+    } = web;
+    await expect(untyped.read?.("https://a.test")).rejects.toMatchObject({
+      code: "Unsupported",
+    });
   });
 
   describe("search", () => {
@@ -261,7 +263,8 @@ describe("brave adapter", () => {
         calls.map((c) => c.url.searchParams.get("freshness"))
       ).toStrictEqual(["pd", "pw", "py"]);
       await expect(
-        web.search("a", { recency: "hour" as never })
+        // @ts-expect-error Brave has no hour recency
+        web.search("a", { recency: "hour" })
       ).rejects.toMatchObject({ code: "InvalidRequest" });
     });
 
@@ -381,13 +384,16 @@ describe("brave adapter", () => {
     it("refuses options an endpoint does not take, before sending", async () => {
       const { web, calls } = setup();
       await expect(
-        web.search("oak", { goggles: "x", vertical: "videos" } as never)
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { goggles: "x", vertical: "videos" })
       ).rejects.toThrow(/videos search does not accept goggles/u);
       await expect(
-        web.search("oak", { resultTypes: ["web"], vertical: "news" } as never)
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { resultTypes: ["web"], vertical: "news" })
       ).rejects.toThrow(/news search does not accept resultTypes/u);
       await expect(
-        web.search("oak", { vertical: "maps" } as never)
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { vertical: "maps" })
       ).rejects.toMatchObject({ code: "InvalidRequest" });
       expect(calls).toHaveLength(0);
     });
@@ -477,10 +483,12 @@ describe("brave adapter", () => {
     it("refuses web-only options on a content search, before sending", async () => {
       const { web, calls } = setup();
       await expect(
-        web.search("oak", { content: true, offset: 1 } as never)
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { content: true, offset: 1 })
       ).rejects.toThrow(/context search does not accept offset/u);
       await expect(
-        web.search("oak", { content: true, vertical: "news" } as never)
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { content: true, vertical: "news" })
       ).rejects.toThrow(/context search does not accept vertical/u);
       expect(calls).toHaveLength(0);
     });

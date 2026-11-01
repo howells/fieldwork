@@ -258,12 +258,11 @@ describe("firecrawl search", () => {
       publishedBefore: "2026-03-31",
     });
     await web.search("tile", { publishedAfter: "2026-01-05" });
-    expect((nth(calls, 0).body as { tbs: string }).tbs).toBe(
+    expect(nth(calls, 0).body).toHaveProperty(
+      "tbs",
       "cdr:1,cd_min:01/05/2026,cd_max:03/31/2026"
     );
-    expect((nth(calls, 1).body as { tbs: string }).tbs).toBe(
-      "cdr:1,cd_min:01/05/2026"
-    );
+    expect(nth(calls, 1).body).toHaveProperty("tbs", "cdr:1,cd_min:01/05/2026");
   });
 
   const refusals: [string, FirecrawlSearchOptions][] = [
@@ -482,12 +481,14 @@ describe("firecrawl read", () => {
       query: "What size?",
       queryFormat: "question",
     });
-    expect(
-      (nth(calls, 0).body as { formats: unknown[] }).formats
-    ).toStrictEqual(["markdown", { query: "What size?", type: "highlights" }]);
-    expect(
-      (nth(calls, 1).body as { formats: unknown[] }).formats
-    ).toStrictEqual(["markdown", { question: "What size?", type: "question" }]);
+    expect(nth(calls, 0).body).toHaveProperty("formats", [
+      "markdown",
+      { query: "What size?", type: "highlights" },
+    ]);
+    expect(nth(calls, 1).body).toHaveProperty("formats", [
+      "markdown",
+      { question: "What size?", type: "question" },
+    ]);
     expect(highlighted.excerpts).toStrictEqual(["The tile is 3x8."]);
     expect(answered.excerpts).toStrictEqual(["3x8 inches"]);
   });
@@ -1242,7 +1243,9 @@ describe("firecrawl parse", () => {
     }
     const file = form.get("file");
     expect(file).toMatchObject({ name: "care.pdf", type: "application/pdf" });
-    expect(JSON.parse(form.get("options") as string)).toStrictEqual({
+    await expect(
+      new Response(form.get("options")).json()
+    ).resolves.toStrictEqual({
       formats: ["markdown"],
       parsers: [
         {
@@ -1301,10 +1304,12 @@ describe("firecrawl parse", () => {
       });
     }
     expect(
-      calls.map((call) => ((call.body as FormData).get("file") as File).type)
-    ).toStrictEqual(
+      calls.map((call) =>
+        call.body instanceof FormData ? call.body.get("file") : undefined
+      )
+    ).toMatchObject(
       // A Blob stores its content type in lower case, which MIME types allow.
-      Object.values(types).map((type) => type.toLowerCase())
+      Object.values(types).map((type) => ({ type: type.toLowerCase() }))
     );
   });
 
@@ -1404,19 +1409,14 @@ describe("firecrawl monitor", () => {
       { body: created },
       { body: created }
     );
-    const crons: string[] = [];
     for (const every of ["hour", "day", "week", "1h"] as const) {
       await web.monitor.create({ schedule: { every }, urls: [url] });
-      crons.push(
-        (nth(calls, -1).body as { schedule: { cron: string } }).schedule.cron
-      );
     }
-    expect(crons).toStrictEqual([
-      "0 * * * *",
-      "0 0 * * *",
-      "0 0 * * 0",
-      "0 * * * *",
-    ]);
+    expect(calls.map((call) => call.body)).toMatchObject(
+      ["0 * * * *", "0 0 * * *", "0 0 * * 0", "0 * * * *"].map((cron) => ({
+        schedule: { cron },
+      }))
+    );
     const refused = { code: "InvalidRequest" };
     for (const schedule of [
       { every: "5h" },
