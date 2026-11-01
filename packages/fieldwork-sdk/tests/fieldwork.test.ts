@@ -16,7 +16,7 @@ import { fakeFetch, nth } from "./helpers.js";
 describe("a Fieldwork instance", () => {
   it("exposes only the capabilities its provider offers", () => {
     const web = new Fieldwork({
-      adapter: tavily({ apiKey: "k", fetch: fakeFetch().fetch }),
+      adapter: tavily({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
     });
     expect(web.provider).toBe("tavily");
     expect(web.capabilities).toStrictEqual({
@@ -43,7 +43,9 @@ describe("a Fieldwork instance", () => {
 
   it("refuses an unsupported capability at runtime instead of falling back", async () => {
     const { fetch, calls } = fakeFetch();
-    const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: tavily({ apiKey: "k", fetch, retries: 0 }),
+    });
     // @ts-expect-error Tavily has no browser, so act does not exist on this instance.
     // oxlint-disable-next-line typescript/no-unsafe-call -- calling the missing method is the point of the test
     const attempt = web.act("return 1");
@@ -56,7 +58,7 @@ describe("a Fieldwork instance", () => {
 
   it("types each call with its provider's own options", () => {
     const web = new Fieldwork({
-      adapter: exa({ apiKey: "k", fetch: fakeFetch().fetch }),
+      adapter: exa({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
     });
     // @ts-expect-error Exa search has no `topic`; that is a Tavily option.
     void web.search("tiles", { topic: "news" }).catch(() => null);
@@ -83,7 +85,9 @@ describe("a Fieldwork instance", () => {
       { body: { detail: { error: "plan limit" } }, status: 432 },
       { body: { message: "bad key" }, status: 401 }
     );
-    const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: tavily({ apiKey: "k", fetch, retries: 0 }),
+    });
     await expect(web.search("a")).rejects.toMatchObject({
       code: "RateLimited",
       retryAfter: 3,
@@ -115,8 +119,8 @@ describe("routing by capability", () => {
     });
     const web = new Fieldwork({
       adapter: router({
-        read: firecrawl({ apiKey: "f", fetch: readFetch.fetch }),
-        search: parallel({ apiKey: "p", fetch: searchFetch.fetch }),
+        read: firecrawl({ apiKey: "f", fetch: readFetch.fetch, retries: 0 }),
+        search: parallel({ apiKey: "p", fetch: searchFetch.fetch, retries: 0 }),
       }),
     });
     const found = await web.search("a");
@@ -135,19 +139,23 @@ describe("routing by capability", () => {
     expect(() =>
       router({
         // @ts-expect-error Perplexity has no crawl.
-        crawl: perplexity({ apiKey: "k", fetch: fakeFetch().fetch }),
+        crawl: perplexity({
+          apiKey: "k",
+          fetch: fakeFetch().fetch,
+          retries: 0,
+        }),
       })
     ).toThrow(/does not offer crawl/u);
   });
 
   it("checks routes built at run time when the router is built", () => {
     const routes = {
-      crawl: perplexity({ apiKey: "k", fetch: fakeFetch().fetch }),
+      crawl: perplexity({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
     };
     expect(() => runtimeRouter(routes)).toThrow(/does not offer crawl/u);
     const web = new Fieldwork({
       adapter: runtimeRouter({
-        read: firecrawl({ apiKey: "k", fetch: fakeFetch().fetch }),
+        read: firecrawl({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
       }),
     });
     expect(web.providerFor("read")).toBe("firecrawl");

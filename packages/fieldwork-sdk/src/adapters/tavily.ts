@@ -59,6 +59,7 @@ export const tavily = (config: TavilyConfig = {}) => {
       }).filter((entry): entry is [string, string] => entry[1] !== undefined)
     ),
     provider,
+    retries: config.retries,
   });
 
   const operations: TavilyOperations = {
@@ -239,6 +240,7 @@ export const tavily = (config: TavilyConfig = {}) => {
           provider,
           record(
             await raw.request("POST", "/research", {
+              creates: true,
               ...call,
               body: compact({
                 citation_format: o.citationFormat,

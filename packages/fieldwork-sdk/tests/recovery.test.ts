@@ -39,7 +39,9 @@ describe("retrying and recovering", () => {
       { body: { id: "run_9" } },
       { body: { id: "run_9", status: "running" } }
     );
-    const web = new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: "k", fetch, retries: 0 }),
+    });
     const attempt = web.research("Which tiles are frost resistant?", {
       interval: 5,
       timeout: 1,
@@ -59,7 +61,9 @@ describe("retrying and recovering", () => {
         status: "completed",
       },
     });
-    const web = new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: "k", fetch, retries: 0 }),
+    });
     const research = await web.research("ignored", { resume: "run_9" });
     expect(research.output).toBe("Porcelain.");
     expect(
@@ -72,7 +76,9 @@ describe("retrying and recovering", () => {
       { body: { request_id: "req_4" } },
       { body: { error: "bad gateway" }, status: 502 }
     );
-    const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: tavily({ apiKey: "k", fetch, retries: 0 }),
+    });
     await expect(web.research("question")).rejects.toMatchObject({
       code: "ProviderError",
       jobId: "req_4",
@@ -91,7 +97,9 @@ describe("retrying and recovering", () => {
       },
       { body: { errors: [], robotsBlocked: [] } }
     );
-    const web = new Fieldwork({ adapter: firecrawl({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: firecrawl({ apiKey: "k", fetch, retries: 0 }),
+    });
     const crawl = await web.crawl("https://a.test/", { resume: "crawl_2" });
     expect(crawl.pages[0]?.markdown).toBe("# Home");
     expect(calls[0]?.url.pathname).toBe("/v2/crawl/crawl_2");
@@ -103,7 +111,9 @@ describe("retrying and recovering", () => {
       { body: { run_id: "trun_7" } },
       { body: { error: "expired key" }, status: 401 }
     );
-    const web = new Fieldwork({ adapter: parallel({ apiKey: "k", fetch }) });
+    const web = new Fieldwork({
+      adapter: parallel({ apiKey: "k", fetch, retries: 0 }),
+    });
     await expect(web.research("question")).rejects.toMatchObject({
       code: "Unauthorized",
       jobId: "trun_7",

@@ -64,6 +64,7 @@ export const brave = (config: BraveConfig = {}) => {
       ),
     },
     provider,
+    retries: config.retries,
   });
 
   const operations: BraveOperations = {

@@ -14,7 +14,9 @@ describe("redirects", () => {
       modes.push(init.redirect);
       return Response.json({ results: [] });
     };
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await web.search("tiles");
     expect(modes).toStrictEqual(["manual"]);
   });
@@ -24,7 +26,9 @@ describe("redirects", () => {
       headers: { location: "https://elsewhere.test/search" },
       status: 302,
     });
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await expect(web.search("tiles")).rejects.toMatchObject({
       code: "ProviderError",
       message: expect.stringContaining("https://elsewhere.test"),
@@ -39,7 +43,9 @@ describe("redirects", () => {
       headers: { location: "http://api.exa.ai/search" },
       status: 301,
     });
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await expect(web.search("tiles")).rejects.toMatchObject({
       code: "ProviderError",
     });
@@ -51,7 +57,9 @@ describe("redirects", () => {
       headers: { location: "https://elsewhere.test/search" },
       status: 307,
     });
-    const web = new Fieldwork({ adapter: serpapi({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: serpapi({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await expect(web.search("tiles")).rejects.toMatchObject({
       code: "ProviderError",
     });
@@ -65,7 +73,9 @@ describe("redirects", () => {
       { headers: { location: "/v2/search" }, status: 307 },
       { body: { results: [{ url: "https://a.test" }] } }
     );
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     const { results } = await web.search("tiles");
     expect(results[0]?.url).toBe("https://a.test");
     expect(calls).toHaveLength(2);
@@ -80,7 +90,9 @@ describe("redirects", () => {
       { headers: { location: "/result/1" }, status: 303 },
       { body: { results: [] } }
     );
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await web.search("tiles");
     expect(calls[1]).toMatchObject({ body: undefined, method: "GET" });
   });
@@ -88,7 +100,9 @@ describe("redirects", () => {
   it("stops after five redirects", async () => {
     const loop = { headers: { location: "/search" }, status: 302 };
     const { calls, fetch } = fakeFetch(loop, loop, loop, loop, loop, loop);
-    const web = new Fieldwork({ adapter: exa({ apiKey: KEY, fetch }) });
+    const web = new Fieldwork({
+      adapter: exa({ apiKey: KEY, fetch, retries: 0 }),
+    });
     await expect(web.search("tiles")).rejects.toMatchObject({
       code: "ProviderError",
       message: expect.stringContaining("more than 5"),

@@ -8,6 +8,13 @@ export interface RequestOptions extends CallOptions {
   /** A multipart body, sent as is. */
   form?: FormData;
   query?: Record<string, string | number | boolean | undefined>;
+  /**
+   * The request creates a job, session or monitor that the provider bills for
+   * or keeps. After a 5xx or a dropped connection the provider may already
+   * have created it, so only a rate limit, which it has certainly not acted
+   * on, is retried.
+   */
+  creates?: boolean;
 }
 
 /**
@@ -30,7 +37,64 @@ export interface ClientConfig {
   baseUrl: string;
   headers: Record<string, string>;
   fetch?: typeof fetch;
+  /** Repeats of a failed request; see `CallOptions.retries`. */
+  retries?: number;
 }
+
+/** How many times a request that can succeed on repeat is retried by default. */
+export const DEFAULT_RETRIES = 2;
+
+const sleep = async (ms: number, signal?: AbortSignal) => {
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      "abort",
+      () => {
+        clearTimeout(timer);
+        resolve();
+      },
+      { once: true }
+    );
+  });
+};
+
+/** The longest wait between attempts; a provider asking for longer gets the error instead. */
+const MAX_RETRY_WAIT = 30_000;
+const FIRST_RETRY_WAIT = 500;
+
+interface RetryState {
+  count: number;
+  retries: number;
+  creates: boolean;
+  signal: AbortSignal | undefined;
+}
+
+/**
+ * Milliseconds to wait before repeating a failed request, or undefined when it
+ * should not be repeated: the attempts are used up, the call was cancelled or
+ * timed out, the failure would recur, or the request created something.
+ */
+const retryDelay = (
+  error: FieldworkError,
+  state: RetryState
+): number | undefined => {
+  if (
+    state.count >= state.retries ||
+    state.signal?.aborted === true ||
+    !error.retryable ||
+    error.code === "Timeout" ||
+    (state.creates && error.code !== "RateLimited")
+  ) {
+    return undefined;
+  }
+  if (error.retryAfter !== undefined) {
+    const asked = error.retryAfter * 1000;
+    return asked > MAX_RETRY_WAIT ? undefined : asked;
+  }
+  // Exponential backoff with jitter, so clients that failed together spread out.
+  const ceiling = Math.min(MAX_RETRY_WAIT, FIRST_RETRY_WAIT * 2 ** state.count);
+  return ceiling / 2 + Math.random() * (ceiling / 2);
+};
 
 export const createRawClient = (config: ClientConfig): RawClient => {
   const doFetch = config.fetch ?? globalThis.fetch;
@@ -75,14 +139,18 @@ export const createRawClient = (config: ClientConfig): RawClient => {
           throw transportError(config.provider, error, options.signal);
         }
       };
-      const response = await followRedirects(config.provider, send, {
-        body,
-        method,
-        url,
-      });
-      const text = await response.text();
-      const parsed = parseBody(text);
-      if (!response.ok) {
+      const once = async () => {
+        const response = await followRedirects(config.provider, send, {
+          body,
+          method,
+          url,
+        });
+        const text = await response.text();
+        const parsed = parseBody(text);
+        if (response.ok) {
+          // SAFETY: the caller names T, the shape it expects of this endpoint's JSON; the client does not validate the body against it.
+          return parsed as T;
+        }
         throw new FieldworkError(
           codeForStatus(response.status),
           `${config.provider} ${method} ${path} returned ${response.status}: ${describe(parsed, text)}`,
@@ -93,9 +161,36 @@ export const createRawClient = (config: ClientConfig): RawClient => {
             status: response.status,
           }
         );
-      }
-      // SAFETY: the caller names T, the shape it expects of this endpoint's JSON; the client does not validate the body against it.
-      return parsed as T;
+      };
+      const retries = options.retries ?? config.retries ?? DEFAULT_RETRIES;
+      const attempt = async (count: number): Promise<T> => {
+        try {
+          return await once();
+        } catch (error) {
+          if (!(error instanceof FieldworkError)) {
+            throw error;
+          }
+          const wait = retryDelay(error, {
+            count,
+            creates: options.creates === true,
+            retries,
+            signal,
+          });
+          if (wait === undefined) {
+            throw error;
+          }
+          await sleep(wait, signal);
+          if (options.signal?.aborted === true) {
+            throw new FieldworkError(
+              "Aborted",
+              `${config.provider} request was cancelled while waiting to retry`,
+              { cause: error, provider: config.provider }
+            );
+          }
+          return await attempt(count + 1);
+        }
+      };
+      return await attempt(0);
     },
   };
 };
@@ -279,20 +374,6 @@ export const poll = async <T>(
     }
     await sleep(interval, options.signal);
   }
-};
-
-const sleep = async (ms: number, signal?: AbortSignal) => {
-  await new Promise<void>((resolve) => {
-    const timer = setTimeout(resolve, ms);
-    signal?.addEventListener(
-      "abort",
-      () => {
-        clearTimeout(timer);
-        resolve();
-      },
-      { once: true }
-    );
-  });
 };
 
 export const requireKey = (

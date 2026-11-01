@@ -12,6 +12,8 @@ export interface BraveConfig {
   /** Defaults to https://api.search.brave.com/res/v1. */
   baseUrl?: string;
   fetch?: typeof fetch;
+  /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
+  retries?: number;
 }
 
 export type BraveSafeSearch = "off" | "moderate" | "strict";

@@ -17,7 +17,9 @@ const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
-    web: new Fieldwork({ adapter: perplexity({ apiKey: "k", fetch }) }),
+    web: new Fieldwork({
+      adapter: perplexity({ apiKey: "k", fetch, retries: 0 }),
+    }),
   };
 };
 

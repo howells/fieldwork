@@ -20,8 +20,8 @@ import {
   scholarResults,
   shoppingResults,
   webResults,
+  invalid,
 } from "./parse.js";
-import { invalid } from "./parse.js";
 
 export type Query = Record<string, string | number | boolean | undefined>;
 

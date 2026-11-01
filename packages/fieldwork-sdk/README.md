@@ -177,6 +177,17 @@ Every failure is a `FieldworkError`. It carries:
 
 An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job.
 
+### Retries
+
+Fieldwork repeats a request that fails in a way that can succeed on repeat, twice by default, before throwing: a rate limit, a 5xx or a dropped connection. It waits as long as the provider's `retry-after` asks, up to 30 seconds, or backs off from half a second with jitter. A provider that asks for a longer wait gets the `RateLimited` error at once, with `retryAfter` set.
+
+A request that starts a job, session or monitor, or runs a browser script, is repeated only after a rate limit. After a 5xx the provider may already have started it, and a second attempt could charge twice. `timeout` bounds the whole call, retries included, and `signal` stops the wait between attempts.
+
+```ts
+const web = new Fieldwork({ adapter: exa({ retries: 4 }) }); // every call
+await web.search("tiles", { retries: 0 }); // this call only
+```
+
 ## Agent tools
 
 `@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method: `search_web`, `search_images`, `read_page`, `read_pages`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `answer_question`, `research_question`, `find_entities`, `make_decisions`, `parse_document`, `check_usage`, `run_browser_script`, `open_browser`, `close_browser`, `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. Each tool has:

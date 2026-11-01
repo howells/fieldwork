@@ -35,6 +35,8 @@ export interface PerplexityConfig {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
+  retries?: number;
 }
 
 /** The filters Perplexity applies to web search, on `/search` and inside the Agent API's `web_search` tool. */
@@ -453,6 +455,7 @@ const startResearch = async (
   }
   const created = record(
     await raw.request("POST", "/v1/agent", {
+      creates: true,
       ...call,
       body: compact({
         ...researchSetup(o),
@@ -630,6 +633,7 @@ export const perplexity = (config: PerplexityConfig = {}) => {
       authorization: `Bearer ${requireKey(provider, config.apiKey, "PERPLEXITY_API_KEY")}`,
     },
     provider,
+    retries: config.retries,
   });
 
   const operations: PerplexityOperations = {

@@ -67,6 +67,7 @@ export const runTask = async (
       record(
         await raw.request("POST", "/v1/tasks/runs", {
           body,
+          creates: true,
           signal: wait.signal,
           timeout: wait.timeout,
         })
@@ -107,6 +108,7 @@ export const startFindAll = async (
 ): Promise<string> => {
   const created = record(
     await raw.request("POST", "/v1beta/findall/runs", {
+      creates: true,
       ...call,
       body: compact({
         entity_type: o.entityType,
@@ -130,6 +132,7 @@ export const startFindAll = async (
           output_schema: jsonOutput(o.schema),
           processor: o.processor,
         }),
+        creates: true,
         signal: call.signal,
       });
     } catch (error) {

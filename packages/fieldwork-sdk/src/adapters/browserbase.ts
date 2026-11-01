@@ -33,6 +33,8 @@ export interface BrowserbaseConfig {
   projectId?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
+  retries?: number;
 }
 
 /** Where Browserbase's proxy network exits, as a country with optional state and city. */
@@ -163,6 +165,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       ),
     },
     provider,
+    retries: config.retries,
   });
   // oxlint-disable-next-line no-restricted-properties -- the SDK reads API keys and ids from the environment, like requireKey
   const projectId = config.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
@@ -246,6 +249,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
         });
         const session = record(
           await raw.request("POST", "/v1/sessions", {
+            creates: true,
             ...call,
             body: compact({
               browserSettings:

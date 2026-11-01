@@ -21,18 +21,41 @@ type Factory = (fetchImpl: Fetch) => AnyAdapter;
 
 /** Every provider, built with a fake fetch and no network. */
 const FACTORIES = new Map<string, Factory>([
-  ["brave", (fetchImpl) => brave({ apiKey: "k", fetch: fetchImpl })],
+  [
+    "brave",
+    (fetchImpl) => brave({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
   [
     "browserbase",
     (fetchImpl) =>
-      browserbase({ apiKey: "k", fetch: fetchImpl, projectId: "p" }),
+      browserbase({
+        apiKey: "k",
+        fetch: fetchImpl,
+        projectId: "p",
+        retries: 0,
+      }),
   ],
-  ["exa", (fetchImpl) => exa({ apiKey: "k", fetch: fetchImpl })],
-  ["firecrawl", (fetchImpl) => firecrawl({ apiKey: "k", fetch: fetchImpl })],
-  ["parallel", (fetchImpl) => parallel({ apiKey: "k", fetch: fetchImpl })],
-  ["perplexity", (fetchImpl) => perplexity({ apiKey: "k", fetch: fetchImpl })],
-  ["serpapi", (fetchImpl) => serpapi({ apiKey: "k", fetch: fetchImpl })],
-  ["tavily", (fetchImpl) => tavily({ apiKey: "k", fetch: fetchImpl })],
+  ["exa", (fetchImpl) => exa({ apiKey: "k", fetch: fetchImpl, retries: 0 })],
+  [
+    "firecrawl",
+    (fetchImpl) => firecrawl({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "parallel",
+    (fetchImpl) => parallel({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "perplexity",
+    (fetchImpl) => perplexity({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "serpapi",
+    (fetchImpl) => serpapi({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "tavily",
+    (fetchImpl) => tavily({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
 ]);
 
 /** A Fieldwork instance for one provider, on the given fetch. */

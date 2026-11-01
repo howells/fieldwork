@@ -6,7 +6,9 @@ import { fakeFetch, nth } from "../helpers.js";
 
 const setup = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
-  const web = new Fieldwork({ adapter: brave({ apiKey: "k", fetch }) });
+  const web = new Fieldwork({
+    adapter: brave({ apiKey: "k", fetch, retries: 0 }),
+  });
   return { calls, web };
 };
 

@@ -10,7 +10,7 @@ const client = (
 ) => {
   const { fetch, calls } = fakeFetch(...replies);
   const web = new Fieldwork({
-    adapter: browserbase({ apiKey: "bb-key", fetch, ...config }),
+    adapter: browserbase({ apiKey: "bb-key", fetch, retries: 0, ...config }),
   });
   return { calls, web };
 };

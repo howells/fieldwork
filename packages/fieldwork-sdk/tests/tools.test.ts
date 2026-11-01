@@ -134,9 +134,9 @@ describe("which tools exist", () => {
   it("names the routed provider on each tool", () => {
     const web = new Fieldwork({
       adapter: router({
-        monitor: exa({ apiKey: "k", fetch: fakeFetch().fetch }),
-        read: tavily({ apiKey: "k", fetch: fakeFetch().fetch }),
-        search: parallel({ apiKey: "k", fetch: fakeFetch().fetch }),
+        monitor: exa({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
+        read: tavily({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
+        search: parallel({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 }),
       }),
     });
     expect(

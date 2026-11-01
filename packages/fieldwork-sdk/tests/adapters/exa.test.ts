@@ -36,7 +36,7 @@ const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
-    web: new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) }),
+    web: new Fieldwork({ adapter: exa({ apiKey: "k", fetch, retries: 0 }) }),
   };
 };
 

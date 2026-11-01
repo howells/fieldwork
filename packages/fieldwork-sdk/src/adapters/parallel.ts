@@ -82,6 +82,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       "x-api-key": requireKey(provider, config.apiKey, "PARALLEL_API_KEY"),
     },
     provider,
+    retries: config.retries,
   });
 
   const operations: ParallelOperations = {
@@ -343,6 +344,7 @@ export const parallel = (config: ParallelConfig = {}) => {
           throw invalid("webhookEvents needs a webhookUrl");
         }
         const response = await raw.request("POST", "/v1/monitors", {
+          creates: true,
           ...call,
           body: compact({
             frequency: frequency(o.schedule),
@@ -352,8 +354,8 @@ export const parallel = (config: ParallelConfig = {}) => {
               o.taskRunId === undefined
                 ? compact({
                     advanced_settings: nonEmpty({
-                      source_policy: sourcePolicy(o),
                       location: o.country,
+                      source_policy: sourcePolicy(o),
                     }),
                     include_backfill: o.includeBackfill,
                     output_schema: o.schema ? jsonOutput(o.schema) : undefined,

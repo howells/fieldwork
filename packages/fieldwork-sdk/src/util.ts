@@ -40,8 +40,8 @@ export const compact = <T extends Json>(value: T): T =>
 export const callSettings = <T extends CallOptions>(options: T | undefined) => {
   // SAFETY: every operation interface makes `options` required when its type has
   // required keys, so absent options reach here only for a T with none, and {} is a T.
-  const { signal, timeout, ...rest } = options ?? ({} as T);
-  return { call: { signal, timeout }, rest };
+  const { retries, signal, timeout, ...rest } = options ?? ({} as T);
+  return { call: { retries, signal, timeout }, rest };
 };
 
 export const parseJson = (provider: string, value: unknown): unknown => {

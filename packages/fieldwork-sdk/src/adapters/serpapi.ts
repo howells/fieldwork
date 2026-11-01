@@ -51,6 +51,7 @@ export const serpapi = (config: SerpApiConfig = {}) => {
     fetch: authenticated,
     headers: {},
     provider,
+    retries: config.retries,
   });
 
   const operations: SerpApiOperations = {

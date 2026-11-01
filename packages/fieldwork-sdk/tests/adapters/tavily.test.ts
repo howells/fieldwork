@@ -14,7 +14,9 @@ const url =
 
 const make = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
-  const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
+  const web = new Fieldwork({
+    adapter: tavily({ apiKey: "k", fetch, retries: 0 }),
+  });
   return { calls, web };
 };
 
@@ -22,7 +24,7 @@ describe("tavily config", () => {
   it("sends the key and the project id", async () => {
     const { fetch, calls } = fakeFetch({ body: { results: [] } });
     const web = new Fieldwork({
-      adapter: tavily({ apiKey: "k", fetch, projectId: "proj_1" }),
+      adapter: tavily({ apiKey: "k", fetch, projectId: "proj_1", retries: 0 }),
     });
     await web.search("tile");
     expect(nth(calls, 0).headers).toMatchObject({

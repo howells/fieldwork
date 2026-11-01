@@ -9,7 +9,9 @@ const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
-    web: new Fieldwork({ adapter: serpapi({ apiKey: "k", fetch }) }),
+    web: new Fieldwork({
+      adapter: serpapi({ apiKey: "k", fetch, retries: 0 }),
+    }),
   };
 };
 
@@ -985,7 +987,7 @@ describe("serpapi adapter: errors and setup", () => {
   it("reads the key from the environment", async () => {
     vi.stubEnv("SERPAPI_API_KEY", "from-env");
     const { fetch, calls } = fakeFetch({ body: { search_metadata: metadata } });
-    const web = new Fieldwork({ adapter: serpapi({ fetch }) });
+    const web = new Fieldwork({ adapter: serpapi({ fetch, retries: 0 }) });
     await web.search("x");
     expect(params(calls).api_key).toBe("from-env");
     vi.unstubAllEnvs();

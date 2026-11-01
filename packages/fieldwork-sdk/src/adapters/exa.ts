@@ -71,6 +71,7 @@ export const exa = (config: ExaConfig = {}) => {
       "x-api-key": requireKey(provider, config.apiKey, "EXA_API_KEY"),
     },
     provider,
+    retries: config.retries,
   });
 
   const fetchContents = async (
@@ -131,7 +132,7 @@ export const exa = (config: ExaConfig = {}) => {
         webhook: compact({ events: o.webhookEvents, url: o.webhookUrl }),
       });
       return monitorInfo(
-        await raw.request("POST", "/monitors", { ...call, body })
+        await raw.request("POST", "/monitors", { creates: true, ...call, body })
       );
     },
 
@@ -281,6 +282,7 @@ export const exa = (config: ExaConfig = {}) => {
           provider,
           record(
             await raw.request("POST", "/agent/runs", {
+              creates: true,
               ...call,
               body: researchBody(question, o),
             })

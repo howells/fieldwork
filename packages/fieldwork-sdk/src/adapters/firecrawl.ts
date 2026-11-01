@@ -91,6 +91,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       authorization: `Bearer ${requireKey(provider, config.apiKey, "FIRECRAWL_API_KEY")}`,
     },
     provider,
+    retries: config.retries,
   });
 
   const scrape = async (
@@ -166,6 +167,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     const response = record(
       await raw.request("POST", "/interact", {
         body: sessionBody(o),
+        creates: true,
         signal: call.signal,
       })
     );
@@ -199,7 +201,11 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
           await raw.request(
             "POST",
             `/interact/${segment(id)}/execute`,
-            scriptRequest(code, o.language, call, seconds)
+            // A script can act on the page, so running it twice is not safe.
+            {
+              ...scriptRequest(code, o.language, call, seconds),
+              creates: true,
+            }
           )
         );
         const closed = keep ? null : await closeQuietly(id, call);
@@ -234,6 +240,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
           provider,
           record(
             await raw.request("POST", "/crawl", {
+              creates: true,
               ...call,
               body: crawlBody(url, o),
             })
@@ -318,6 +325,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         const { call, rest: o } = callSettings(options);
         const response = record(
           await raw.request("POST", "/monitor", {
+            creates: true,
             ...call,
             body: monitorBody(o),
           })
@@ -401,6 +409,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         resume === undefined
           ? record(
               await raw.request("POST", "/batch/scrape", {
+                creates: true,
                 ...call,
                 body: compact({
                   urls,
@@ -437,6 +446,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         o.resume === undefined
           ? record(
               await raw.request("POST", "/agent", {
+                creates: true,
                 ...call,
                 body: researchBody(question, o),
               })

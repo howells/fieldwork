@@ -25,6 +25,8 @@ export interface ParallelConfig {
   apiKey?: string;
   baseUrl?: string;
   fetch?: typeof fetch;
+  /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
+  retries?: number;
 }
 
 /**

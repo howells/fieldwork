@@ -16,7 +16,9 @@ const connect = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
-    web: new Fieldwork({ adapter: parallel({ apiKey: "k", fetch }) }),
+    web: new Fieldwork({
+      adapter: parallel({ apiKey: "k", fetch, retries: 0 }),
+    }),
   };
 };
 
@@ -508,18 +510,18 @@ describe("parallel answer", () => {
           {
             annotations: [
               {
+                end_index: 8,
+                start_index: 0,
+                title: "Portmore",
                 type: "url_citation",
                 url,
-                title: "Portmore",
-                start_index: 0,
-                end_index: 8,
               },
               {
+                end_index: 12,
+                start_index: 9,
+                title: "Portmore again",
                 type: "url_citation",
                 url,
-                title: "Portmore again",
-                start_index: 9,
-                end_index: 12,
               },
             ],
             text: "Portmore is glazed ceramic.",

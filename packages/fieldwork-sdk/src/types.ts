@@ -39,8 +39,15 @@ export const GROUP_CAPABILITIES: readonly Capability[] = ["monitor", "browser"];
 export interface CallOptions {
   /** Cancels the call, including any polling for an asynchronous job. */
   signal?: AbortSignal;
-  /** Milliseconds before the call gives up. */
+  /** Milliseconds before the call gives up, across every attempt. */
   timeout?: number;
+  /**
+   * How many times to repeat a request that failed in a way that can succeed
+   * on repeat: a rate limit, a 5xx, or a failed connection. Waits as long as
+   * the provider asks, or backs off exponentially. Overrides the adapter's
+   * `retries`; `0` turns retrying off.
+   */
+  retries?: number;
 }
 
 /** How recent results must be, where a provider filters by a named window. */
