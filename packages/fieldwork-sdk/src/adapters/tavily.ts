@@ -96,6 +96,11 @@ export interface TavilyResearchOptions extends CallOptions {
   includeDomains?: string[];
   excludeDomains?: string[];
   interval?: number;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface TavilyOperations {
@@ -258,24 +263,29 @@ export function tavily(config: TavilyConfig = {}) {
 
     async research<T>(question: string, options?: TavilyResearchOptions) {
       const { call, rest: o } = callSettings(options);
-      const created = record(
-        await raw.request("POST", "/research", {
-          ...call,
-          body: compact({
-            input: question,
-            model: o.model,
-            output_schema: o.schema,
-            citation_format: o.citationFormat,
-            output_length: o.outputLength,
-            include_domains: o.includeDomains,
-            exclude_domains: o.excludeDomains,
-            stream: false,
-          }),
-        })
-      );
-      const id = requireId(provider, created.request_id);
+      const id =
+        o.resume ??
+        requireId(
+          provider,
+          record(
+            await raw.request("POST", "/research", {
+              ...call,
+              body: compact({
+                input: question,
+                model: o.model,
+                output_schema: o.schema,
+                citation_format: o.citationFormat,
+                output_length: o.outputLength,
+                include_domains: o.includeDomains,
+                exclude_domains: o.excludeDomains,
+                stream: false,
+              }),
+            })
+          ).request_id
+        );
       const run = await poll(
         provider,
+        id,
         async () => {
           const current = record(
             await raw.request("GET", `/research/${id}`, { signal: call.signal })

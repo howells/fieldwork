@@ -1,5 +1,5 @@
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, withJob } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
 import type {
   ActResult,
@@ -113,6 +113,11 @@ export interface FirecrawlCrawlOptions extends CallOptions {
   scrapeOptions?: Json;
   /** Milliseconds between status checks. */
   interval?: number;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface FirecrawlResearchOptions extends CallOptions {
@@ -126,6 +131,11 @@ export interface FirecrawlResearchOptions extends CallOptions {
   model?: "spark-2" | "spark-1-mini" | "spark-1-pro";
   effort?: "low" | "medium" | "high";
   interval?: number;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface FirecrawlActOptions extends CallOptions {
@@ -394,16 +404,21 @@ export function firecrawl(config: FirecrawlConfig = {}) {
 
     async crawl(url, options) {
       const { call, rest: o } = callSettings(options);
-      const { interval, ...body } = o;
-      const started = record(
-        await raw.request("POST", "/crawl", {
-          ...call,
-          body: compact({ url, ...body }),
-        })
-      );
-      const id = requireId(provider, started.id);
+      const { interval, resume, ...body } = o;
+      const id =
+        resume ??
+        requireId(
+          provider,
+          record(
+            await raw.request("POST", "/crawl", {
+              ...call,
+              body: compact({ url, ...body }),
+            })
+          ).id
+        );
       const first = await poll(
         provider,
+        id,
         async () => {
           const status = record(
             await raw.request("GET", `/crawl/${id}`, { signal: call.signal })
@@ -428,7 +443,11 @@ export function firecrawl(config: FirecrawlConfig = {}) {
             new URL(baseUrl).pathname.replace(/\/$/u, "").length
           ) + nextUrl.search;
         const batch = record(
-          await raw.request("GET", path, { signal: call.signal })
+          await raw
+            .request("GET", path, { signal: call.signal })
+            .catch((error: unknown) => {
+              throw withJob(error, id);
+            })
         );
         batches.push(batch);
         next = text(batch.next);
@@ -443,16 +462,21 @@ export function firecrawl(config: FirecrawlConfig = {}) {
 
     async research<T>(question: string, options?: FirecrawlResearchOptions) {
       const { call, rest: o } = callSettings(options);
-      const { interval, ...body } = o;
-      const started = record(
-        await raw.request("POST", "/agent", {
-          ...call,
-          body: compact({ prompt: question, ...body }),
-        })
-      );
-      const id = requireId(provider, started.id);
+      const { interval, resume, ...body } = o;
+      const id =
+        resume ??
+        requireId(
+          provider,
+          record(
+            await raw.request("POST", "/agent", {
+              ...call,
+              body: compact({ prompt: question, ...body }),
+            })
+          ).id
+        );
       const run = await poll(
         provider,
+        id,
         async () => {
           const status = record(
             await raw.request("GET", `/agent/${id}`, { signal: call.signal })

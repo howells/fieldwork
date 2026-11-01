@@ -1,0 +1,19 @@
+# Fieldwork
+
+> One TypeScript API for web search, page reading, value extraction, site maps, crawls, research, browser scripts and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity. Each instance has only the methods its provider offers; nothing falls back to another provider. Published as @howells/fieldwork-sdk, with an MCP server as @howells/fieldwork-mcp.
+
+## Packages
+
+- [@howells/fieldwork-sdk README](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md): installation, the capability table by provider, results, the router, errors and recovery, agent tools, keys.
+- [@howells/fieldwork-mcp README](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-mcp/README.md): running the MCP server, choosing providers per capability, client configuration, the tool list.
+
+## Reference
+
+- [Capabilities by provider](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#capabilities): which of search, read, extract, product, map, crawl, research, act and parse each provider offers.
+- [Errors](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#errors): the nine error codes, what each means and what to do, `retryable`, `retryAfter` and `jobId`.
+- [Agent tools](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#agent-tools): `toolsFor()` tool definitions with JSON Schema inputs and outputs, for the AI SDK and other frameworks.
+- [Result types](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/src/types.ts): the normalized shapes every adapter returns.
+
+## Contributing
+
+- [AGENTS.md](https://github.com/howells/fieldwork/blob/main/AGENTS.md): commands, rules, boundaries and how to add an adapter.

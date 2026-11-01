@@ -1,6 +1,6 @@
 {
   "name": "@howells/fieldwork-sdk",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "One API for web search, page reading, extraction, crawling, research, browser actions and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity.",
   "keywords": [
     "agents",
@@ -54,6 +54,10 @@
     "./perplexity": {
       "types": "./dist/perplexity.d.ts",
       "import": "./dist/perplexity.js"
+    },
+    "./tools": {
+      "types": "./dist/tools.d.ts",
+      "import": "./dist/tools.js"
     }
   },
   "publishConfig": {
@@ -65,7 +69,8 @@
     "lint:fix": "howells-fix .",
     "prepack": "pnpm build",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:live": "vitest run --config vitest.live.config.ts"
   },
   "devDependencies": {
     "@howells/lint": "catalog:",

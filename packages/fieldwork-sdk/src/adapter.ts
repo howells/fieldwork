@@ -20,6 +20,11 @@ export interface Adapter<
   readonly operations: Ops;
   /** The provider's HTTP API, for anything Fieldwork does not wrap. */
   readonly raw: Raw;
+  /**
+   * The provider behind each capability, when it is not `name`. Only a router
+   * sets this.
+   */
+  readonly providers?: Partial<Record<Capability, string>>;
 }
 
 // oxlint-disable-next-line typescript/no-explicit-any -- any adapter, whatever its operations

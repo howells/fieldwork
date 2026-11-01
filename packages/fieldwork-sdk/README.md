@@ -50,7 +50,20 @@ Every result is normalized and keeps the provider's response in `raw`:
 - `research` returns `{ id, output, sources, fields, raw }`. `output` follows your schema when you pass one, otherwise it is the report text. Exa and Parallel return per-field sources in `fields`.
 - `product` returns `{ title, brand, category, url, variants: [{ sku, values, price, inStock, images }], raw }`.
 
-Asynchronous jobs (research on Exa, Firecrawl, Tavily and Parallel, and Firecrawl crawls) are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
+Asynchronous jobs (research on Exa, Firecrawl, Tavily and Parallel, Parallel extraction, and Firecrawl crawls) are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
+
+When a job outlasts `timeout`, or `signal` stops the wait, the provider keeps running it and charging for it. The error carries the job's id as `jobId`; pass it back as `resume` to collect the result instead of starting another job:
+
+```ts
+try {
+  return await web.research(question, { timeout: 60_000 });
+} catch (error) {
+  if (error instanceof FieldworkError && error.jobId) {
+    return await web.research(question, { resume: error.jobId });
+  }
+  throw error;
+}
+```
 
 ## Choosing a provider per capability
 
@@ -76,7 +89,62 @@ A capability without a route is unsupported. A route to an adapter that lacks th
 
 ## Errors
 
-Every failure is a `FieldworkError` with a `code`: `Unsupported`, `Unauthorized`, `RateLimited`, `NotFound`, `InvalidRequest`, `JobFailed`, `Timeout`, `Aborted` or `ProviderError`. It also carries `provider`, the HTTP `status`, `retryAfter` in seconds when the provider sent one, and the provider's response as `cause`.
+Every failure is a `FieldworkError`. It carries:
+
+- `code`, one of the codes below;
+- `provider` and the HTTP `status`;
+- `retryable`: whether repeating the same call can succeed;
+- `retryAfter`, in seconds, when the provider sent one;
+- `jobId`, when a job had already started;
+- the provider's response, as `cause`.
+
+`error.toJSON()` returns these fields without the provider's response.
+
+| Code | What happened | What to do |
+| --- | --- | --- |
+| `Unsupported` | The provider does not offer this capability. | Use an adapter that does. Nothing was sent. |
+| `Unauthorized` | The key is missing, wrong or not allowed. | Fix the key. Repeating does not help. |
+| `RateLimited` | A rate or plan limit was reached. | Wait `retryAfter` seconds, then repeat. |
+| `NotFound` | The page, product or job does not exist. | Check the URL or id. |
+| `InvalidRequest` | The provider rejected the input. | Correct the input; the message says what is wrong. |
+| `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
+| `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat. |
+| `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
+| `ProviderError` | Any other provider failure. | Repeat when `retryable` is true (5xx and network failures). |
+
+An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job.
+
+## Agent tools
+
+`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model: one per capability, named `search_web`, `read_page`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `research_question`, `parse_document` and `run_browser_script`. Each tool has:
+
+- a description that says when to use it and which tool to use instead;
+- a JSON Schema input that lists only the options its provider supports;
+- an output schema;
+- MCP annotations.
+
+`execute(input)` checks the input, calls the capability, and returns the result without `raw`, with long text cut to a shared budget of 20,000 characters (`maxCharacters`).
+
+```ts
+import { jsonSchema, tool } from "ai";
+import { toolsFor } from "@howells/fieldwork-sdk/tools";
+
+const tools = Object.fromEntries(
+  toolsFor(web).map((t) => [
+    t.name,
+    tool({
+      description: t.description,
+      inputSchema: jsonSchema(t.inputSchema),
+      execute: (input, { abortSignal }) =>
+        t.execute(input, { signal: abortSignal }),
+    }),
+  ])
+);
+```
+
+`run_browser_script` runs code in a remote browser, so it is left out unless you name it: `toolsFor(web, { capabilities: ["read", "act"] })`. `toolError(error)` formats an error for a model.
+
+For MCP clients such as Claude, Cursor and Codex, [`@howells/fieldwork-mcp`](https://www.npmjs.com/package/@howells/fieldwork-mcp) serves these tools over stdio.
 
 ## The provider's own API
 

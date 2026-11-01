@@ -39,6 +39,7 @@ type RouterRaw<R extends Routes> = {
 export function router<const R extends Routes>(routes: R & ValidRoutes<R>) {
   const operations: Record<string, unknown> = {};
   const raw: Record<string, unknown> = {};
+  const providers: Partial<Record<Capability, string>> = {};
   for (const [capability, adapter] of Object.entries(routes as Routes)) {
     if (!adapter) {
       continue;
@@ -56,11 +57,13 @@ export function router<const R extends Routes>(routes: R & ValidRoutes<R>) {
       );
     }
     operations[capability] = operation.bind(adapter.operations);
+    providers[capability as Capability] = adapter.name;
     raw[adapter.name] = adapter.raw;
   }
   return defineAdapter({
     name: "router",
     operations: operations as RouterOperations<R>,
     raw: raw as RouterRaw<R>,
+    providers,
   });
 }

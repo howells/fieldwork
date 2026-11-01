@@ -20,6 +20,10 @@ export interface FieldworkErrorOptions {
   status?: number;
   /** Seconds the provider asked to wait before retrying. */
   retryAfter?: number;
+  /** The provider's id for an asynchronous job that was already created. */
+  jobId?: string;
+  /** Overrides the default, which follows from the code and status. */
+  retryable?: boolean;
   cause?: unknown;
 }
 
@@ -30,6 +34,17 @@ export class FieldworkError extends Error {
   readonly provider?: string;
   readonly status?: number;
   readonly retryAfter?: number;
+  /**
+   * The provider's id for an asynchronous job that was already created when
+   * the call failed. The job may still be running and billing: pass this id
+   * as `resume` to wait for it again rather than starting another.
+   */
+  readonly jobId?: string;
+  /**
+   * Whether repeating the same call can succeed. False whenever `jobId` is
+   * set, because repeating the call would start a second job; resume it.
+   */
+  readonly retryable: boolean;
 
   constructor(
     code: FieldworkErrorCode,
@@ -41,7 +56,49 @@ export class FieldworkError extends Error {
     this.provider = options.provider;
     this.status = options.status;
     this.retryAfter = options.retryAfter;
+    this.jobId = options.jobId;
+    this.retryable =
+      options.jobId === undefined &&
+      (options.retryable ?? isRetryable(code, options.status));
   }
+
+  /** The fields an agent or a log needs, without the provider's response. */
+  toJSON() {
+    return {
+      name: this.name,
+      code: this.code,
+      message: this.message,
+      provider: this.provider,
+      status: this.status,
+      retryable: this.retryable,
+      retryAfter: this.retryAfter,
+      jobId: this.jobId,
+    };
+  }
+}
+
+function isRetryable(code: FieldworkErrorCode, status: number | undefined) {
+  if (code === "RateLimited" || code === "Timeout") {
+    return true;
+  }
+  return status !== undefined && status >= 500;
+}
+
+/**
+ * Attaches a job id to an error raised while following that job, so the
+ * caller can resume it. Errors that are not Fieldwork's pass through.
+ */
+export function withJob<E>(error: E, jobId: string): E | FieldworkError {
+  if (!(error instanceof FieldworkError) || error.jobId !== undefined) {
+    return error;
+  }
+  return new FieldworkError(error.code, error.message, {
+    provider: error.provider,
+    status: error.status,
+    retryAfter: error.retryAfter,
+    jobId,
+    cause: error.cause,
+  });
 }
 
 export function codeForStatus(status: number): FieldworkErrorCode {

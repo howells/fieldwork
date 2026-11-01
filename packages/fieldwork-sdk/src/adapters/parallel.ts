@@ -1,5 +1,5 @@
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, withJob } from "../errors.js";
 import { createRawClient, requireKey } from "../http.js";
 import type { RawClient } from "../http.js";
 import type {
@@ -74,6 +74,11 @@ export interface ParallelExtractOptions extends CallOptions {
   prompt?: string;
   /** Defaults to "base". */
   processor?: ParallelProcessor;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface ParallelResearchOptions
@@ -81,6 +86,11 @@ export interface ParallelResearchOptions
   schema?: JsonSchema;
   /** Defaults to "base". */
   processor?: ParallelProcessor;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface ParallelOperations {
@@ -112,16 +122,20 @@ function outputSchema(schema: JsonSchema | undefined) {
   return schema ? { type: "json", json_schema: schema } : { type: "text" };
 }
 
-/** Creates a Task run and waits for its result. */
+/** Creates a Task run, or picks up `resume`, and waits for its result. */
 async function runTask(
   raw: RawClient,
   body: Record<string, unknown>,
-  call: CallOptions
+  call: CallOptions,
+  resume: string | undefined
 ) {
-  const created = record(
-    await raw.request("POST", "/v1/tasks/runs", { ...call, body })
-  );
-  const id = requireId(raw.provider, created.run_id);
+  const id =
+    resume ??
+    requireId(
+      raw.provider,
+      record(await raw.request("POST", "/v1/tasks/runs", { ...call, body }))
+        .run_id
+    );
   const deadline = Date.now() + (call.timeout ?? 600_000);
   for (;;) {
     const wait = Math.max(
@@ -144,7 +158,7 @@ async function runTask(
       const stillRunning =
         error instanceof FieldworkError && error.code === "Timeout";
       if (!stillRunning || Date.now() >= deadline) {
-        throw error;
+        throw withJob(error, id);
       }
     }
   }
@@ -265,7 +279,8 @@ export function parallel(config: ParallelConfig = {}) {
           },
           task_spec: { output_schema: outputSchema(o.schema) },
         },
-        call
+        call,
+        o.resume
       );
       const output = record(result.output);
       return {
@@ -285,7 +300,8 @@ export function parallel(config: ParallelConfig = {}) {
           source_policy: sourcePolicy(o),
           task_spec: { output_schema: outputSchema(o.schema) },
         }),
-        call
+        call,
+        o.resume
       );
       const output = record(result.output);
       const fields = basis(output);

@@ -15,6 +15,8 @@ interface FieldworkBase<A extends AnyAdapter> {
   /** The provider's HTTP API, for anything Fieldwork does not wrap. */
   readonly raw: A["raw"];
   supports(capability: Capability): boolean;
+  /** The provider that serves a capability, or undefined when none does. */
+  providerFor(capability: Capability): string | undefined;
 }
 
 /**
@@ -30,6 +32,7 @@ class FieldworkClient {
   readonly provider: string;
   readonly capabilities: Readonly<Record<Capability, boolean>>;
   readonly raw: unknown;
+  readonly #providers: Partial<Record<Capability, string>>;
 
   constructor(options: FieldworkOptions<AnyAdapter>) {
     const { adapter } = options;
@@ -39,6 +42,7 @@ class FieldworkClient {
     >;
     this.provider = adapter.name;
     this.raw = adapter.raw;
+    this.#providers = adapter.providers ?? {};
     const capabilities = {} as Record<Capability, boolean>;
     const self = this as unknown as Record<string, unknown>;
     for (const capability of CAPABILITIES) {
@@ -62,6 +66,13 @@ class FieldworkClient {
 
   supports(capability: Capability): boolean {
     return this.capabilities[capability];
+  }
+
+  providerFor(capability: Capability): string | undefined {
+    if (!this.capabilities[capability]) {
+      return undefined;
+    }
+    return this.#providers[capability] ?? this.provider;
   }
 }
 

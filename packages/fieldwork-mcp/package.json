@@ -1,0 +1,68 @@
+{
+  "name": "@howells/fieldwork-mcp",
+  "version": "0.1.0",
+  "description": "An MCP server for Fieldwork: web search, page reading, extraction, crawling, research and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity, as tools for any MCP client.",
+  "keywords": [
+    "agents",
+    "exa",
+    "fieldwork",
+    "firecrawl",
+    "mcp",
+    "model-context-protocol",
+    "parallel",
+    "perplexity",
+    "tavily",
+    "web-search"
+  ],
+  "license": "MIT",
+  "author": "Daniel Howells",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/howells/fieldwork.git",
+    "directory": "packages/fieldwork-mcp"
+  },
+  "bin": {
+    "fieldwork-mcp": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsdown",
+    "lint": "howells-check .",
+    "lint:fix": "howells-fix .",
+    "prepack": "pnpm build",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@howells/fieldwork-sdk": "workspace:^",
+    "@modelcontextprotocol/server": "^2.4.0"
+  },
+  "devDependencies": {
+    "@howells/lint": "catalog:",
+    "@howells/typescript-config": "catalog:",
+    "@modelcontextprotocol/client": "^2.4.0",
+    "@types/node": "catalog:",
+    "tsdown": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

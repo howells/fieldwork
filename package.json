@@ -9,7 +9,8 @@
     "prepare": "howells-husky",
     "prepush": "pnpm typecheck && pnpm lint && pnpm test",
     "test": "turbo run test",
-    "typecheck": "turbo run typecheck"
+    "typecheck": "turbo run typecheck",
+    "test:live": "pnpm --filter @howells/fieldwork-sdk test:live"
   },
   "devDependencies": {
     "@howells/husky": "catalog:",

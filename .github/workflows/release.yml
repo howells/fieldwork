@@ -28,6 +28,7 @@ on:
         type: choice
         options:
           - "@howells/fieldwork-sdk"
+          - "@howells/fieldwork-mcp"
       dry_run:
         description: Run every check and pack the tarball, but do not publish
         type: boolean

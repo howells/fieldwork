@@ -87,6 +87,11 @@ export interface ExaResearchOptions extends CallOptions {
   maxDurationSeconds?: number;
   /** Milliseconds between status checks. */
   interval?: number;
+  /**
+   * The id of a job that timed out or was cancelled, from the error's
+   * `jobId`. Waits for that job instead of starting a new one.
+   */
+  resume?: string;
 }
 
 export interface ExaOperations {
@@ -231,20 +236,25 @@ export function exa(config: ExaConfig = {}) {
         maxCostDollars: o.maxCostDollars,
         maxDurationSeconds: o.maxDurationSeconds,
       });
-      const created = record(
-        await raw.request("POST", "/agent/runs", {
-          ...call,
-          body: compact({
-            query: question,
-            outputSchema: o.schema,
-            effort: o.effort,
-            budget: Object.keys(budget).length > 0 ? budget : undefined,
-          }),
-        })
-      );
-      const id = requireId(provider, created.id);
+      const id =
+        o.resume ??
+        requireId(
+          provider,
+          record(
+            await raw.request("POST", "/agent/runs", {
+              ...call,
+              body: compact({
+                query: question,
+                outputSchema: o.schema,
+                effort: o.effort,
+                budget: Object.keys(budget).length > 0 ? budget : undefined,
+              }),
+            })
+          ).id
+        );
       const run = await poll(
         provider,
+        id,
         async () => {
           const current = record(
             await raw.request("GET", `/agent/runs/${id}`, {

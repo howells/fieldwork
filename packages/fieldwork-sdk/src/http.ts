@@ -1,4 +1,4 @@
-import { codeForStatus, FieldworkError } from "./errors.js";
+import { codeForStatus, FieldworkError, withJob } from "./errors.js";
 import type { CallOptions } from "./types.js";
 
 export interface RequestOptions extends CallOptions {
@@ -112,11 +112,13 @@ function transportError(
       cause: error,
     });
   }
+  // The request never reached a response, so repeating it can succeed.
   return new FieldworkError(
     "ProviderError",
     `${provider} request failed: ${String(error)}`,
     {
       provider,
+      retryable: true,
       cause: error,
     }
   );
@@ -149,12 +151,22 @@ function describe(parsed: unknown, text: string): string {
   return text.slice(0, 300);
 }
 
-function retryAfterSeconds(header: string | null): number | undefined {
+/** Retry-After is either a number of seconds or an HTTP date. */
+export function retryAfterSeconds(
+  header: string | null,
+  now = Date.now()
+): number | undefined {
   if (!header) {
     return undefined;
   }
   const seconds = Number(header);
-  return Number.isFinite(seconds) ? seconds : undefined;
+  if (Number.isFinite(seconds)) {
+    return seconds;
+  }
+  const date = Date.parse(header);
+  return Number.isNaN(date)
+    ? undefined
+    : Math.max(0, Math.ceil((date - now) / 1000));
 }
 
 export interface PollOptions extends CallOptions {
@@ -164,10 +176,13 @@ export interface PollOptions extends CallOptions {
 
 /**
  * Calls `check` until it returns a value, waiting between calls. `check`
- * returns `undefined` while the job is still running.
+ * returns `undefined` while the job is still running. Every error raised while
+ * waiting carries `jobId`, so the caller can resume the job instead of paying
+ * for a second one.
  */
 export async function poll<T>(
   provider: string,
+  jobId: string,
   check: () => Promise<T | undefined>,
   options: PollOptions = {}
 ): Promise<T> {
@@ -175,19 +190,26 @@ export async function poll<T>(
   const deadline = Date.now() + (options.timeout ?? 600_000);
   for (;;) {
     if (options.signal?.aborted) {
-      throw new FieldworkError("Aborted", `${provider} job was cancelled`, {
-        provider,
-      });
+      throw new FieldworkError(
+        "Aborted",
+        `stopped waiting for ${provider} job ${jobId}; it may still be running`,
+        { provider, jobId }
+      );
     }
-    const value = await check();
+    let value: T | undefined;
+    try {
+      value = await check();
+    } catch (error) {
+      throw withJob(error, jobId);
+    }
     if (value !== undefined) {
       return value;
     }
     if (Date.now() + interval > deadline) {
       throw new FieldworkError(
         "Timeout",
-        `${provider} job did not finish in time`,
-        { provider }
+        `${provider} job ${jobId} did not finish in time; it may still be running`,
+        { provider, jobId }
       );
     }
     await sleep(interval, options.signal);

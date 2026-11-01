@@ -8,6 +8,7 @@ export default defineConfig({
     tavily: "src/adapters/tavily.ts",
     parallel: "src/adapters/parallel.ts",
     perplexity: "src/adapters/perplexity.ts",
+    tools: "src/tools.ts",
   },
   format: ["esm"],
   dts: true,
