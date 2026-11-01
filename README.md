@@ -65,13 +65,32 @@ Options are typed per provider. An option means the same thing under the same na
 | `maxAge` | Seconds a cached copy may be old; `0` always fetches the page fresh. |
 | `country` | An ISO 3166-1 code such as `"GB"`. |
 | `language` | An ISO 639-1 code such as `"de"`. |
-| `schema`, `prompt` | A JSON Schema for structured output, and extraction instructions in plain words. |
+| `schema`, `prompt` | A JSON Schema or a Standard Schema such as Zod for structured output, and extraction instructions in plain words. |
 | `query` | On `read`: return the passages that answer it as `excerpts`. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
 | `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks. |
 
 Options only one provider has keep that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. A combination a provider would reject or silently ignore, such as `includeDomains` with `excludeDomains` on Parallel, throws `InvalidRequest` before anything is sent.
+
+### Structured output
+
+`schema` takes a plain JSON Schema, or a Zod, Valibot or ArkType schema. Any library that implements Standard Schema with JSON Schema support works. Use the full `zod` package: `zod/mini` schemas do not write JSON Schema.
+
+```ts
+import { z } from "zod";
+
+const page = await web.extract(url, {
+  schema: z.object({ price: z.number(), title: z.string() }),
+});
+page.data; // { price: number; title: string }
+```
+
+Fieldwork turns the schema into the JSON Schema the provider reads, and checks the provider's output against your schema before returning it. Output that does not match throws `ProviderError` with the first paths that failed, such as `price: Invalid input: expected number, received string`. The error carries `jobId` when the call was a job. `data` and `output` are what your schema returns, so defaults and transforms apply.
+
+A plain JSON Schema is sent as written and the output is not checked. Pass the type yourself: `web.extract<{ price: number }>(url, { schema })`. Without one the type is `unknown`. Agent tools take plain JSON Schema only.
+
+Providers differ in which keywords they accept; Exa reads draft 7 and the others draft 2020-12, and Fieldwork drops the `$schema` key. Tavily and Parallel accept only a subset, so keep schemas for them simple.
 
 ## Results
 
@@ -237,4 +256,4 @@ On a router, `raw` is keyed by provider name.
 
 Pass `apiKey` (and Browserbase's `projectId`) to override, and `fetch` to supply your own. Requests follow redirects only within the provider's origin; a redirect to any other host, scheme or port fails before the key is sent there.
 
-ESM only, Node 22 or later. No dependencies.
+ESM only, Node 22 or later. The one dependency is Zod.

@@ -1,6 +1,7 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
+import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
 import {
   callSettings,
@@ -213,7 +214,7 @@ export const tavily = (config: TavilyConfig = {}) => {
       });
     },
 
-    async research<T>(question: string, options?: TavilyResearchOptions) {
+    async research<T>(question: string, options?: TavilyResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const files = o.files?.map((file) => {
         if (!RESEARCH_FILE.test(file.name)) {
@@ -250,7 +251,8 @@ export const tavily = (config: TavilyConfig = {}) => {
                 input: question,
                 model: o.model,
                 output_length: o.outputLength,
-                output_schema: o.schema,
+                output_schema:
+                  o.schema === undefined ? undefined : jsonSchemaOf(o.schema),
                 stream: false,
               }),
             })
@@ -292,8 +294,7 @@ export const tavily = (config: TavilyConfig = {}) => {
           requestId: run.request_id,
           units: { responseTimeSeconds: run.response_time },
         }),
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        output: content as T,
+        output: await checkOutput(o.schema, content, { jobId: id, provider }),
         raw: run,
         sources: list(run.sources).flatMap((item) => {
           const source = record(item);

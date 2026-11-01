@@ -280,11 +280,11 @@ export const researchState = (id: string, status: Json): Json | undefined => {
   return done ? status : undefined;
 };
 
-export const researchResult = <T>(
+export const researchResult = (
   id: string,
   started: Json,
   run: Json
-): Research<T> => {
+): Research<unknown> => {
   const stopped = run.status === "failed";
   const status: RunStatus = stopped ? "partial" : "completed";
   return compact({
@@ -302,8 +302,7 @@ export const researchResult = <T>(
           ]
         : undefined,
     }),
-    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-    output: (stopped ? run.partial : (run.data ?? run.message)) as T,
+    output: stopped ? run.partial : (run.data ?? run.message),
     raw: run,
     sources: [],
     status,

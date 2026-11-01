@@ -1,6 +1,7 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, withJob } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
+import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, MonitorInfo } from "../types.js";
 import {
   callSettings,
@@ -260,12 +261,12 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       });
     },
 
-    async extract<T>(url: string, options: FirecrawlExtractOptions) {
+    async extract<T>(url: string, options: FirecrawlExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const { schema, prompt, ...page } = o;
       const { response, data } = await scrape(
         url,
-        [compact({ prompt, schema, type: "json" })],
+        [compact({ prompt, schema: jsonSchemaOf(schema), type: "json" })],
         page,
         call
       );
@@ -278,8 +279,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         );
       }
       return compact({
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        data: data.json as T,
+        data: await checkOutput(schema, data.json, { provider }),
         meta: pageMeta(response, data),
         raw: response,
       });
@@ -440,7 +440,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       });
     },
 
-    async research<T>(question: string, options?: FirecrawlResearchOptions) {
+    async research<T>(question: string, options?: FirecrawlResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const started =
         o.resume === undefined
@@ -467,7 +467,14 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
           ),
         { ...call, interval: o.interval }
       );
-      return researchResult<T>(id, started, run);
+      const result = researchResult(id, started, run);
+      return {
+        ...result,
+        output: await checkOutput(o.schema, result.output, {
+          jobId: id,
+          provider,
+        }),
+      };
     },
 
     async search(query, options) {

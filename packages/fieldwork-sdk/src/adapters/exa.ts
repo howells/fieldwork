@@ -1,6 +1,7 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
+import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
   callSettings,
@@ -186,14 +187,17 @@ export const exa = (config: ExaConfig = {}) => {
   };
 
   const operations: ExaOperations = {
-    async answer<T>(question: string, options?: ExaAnswerOptions) {
+    async answer<T>(question: string, options?: ExaAnswerOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const response = record(
         await raw.request("POST", "/answer", {
           ...call,
           body: compact({
             model: o.model,
-            outputSchema: o.schema,
+            outputSchema:
+              o.schema === undefined
+                ? undefined
+                : jsonSchemaOf(o.schema, "draft-07"),
             query: question,
             systemPrompt: o.systemPrompt,
             userLocation:
@@ -209,19 +213,23 @@ export const exa = (config: ExaConfig = {}) => {
         answer: structured ? JSON.stringify(value) : (text(value) ?? ""),
         citations: uniqueCitations(citations(response.citations)),
         meta: responseMeta(response),
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        output: structured ? (value as T) : undefined,
+        output: structured
+          ? await checkOutput(o.schema, value, { provider })
+          : undefined,
         raw: response,
       });
     },
 
-    async extract<T>(url: string, options: ExaExtractOptions) {
+    async extract<T>(url: string, options: ExaExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const { response, result } = await readOne(
         url,
         compact({
           maxAgeHours: hours(o.maxAge),
-          summary: compact({ query: o.prompt, schema: o.schema }),
+          summary: compact({
+            query: o.prompt,
+            schema: jsonSchemaOf(o.schema, "draft-07"),
+          }),
         }),
         call
       );
@@ -234,8 +242,9 @@ export const exa = (config: ExaConfig = {}) => {
         );
       }
       return compact({
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        data: parseJson(provider, summary) as T,
+        data: await checkOutput(o.schema, parseJson(provider, summary), {
+          provider,
+        }),
         meta: responseMeta(response),
         raw: response,
       });
@@ -273,7 +282,7 @@ export const exa = (config: ExaConfig = {}) => {
       };
     },
 
-    async research<T>(question: string, options?: ExaResearchOptions) {
+    async research<T>(question: string, options?: ExaResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
       checkResearch(o);
       const id =
@@ -310,7 +319,14 @@ export const exa = (config: ExaConfig = {}) => {
       const structured =
         o.schema !== undefined ||
         (outputSchema !== undefined && outputSchema !== null);
-      return researchResult<T>(id, run, structured);
+      const result = researchResult(id, run, structured);
+      return {
+        ...result,
+        output: await checkOutput(o.schema, result.output, {
+          jobId: id,
+          provider,
+        }),
+      };
     },
 
     async search(query, options) {

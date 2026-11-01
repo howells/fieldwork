@@ -1,7 +1,13 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
-import type { DecisionAnswer, ImageResult, MonitorInfo } from "../types.js";
+import { checkOutput, jsonSchemaOf } from "../schema.js";
+import type {
+  DecisionAnswer,
+  Entity,
+  ImageResult,
+  MonitorInfo,
+} from "../types.js";
 import {
   callSettings,
   citations,
@@ -86,7 +92,7 @@ export const parallel = (config: ParallelConfig = {}) => {
   });
 
   const operations: ParallelOperations = {
-    async answer<T>(question: string, options?: ParallelAnswerOptions) {
+    async answer<T>(question: string, options?: ParallelAnswerOptions<T>) {
       const { call, rest: o } = callSettings(options);
       refuseTogether(provider, o, "includeDomains", "excludeDomains");
       const filters = nonEmpty({
@@ -107,7 +113,7 @@ export const parallel = (config: ParallelConfig = {}) => {
               ? {
                   format: {
                     name: "answer",
-                    schema: o.schema,
+                    schema: jsonSchemaOf(o.schema),
                     type: "json_schema",
                   },
                 }
@@ -164,8 +170,11 @@ export const parallel = (config: ParallelConfig = {}) => {
               ? undefined
               : [`the answer is incomplete: ${incomplete}`],
         }),
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        output: o.schema ? (parseJson(provider, answer) as T) : undefined,
+        output: o.schema
+          ? await checkOutput(o.schema, parseJson(provider, answer), {
+              provider,
+            })
+          : undefined,
         raw: response,
       });
     },
@@ -221,7 +230,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       });
     },
 
-    async discover<T>(objective: string, options: ParallelDiscoverOptions) {
+    async discover<T>(objective: string, options: ParallelDiscoverOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const id = o.resume ?? (await startFindAll(raw, objective, o, call));
       const result = await poll(
@@ -230,13 +239,25 @@ export const parallel = (config: ParallelConfig = {}) => {
         async () => await findAllResult(raw, id, call.signal),
         { ...call, interval: o.interval }
       );
-      return discovery<T>(id, result);
+      const found = discovery(id, result);
+      const entities = await Promise.all(
+        found.entities.map(async ({ data, ...entity }): Promise<Entity<T>> => {
+          if (data === undefined) {
+            return entity;
+          }
+          return {
+            ...entity,
+            data: await checkOutput(o.schema, data, { jobId: id, provider }),
+          };
+        })
+      );
+      return { ...found, entities };
     },
 
-    async extract<T>(url: string, options?: ParallelExtractOptions) {
+    async extract<T>(url: string, options?: ParallelExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const target = new URL(url);
-      const { result } = await runTask(
+      const { id, result } = await runTask(
         raw,
         compact({
           advanced_settings: nonEmpty({ location: o.country }),
@@ -263,8 +284,10 @@ export const parallel = (config: ParallelConfig = {}) => {
       );
       const output = record(result.output);
       return compact({
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        data: output.content as T,
+        data: await checkOutput(o.schema, output.content, {
+          jobId: id,
+          provider,
+        }),
         fields: basis(output.basis),
         meta: taskMeta(result),
         raw: result,
@@ -488,7 +511,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       });
     },
 
-    async research<T>(question: string, options?: ParallelResearchOptions) {
+    async research<T>(question: string, options?: ParallelResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const { id, result } = await runTask(
         raw,
@@ -512,8 +535,10 @@ export const parallel = (config: ParallelConfig = {}) => {
         fields,
         id,
         meta: taskMeta(result),
-        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-        output: output.content as T,
+        output: await checkOutput(o.schema, output.content, {
+          jobId: id,
+          provider,
+        }),
         raw: result,
         sources: citedBy(fields),
         status: "completed" as const,

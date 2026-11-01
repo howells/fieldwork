@@ -15,11 +15,10 @@
       "eslint(no-restricted-properties)": 7,
       "eslint(no-use-before-define)": 9,
       "eslint(sort-keys)": 5,
-      "gdp-ts(no-type-assertion)": 22,
+      "gdp-ts(no-type-assertion)": 11,
       "oxc(no-barrel-file)": 1,
       "promise(avoid-new)": 1,
-      "typescript(no-unnecessary-type-parameters)": 7,
-      "typescript(no-unsafe-type-assertion)": 21,
+      "typescript(no-unsafe-type-assertion)": 10,
       "unicorn(no-await-expression-member)": 5,
       "vitest(max-expects)": 1
     }

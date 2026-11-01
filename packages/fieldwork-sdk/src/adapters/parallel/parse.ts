@@ -133,7 +133,7 @@ export const decisionAnswer = (
 /** Termination reasons that mean the run found everything it could. */
 export const FINISHED = new Set(["match_limit_met", "candidates_exhausted"]);
 
-export const candidate = <T>(value: unknown): Entity<T> | undefined => {
+export const candidate = (value: unknown): Entity<unknown> | undefined => {
   const item = record(value);
   const status = text(item.match_status);
   if (status === "discarded") {
@@ -156,8 +156,7 @@ export const candidate = <T>(value: unknown): Entity<T> | undefined => {
   }
   return compact({
     citations: sources.length > 0 ? sources : undefined,
-    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-    data: nonEmpty(data) as T | undefined,
+    data: nonEmpty(data),
     description: text(item.description),
     fields: fields.length > 0 ? fields : undefined,
     matched,
@@ -242,17 +241,17 @@ export const extractMeta = (response: Json) =>
     warnings: response.warnings,
   });
 
-export const discovery = <T>(
+export const discovery = (
   id: string,
   result: Json
-): ParallelDiscovery<T> => {
+): ParallelDiscovery<unknown> => {
   const run = record(record(result.run).status);
   const metrics = record(run.metrics);
   const reason = text(run.termination_reason);
   const state = text(run.status) ?? "unknown";
   const entities = list(result.candidates)
-    .map((item) => candidate<T>(item))
-    .filter((item): item is Entity<T> => item !== undefined);
+    .map((item) => candidate(item))
+    .filter((item): item is Entity<unknown> => item !== undefined);
   const stoppedEarly =
     state !== "completed" || (reason !== undefined && !FINISHED.has(reason));
   if (stoppedEarly && !entities.some((entity) => entity.matched === true)) {

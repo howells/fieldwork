@@ -2,6 +2,8 @@ import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
 import type { RawClient } from "../http.js";
+import { checkOutput, jsonSchemaOf } from "../schema.js";
+import type { OutputSchema } from "../schema.js";
 import type {
   Answer,
   CallOptions,
@@ -9,7 +11,6 @@ import type {
   DecisionAnswer,
   DecisionQuestion,
   Decisions,
-  JsonSchema,
   Recency,
   Research,
   SearchResponse,
@@ -80,11 +81,12 @@ export interface PerplexitySearchOptions
 /** An effort level, or a name pinned to a version such as `fast@2026-10-16.0`. */
 type Pinned<Name extends string> = Name | `${Name}@${string}`;
 
-export interface PerplexityAnswerOptions extends CallOptions {
+export interface PerplexityAnswerOptions<T = unknown> extends CallOptions {
   /** Defaults to "fast". Answers are synchronous, so only the quicker levels are offered. */
   effort?: Pinned<"fast" | "low" | "medium">;
   instructions?: string;
-  schema?: JsonSchema;
+  /** A JSON Schema, or a Zod, Valibot or ArkType schema that types and checks `output`. */
+  schema?: OutputSchema<T>;
   /** The `continuationId` of an earlier answer or research result. */
   continueFrom?: string;
 }
@@ -103,9 +105,9 @@ export type PerplexityEffort =
   // oxlint-disable-next-line typescript/ban-types -- an open string keeps autocomplete for the known names
   | (string & {});
 
-export interface PerplexityResearchOptions
+export interface PerplexityResearchOptions<T = unknown>
   extends CallOptions, PerplexityFilters {
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   /**
    * The configuration to run: a model, tools, system prompt and step budget in
    * one name. Defaults to "high" when neither `effort`, `model` nor `models` is
@@ -156,11 +158,11 @@ export interface PerplexityOperations {
   ) => Promise<SearchResponse>;
   answer: <T = unknown>(
     question: string,
-    options?: PerplexityAnswerOptions
+    options?: PerplexityAnswerOptions<T>
   ) => Promise<Answer<T>>;
   research: <T = unknown>(
     question: string,
-    options?: PerplexityResearchOptions
+    options?: PerplexityResearchOptions<T>
   ) => Promise<Research<T>>;
   decide: (
     context: unknown,
@@ -310,9 +312,12 @@ const responseMeta = (response: Json, warnings?: string) => {
   });
 };
 
-const responseFormat = (schema: JsonSchema | undefined) =>
+const responseFormat = (schema: OutputSchema<unknown> | undefined) =>
   schema
-    ? { json_schema: { name: "output", schema }, type: "json_schema" }
+    ? {
+        json_schema: { name: "output", schema: jsonSchemaOf(schema) },
+        type: "json_schema",
+      }
     : undefined;
 
 const numbers = (value: unknown): Record<string, number> =>
@@ -383,7 +388,7 @@ const search = async (
 const answer = async <T>(
   raw: RawClient,
   question: string,
-  options: PerplexityAnswerOptions | undefined
+  options: PerplexityAnswerOptions<T> | undefined
 ): Promise<Answer<T>> => {
   const { call, rest: o } = callSettings(options);
   const response = record(
@@ -413,8 +418,11 @@ const answer = async <T>(
         ? "perplexity stopped before finishing the answer"
         : undefined
     ),
-    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-    output: o.schema ? (parseJson(provider, read.text) as T) : undefined,
+    output: o.schema
+      ? await checkOutput(o.schema, parseJson(provider, read.text), {
+          provider,
+        })
+      : undefined,
     raw: response,
   });
 };
@@ -475,7 +483,7 @@ const startResearch = async (
 const researchOutput = (
   response: Json,
   reply: string,
-  schema: JsonSchema | undefined,
+  schema: OutputSchema<unknown> | undefined,
   id: string
 ) => {
   if (!schema) {
@@ -500,7 +508,7 @@ const researchOutput = (
 const research = async <T>(
   raw: RawClient,
   question: string,
-  options: PerplexityResearchOptions | undefined
+  options: PerplexityResearchOptions<T> | undefined
 ): Promise<Research<T>> => {
   const { call, rest: o } = callSettings(options);
   const id = await startResearch(raw, question, o, call);
@@ -526,8 +534,11 @@ const research = async <T>(
     continuationId: id,
     id,
     meta: responseMeta(response),
-    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-    output: researchOutput(response, read.text, o.schema, id) as T,
+    output: await checkOutput(
+      o.schema,
+      researchOutput(response, read.text, o.schema, id),
+      { jobId: id, provider }
+    ),
     raw: response,
     retrieved: read.retrieved.length > 0 ? read.retrieved : undefined,
     sources: read.cited,

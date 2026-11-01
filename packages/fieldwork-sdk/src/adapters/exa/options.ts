@@ -1,8 +1,8 @@
+import type { OutputSchema } from "../../schema.js";
 import type {
   Answer,
   CallOptions,
   Extraction,
-  JsonSchema,
   MonitorEvents,
   MonitorInfo,
   MonitorSchedule,
@@ -129,25 +129,26 @@ export interface ExaReadOptions extends CallOptions {
 
 export type ExaReadManyOptions = ExaReadOptions;
 
-export interface ExaExtractOptions extends CallOptions {
-  schema: JsonSchema;
+export interface ExaExtractOptions<T = unknown> extends CallOptions {
+  /** A JSON Schema, or a Zod, Valibot or ArkType schema that types and checks `data`. */
+  schema: OutputSchema<T>;
   /** What to extract, in plain words. */
   prompt?: string;
   /** Seconds a cached copy may be old; 0 fetches fresh. */
   maxAge?: number;
 }
 
-export interface ExaAnswerOptions extends CallOptions {
-  /** JSON Schema (draft 7) for the answer; the answer comes back as an object. */
-  schema?: JsonSchema;
+export interface ExaAnswerOptions<T = unknown> extends CallOptions {
+  /** JSON Schema (draft 7) or a Standard Schema for the answer; the answer comes back as an object. */
+  schema?: OutputSchema<T>;
   systemPrompt?: string;
   /** Two-letter country code that localizes the search. */
   country?: string;
   model?: "exa" | "exa-pro" | "exa-research" | "exa-fast";
 }
 
-export interface ExaResearchOptions extends CallOptions {
-  schema?: JsonSchema;
+export interface ExaResearchOptions<T = unknown> extends CallOptions {
+  schema?: OutputSchema<T>;
   /** Cost and reasoning preference. Defaults to `auto`. */
   effort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "auto" | "ultra";
   /** Spend cap in dollars, 1 to 100. Only `auto` and `ultra` accept it. */
@@ -234,15 +235,15 @@ export interface ExaOperations {
   ) => Promise<PageBatch>;
   extract: <T = unknown>(
     url: string,
-    options: ExaExtractOptions
+    options: ExaExtractOptions<T>
   ) => Promise<Extraction<T>>;
   answer: <T = unknown>(
     question: string,
-    options?: ExaAnswerOptions
+    options?: ExaAnswerOptions<T>
   ) => Promise<Answer<T>>;
   research: <T = unknown>(
     question: string,
-    options?: ExaResearchOptions
+    options?: ExaResearchOptions<T>
   ) => Promise<Research<T>>;
   monitor: ExaMonitor;
 }

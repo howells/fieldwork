@@ -784,7 +784,7 @@ describe("exa monitor", () => {
 
   it("refuses a schedule Exa cannot express", async () => {
     const { web, calls } = client();
-    const create = async (schedule: unknown) =>
+    const create = async (schedule: Record<string, string> | string) =>
       await web.monitor.create({
         query: "q",
         // @ts-expect-error each schedule is one the types refuse

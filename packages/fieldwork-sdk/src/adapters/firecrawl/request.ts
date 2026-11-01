@@ -1,4 +1,5 @@
 import type { RequestOptions } from "../../http.js";
+import { jsonSchemaOf } from "../../schema.js";
 import type { CallOptions, DocumentInput, Recency } from "../../types.js";
 import { compact, refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
@@ -216,7 +217,7 @@ export const researchBody = (
     maxCredits: o.maxCredits,
     model: o.model,
     prompt: question,
-    schema: o.schema,
+    schema: o.schema === undefined ? undefined : jsonSchemaOf(o.schema),
     strictConstrainToURLs: o.strictConstrainToURLs,
     threadId: o.continueFrom,
     urls: o.urls,

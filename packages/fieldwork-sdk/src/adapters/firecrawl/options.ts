@@ -1,3 +1,4 @@
+import type { OutputSchema } from "../../schema.js";
 import type {
   AccountUsage,
   ActResult,
@@ -7,7 +8,6 @@ import type {
   DocumentInput,
   Extraction,
   ImageSearch,
-  JsonSchema,
   MonitorEvents,
   MonitorInfo,
   MonitorSchedule,
@@ -186,8 +186,10 @@ export interface FirecrawlImagesOptions extends CallOptions {
   safe?: boolean;
 }
 
-export interface FirecrawlExtractOptions extends FirecrawlPageOptions {
-  schema: JsonSchema;
+export interface FirecrawlExtractOptions<
+  T = unknown,
+> extends FirecrawlPageOptions {
+  schema: OutputSchema<T>;
   prompt?: string;
 }
 
@@ -234,8 +236,8 @@ export interface FirecrawlCrawlOptions extends CallOptions {
   resume?: string;
 }
 
-export interface FirecrawlResearchOptions extends CallOptions {
-  schema?: JsonSchema;
+export interface FirecrawlResearchOptions<T = unknown> extends CallOptions {
+  schema?: OutputSchema<T>;
   /** Pages to start from. */
   urls?: string[];
   /** Visit only `urls`. */
@@ -342,7 +344,7 @@ export interface FirecrawlOperations {
   ) => Promise<PageBatch>;
   extract: <T = unknown>(
     url: string,
-    options: FirecrawlExtractOptions
+    options: FirecrawlExtractOptions<T>
   ) => Promise<Extraction<T>>;
   /** Reads product and variant data from the page's structured data, without a model. */
   product: (url: string, options?: FirecrawlPageOptions) => Promise<Product>;
@@ -350,7 +352,7 @@ export interface FirecrawlOperations {
   crawl: (url: string, options?: FirecrawlCrawlOptions) => Promise<Crawl>;
   research: <T = unknown>(
     question: string,
-    options?: FirecrawlResearchOptions
+    options?: FirecrawlResearchOptions<T>
   ) => Promise<Research<T>>;
   /** Runs a script in a browser session; closes the session unless `keepSession` is set. */
   act: (code: string, options?: FirecrawlActOptions) => Promise<ActResult>;

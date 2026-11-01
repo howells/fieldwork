@@ -1,3 +1,5 @@
+import { jsonSchemaOf } from "../../schema.js";
+import type { OutputSchema } from "../../schema.js";
 import type {
   Answer,
   CallOptions,
@@ -7,7 +9,6 @@ import type {
   Discovery,
   Extraction,
   ImageSearch,
-  JsonSchema,
   MonitorEvents,
   MonitorInfo,
   MonitorSchedule,
@@ -113,13 +114,14 @@ export interface ParallelReadOptions extends CallOptions {
 
 export type ParallelReadManyOptions = ParallelReadOptions;
 
-export interface ParallelExtractOptions extends CallOptions {
+export interface ParallelExtractOptions<T = unknown> extends CallOptions {
   /**
    * The values to extract. Without one, Parallel picks the fields itself (its
    * `auto` output schema, which gives deep-research style output on `pro` and
-   * above).
+   * above). A JSON Schema, or a Zod, Valibot or ArkType schema that types and
+   * checks `data`.
    */
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   prompt?: string;
   /** Defaults to "base". */
   processor?: ParallelProcessor;
@@ -135,9 +137,9 @@ export interface ParallelExtractOptions extends CallOptions {
   resume?: string;
 }
 
-export interface ParallelAnswerOptions extends CallOptions {
+export interface ParallelAnswerOptions<T = unknown> extends CallOptions {
   /** The answer in the shape of this schema, in `output`. */
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   /** System instructions for the answer. */
   instructions?: string;
   /** How much research the answer does: `low`, `medium` (the default), `high` or `auto`. */
@@ -151,9 +153,10 @@ export interface ParallelAnswerOptions extends CallOptions {
   metadata?: Record<string, string>;
 }
 
-export interface ParallelResearchOptions extends CallOptions, ParallelSources {
+export interface ParallelResearchOptions<T = unknown>
+  extends CallOptions, ParallelSources {
   /** Structured output in the shape of this schema; without one the output is report text. */
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   /** Defaults to "base". */
   processor?: ParallelProcessor;
   /** The `continuationId` of an earlier run. */
@@ -170,7 +173,7 @@ export interface ParallelResearchOptions extends CallOptions, ParallelSources {
   resume?: string;
 }
 
-export interface ParallelDiscoverOptions extends CallOptions {
+export interface ParallelDiscoverOptions<T = unknown> extends CallOptions {
   /** What kind of entity to find, such as "companies" or "people". */
   entityType: string;
   /** Every discovered entity is tested against all of these. */
@@ -185,7 +188,7 @@ export interface ParallelDiscoverOptions extends CallOptions {
    * Fills these fields for every match (Parallel's enrichment, run as a Task
    * after the run starts), returned in each entity's `data`.
    */
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   /** The Task processor that fills `schema`. Parallel defaults to "core". */
   processor?: ParallelProcessor;
   metadata?: ParallelMetadata;
@@ -226,8 +229,8 @@ export interface ParallelMonitorCreateOptions
   taskRunId?: string;
   /** Parallel runs at a fixed interval from 1 hour to 30 days; cron is refused. */
   schedule: MonitorSchedule;
-  /** Events come back in the shape of this schema. */
-  schema?: JsonSchema;
+  /** Events come back in the shape of this schema. Events are not checked against a Standard Schema. */
+  schema?: OutputSchema<unknown>;
   /** The first run returns a sample of recent events (a preview, not exhaustive). */
   includeBackfill?: boolean;
   country?: string;
@@ -272,19 +275,19 @@ export interface ParallelOperations {
   ) => Promise<PageBatch>;
   extract: <T = unknown>(
     url: string,
-    options?: ParallelExtractOptions
+    options?: ParallelExtractOptions<T>
   ) => Promise<Extraction<T>>;
   answer: <T = unknown>(
     question: string,
-    options?: ParallelAnswerOptions
+    options?: ParallelAnswerOptions<T>
   ) => Promise<Answer<T>>;
   research: <T = unknown>(
     question: string,
-    options?: ParallelResearchOptions
+    options?: ParallelResearchOptions<T>
   ) => Promise<Research<T>>;
   discover: <T = Record<string, unknown>>(
     objective: string,
-    options: ParallelDiscoverOptions
+    options: ParallelDiscoverOptions<T>
   ) => Promise<ParallelDiscovery<T>>;
   decide: (
     context: unknown,
@@ -330,8 +333,8 @@ export const fetchPolicy = (maxAge: number | undefined) => {
     : { max_age_seconds: Math.ceil(maxAge) };
 };
 
-export const jsonOutput = (schema: JsonSchema) => ({
-  json_schema: schema,
+export const jsonOutput = (schema: OutputSchema<unknown>) => ({
+  json_schema: jsonSchemaOf(schema),
   type: "json",
 });
 

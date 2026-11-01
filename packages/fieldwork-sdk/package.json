@@ -88,6 +88,9 @@
     "typecheck": "tsc --noEmit",
     "test:live": "vitest run --config vitest.live.config.ts"
   },
+  "dependencies": {
+    "zod": "catalog:"
+  },
   "devDependencies": {
     "@howells/lint": "catalog:",
     "@howells/typescript-config": "catalog:",

@@ -1,5 +1,6 @@
 import { FieldworkError } from "../../errors.js";
 import type { FieldworkErrorCode } from "../../errors.js";
+import { jsonSchemaOf } from "../../schema.js";
 import type {
   FieldSource,
   JsonSchema,
@@ -273,18 +274,19 @@ export const researchBody = (question: string, o: ExaResearchOptions) => {
     budget: Object.keys(budget).length > 0 ? budget : undefined,
     effort: o.effort,
     input: Object.keys(input).length > 0 ? input : undefined,
-    outputSchema: o.schema,
+    outputSchema:
+      o.schema === undefined ? undefined : jsonSchemaOf(o.schema, "draft-07"),
     previousRunId: o.continueFrom,
     query: question,
     systemPrompt: o.systemPrompt,
   });
 };
 
-export const researchResult = <T>(
+export const researchResult = (
   id: string,
   run: Json,
   structured: boolean
-): Research<T> => {
+): Research<unknown> => {
   const stopReason = text(run.stopReason);
   const status = text(run.status) ?? "unknown";
   if (status !== "completed" && !hasOutput(run, structured)) {
@@ -317,8 +319,7 @@ export const researchResult = <T>(
     fields: fields.length > 0 ? fields : undefined,
     id,
     meta: runMeta(run),
-    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
-    output: (structured ? output.structured : output.text) as T,
+    output: structured ? output.structured : output.text,
     raw: run,
     sources: uniqueCitations(fields.flatMap((field) => field.citations)),
     status: finished ? ("completed" as const) : ("partial" as const),

@@ -1,10 +1,10 @@
+import type { OutputSchema } from "../../schema.js";
 import type {
   AccountUsage,
   Answer,
   CallOptions,
   Crawl,
   ImageSearch,
-  JsonSchema,
   Page,
   PageBatch,
   Recency,
@@ -152,9 +152,9 @@ export interface TavilyResearchFile {
   data: string | Uint8Array;
 }
 
-export interface TavilyResearchOptions extends CallOptions {
+export interface TavilyResearchOptions<T = unknown> extends CallOptions {
   /** Tavily accepts object, string, integer, number and array types only, and each property needs a description. */
-  schema?: JsonSchema;
+  schema?: OutputSchema<T>;
   model?: "mini" | "pro" | "auto";
   citationFormat?: "numbered" | "mla" | "apa" | "chicago";
   outputLength?: "short" | "standard" | "long";
@@ -195,7 +195,7 @@ export interface TavilyOperations {
   ) => Promise<Answer<unknown>>;
   research: <T = unknown>(
     question: string,
-    options?: TavilyResearchOptions
+    options?: TavilyResearchOptions<T>
   ) => Promise<Research<T>>;
   usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
