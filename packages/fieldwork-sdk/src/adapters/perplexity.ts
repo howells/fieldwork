@@ -1,3 +1,5 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
@@ -17,19 +19,26 @@ import type {
 } from "../types.js";
 import {
   callSettings,
-  citation,
+  citationOf,
   compact,
-  list,
   meta,
-  num,
   parseJson,
-  record,
   refuseTogether,
-  requireId,
-  text,
+  requireJobId,
   uniqueCitations,
 } from "../util.js";
-import type { Json } from "../util.js";
+import {
+  AgentRun,
+  AgentStart,
+  DecisionsResponse,
+  SearchResponse as SearchBodySchema,
+} from "./perplexity/response.js";
+import type {
+  AgentBody,
+  AgentRunBlock,
+  AnnotationBlock,
+  DecisionAnswerBlock,
+} from "./perplexity/response.js";
 
 export interface PerplexityConfig {
   /** Defaults to the PERPLEXITY_API_KEY environment variable. */
@@ -231,11 +240,10 @@ const errorCode = (jobId: string | undefined, rateLimited: boolean) => {
   return rateLimited ? "RateLimited" : "ProviderError";
 };
 
-const responseError = (response: Json, jobId?: string) => {
-  const error = record(response.error);
-  const message =
-    text(error.message) ?? `ended ${text(response.status) ?? "unknown"}`;
-  const type = text(error.type);
+const responseError = (run: AgentRunBlock, jobId?: string) => {
+  const { error, status } = run.value;
+  const { type } = error;
+  const message = error.message ?? `ended ${status ?? "unknown"}`;
   const rateLimited =
     type === "request_rate_limit_exceeded" ||
     type === "token_rate_limit_exceeded";
@@ -243,7 +251,7 @@ const responseError = (response: Json, jobId?: string) => {
     errorCode(jobId, rateLimited),
     `perplexity ${message}`,
     {
-      cause: response,
+      cause: run.original,
       jobId,
       provider,
       retryable: rateLimited || type === "overloaded",
@@ -251,37 +259,33 @@ const responseError = (response: Json, jobId?: string) => {
   );
 };
 
-const retrievedBy = (entry: Json): unknown[] => {
-  if (entry.type === "search_results") {
-    return list(entry.results);
-  }
-  return entry.type === "fetch_url_results" ? list(entry.contents) : [];
-};
-
-const annotated = (part: Json): Citation[] =>
-  list(part.annotations)
-    .map((annotation) => record(annotation))
+const annotated = (annotations: readonly AnnotationBlock[]): Citation[] =>
+  annotations
     .filter(
       (found) => found.type === undefined || found.type === "url_citation"
     )
-    .map((found) => citation(found))
+    .map((found) => citationOf(found))
     .filter((source): source is Citation => source !== undefined);
 
-const readResponse = (response: Json) => {
+const readResponse = (body: AgentBody) => {
   const parts: string[] = [];
   const cited: Citation[] = [];
   const retrieved: Citation[] = [];
-  for (const item of list(response.output)) {
-    const entry = record(item);
+  for (const entry of body.output) {
     if (entry.type === "message") {
-      for (const content of list(entry.content)) {
-        const part = record(content);
-        parts.push(text(part.text) ?? "");
-        cited.push(...annotated(part));
+      for (const part of entry.content) {
+        parts.push(part.text ?? "");
+        cited.push(...annotated(part.annotations));
       }
     }
-    for (const found of retrievedBy(entry)) {
-      const source = citation(found);
+    let found = entry.contents;
+    if (entry.type === "search_results") {
+      found = entry.results;
+    } else if (entry.type !== "fetch_url_results") {
+      found = [];
+    }
+    for (const item of found) {
+      const source = citationOf(item);
       if (source) {
         retrieved.push(compact({ title: source.title, url: source.url }));
       }
@@ -294,18 +298,18 @@ const readResponse = (response: Json) => {
   };
 };
 
-const responseMeta = (response: Json, warnings?: string) => {
-  const usage = record(response.usage);
-  const input = record(usage.input_tokens_details);
+const responseMeta = (body: AgentBody, warnings?: string) => {
+  const { usage } = body;
+  const input = usage.input_tokens_details;
   return meta({
-    costUsd: record(usage.cost).total_cost,
-    requestId: response.id,
+    costUsd: usage.cost.total_cost,
+    requestId: body.id.second,
     units: {
       cacheCreationInputTokens: input.cache_creation_input_tokens,
       cacheReadInputTokens: input.cache_read_input_tokens,
       inputTokens: usage.input_tokens,
       outputTokens: usage.output_tokens,
-      reasoningTokens: record(usage.output_tokens_details).reasoning_tokens,
+      reasoningTokens: usage.output_tokens_details.reasoning_tokens,
       totalTokens: usage.total_tokens,
     },
     warnings,
@@ -319,13 +323,6 @@ const responseFormat = (schema: OutputSchema<unknown> | undefined) =>
         type: "json_schema",
       }
     : undefined;
-
-const numbers = (value: unknown): Record<string, number> =>
-  Object.fromEntries(
-    Object.entries(record(value)).filter(
-      (entry): entry is [string, number] => num(entry[1]) !== undefined
-    )
-  );
 
 const decisionState = (context: unknown) => {
   if (typeof context === "string" || (typeof context === "object" && context)) {
@@ -354,34 +351,32 @@ const search = async (
       'perplexity search returns at most 20 results unless searchType is "people"'
     );
   }
-  const response = record(
-    await raw.request("POST", "/search", {
-      ...call,
-      body: compact({
-        country: o.country,
-        max_results: o.limit,
-        max_tokens: o.maxTokens,
-        max_tokens_per_page: o.maxTokensPerPage,
-        query: queries.length > 1 ? queries : query,
-        search_language_filter: languageCodes(o.language),
-        search_type: o.searchType,
-        ...filterFields(o),
-      }),
-    })
-  );
-  return {
-    meta: meta({ requestId: response.id }),
-    raw: response,
-    results: list(response.results).map((item) => {
-      const result = record(item);
-      return compact({
-        lastUpdatedAt: text(result.last_updated),
-        publishedAt: text(result.date),
-        snippet: text(result.snippet),
-        title: text(result.title),
-        url: text(result.url) ?? "",
-      });
+  const response = await raw.request("POST", "/search", {
+    ...call,
+    body: compact({
+      country: o.country,
+      max_results: o.limit,
+      max_tokens: o.maxTokens,
+      max_tokens_per_page: o.maxTokensPerPage,
+      query: queries.length > 1 ? queries : query,
+      search_language_filter: languageCodes(o.language),
+      search_type: o.searchType,
+      ...filterFields(o),
     }),
+  });
+  const body = z.parse(SearchBodySchema, response);
+  return {
+    meta: meta({ requestId: body.id }),
+    raw: response,
+    results: body.results.map((result) =>
+      compact({
+        lastUpdatedAt: result.last_updated,
+        publishedAt: result.date,
+        snippet: result.snippet,
+        title: result.title,
+        url: result.url ?? "",
+      })
+    ),
   };
 };
 
@@ -391,7 +386,8 @@ const answer = async <T>(
   options: PerplexityAnswerOptions<T> | undefined
 ): Promise<Answer<T>> => {
   const { call, rest: o } = callSettings(options);
-  const response = record(
+  const run = z.parse(
+    AgentRun,
     await raw.request("POST", "/v1/agent", {
       ...call,
       body: compact({
@@ -403,17 +399,17 @@ const answer = async <T>(
       }),
     })
   );
-  const read = readResponse(response);
-  const status = text(response.status);
+  const read = readResponse(run.value);
+  const { status } = run.value;
   if (status === "failed" || status === "cancelled" || !read.text) {
-    throw responseError(response);
+    throw responseError(run);
   }
   return compact({
     answer: read.text,
     citations: read.cited,
-    continuationId: text(response.id),
+    continuationId: run.value.id.first,
     meta: responseMeta(
-      response,
+      run.value,
       status === "incomplete"
         ? "perplexity stopped before finishing the answer"
         : undefined
@@ -423,7 +419,7 @@ const answer = async <T>(
           provider,
         })
       : undefined,
-    raw: response,
+    raw: run.original,
   });
 };
 
@@ -461,7 +457,8 @@ const startResearch = async (
   if (o.resume !== undefined && o.resume !== "") {
     return o.resume;
   }
-  const created = record(
+  const created = z.parse(
+    AgentStart,
     await raw.request("POST", "/v1/agent", {
       creates: true,
       ...call,
@@ -477,11 +474,11 @@ const startResearch = async (
       }),
     })
   );
-  return requireId(provider, created.id);
+  return requireJobId(provider, created.id);
 };
 
 const researchOutput = (
-  response: Json,
+  run: AgentRunBlock,
   reply: string,
   schema: OutputSchema<unknown> | undefined,
   id: string
@@ -489,7 +486,7 @@ const researchOutput = (
   if (!schema) {
     return reply;
   }
-  const status = text(response.status);
+  const { status } = run.value;
   try {
     return parseJson(provider, reply);
   } catch (error) {
@@ -500,7 +497,7 @@ const researchOutput = (
     throw new FieldworkError(
       "JobFailed",
       `perplexity research ended ${status} with output that is not valid JSON`,
-      { cause: response, jobId: id, provider }
+      { cause: run.original, jobId: id, provider }
     );
   }
 };
@@ -512,34 +509,35 @@ const research = async <T>(
 ): Promise<Research<T>> => {
   const { call, rest: o } = callSettings(options);
   const id = await startResearch(raw, question, o, call);
-  const response = await poll(
+  const run = await poll(
     provider,
     id,
     async () => {
-      const found = record(
+      const found = z.parse(
+        AgentRun,
         await raw.request("GET", `/v1/agent/${encodeURIComponent(id)}`, {
           signal: call.signal,
         })
       );
-      return TERMINAL.has(text(found.status) ?? "") ? found : undefined;
+      return TERMINAL.has(found.value.status ?? "") ? found : undefined;
     },
     { interval: o.interval, signal: call.signal, timeout: call.timeout }
   );
-  const status = text(response.status);
-  const read = readResponse(response);
+  const { status } = run.value;
+  const read = readResponse(run.value);
   if (status === "failed" || !read.text) {
-    throw responseError(response, id);
+    throw responseError(run, id);
   }
   return compact({
     continuationId: id,
     id,
-    meta: responseMeta(response),
+    meta: responseMeta(run.value),
     output: await checkOutput(
       o.schema,
-      researchOutput(response, read.text, o.schema, id),
+      researchOutput(run, read.text, o.schema, id),
       { jobId: id, provider }
     ),
-    raw: response,
+    raw: run.original,
     retrieved: read.retrieved.length > 0 ? read.retrieved : undefined,
     sources: read.cited,
     status:
@@ -568,12 +566,18 @@ const decisionQuestion = (question: DecisionQuestion) => {
   };
 };
 
-const decisionAnswer = (value: unknown, scores: string[] | undefined) => {
-  const found = record(value);
+const decisionAnswer = (
+  found: DecisionAnswerBlock,
+  scores: string[] | undefined
+) => {
   if (found.type === "noul") {
-    return compact({ probability: num(found.noul) });
+    return compact({ probability: found.noul });
   }
-  let probabilities = numbers(found.probabilities);
+  let probabilities = Object.fromEntries(
+    Object.entries(found.probabilities).filter(
+      (entry): entry is [string, number] => entry[1] !== undefined
+    )
+  );
   if (found.type === "score") {
     probabilities = Object.fromEntries(
       Object.entries(probabilities).map(([index, probability]) => [
@@ -586,8 +590,8 @@ const decisionAnswer = (value: unknown, scores: string[] | undefined) => {
     (a, b) => b[1] - a[1]
   )[0]?.[0];
   return compact({
-    choice: text(found.choice) ?? top,
-    confidence: num(found.confidence),
+    choice: found.choice ?? top,
+    confidence: found.confidence,
     probabilities,
   });
 };
@@ -599,30 +603,29 @@ const decide = async (
   options: PerplexityDecideOptions | undefined
 ): Promise<Decisions> => {
   const { call, rest: o } = callSettings(options);
-  const response = record(
-    await raw.request("POST", "/v1/decisions", {
-      ...call,
-      body: {
-        model: o.model ?? "pplx-decider-latest",
-        questions: Object.fromEntries(
-          Object.entries(questions).map(([name, question]) => [
-            name,
-            decisionQuestion(question),
-          ])
-        ),
-        state: decisionState(context),
-      },
-    })
-  );
+  const response = await raw.request("POST", "/v1/decisions", {
+    ...call,
+    body: {
+      model: o.model ?? "pplx-decider-latest",
+      questions: Object.fromEntries(
+        Object.entries(questions).map(([name, question]) => [
+          name,
+          decisionQuestion(question),
+        ])
+      ),
+      state: decisionState(context),
+    },
+  });
+  const body = z.parse(DecisionsResponse, response);
   const answers: Record<string, DecisionAnswer> = {};
-  for (const [name, value] of Object.entries(record(response.answers))) {
+  for (const [name, value] of Object.entries(body.answers)) {
     const question = questions[name];
     answers[name] = decisionAnswer(
       value,
       question?.type === "score" ? Object.keys(question.scale) : undefined
     );
   }
-  const usage = record(response.usage);
+  const { usage } = body;
   return {
     answers,
     citations: [],

@@ -168,3 +168,50 @@ export const withOriginal = <Item extends z.ZodMiniType>(item: Item) =>
 export const optionalId = z.optional(
   z.union([z.pipe(z.number(), z.transform(String)), nonEmptyString, absent])
 );
+
+/**
+ * One value read two ways at once, for a key a provider's result needs
+ * twice: `first` is the value through `first`, `second` through `second`.
+ */
+export const both = <First extends z.ZodMiniType, Second extends z.ZodMiniType>(
+  first: First,
+  second: Second
+) =>
+  z.prefault(
+    z.pipe(
+      z.unknown(),
+      z.transform((value) => ({
+        first: z.parse(first, value),
+        second: z.parse(second, value),
+      }))
+    ),
+    nothing
+  );
+
+/**
+ * Excerpts of a page: a string is one excerpt (an empty one too), an array
+ * gives its strings, empty ones too. Any other value, or an empty list, reads
+ * as undefined.
+ */
+export const excerpts = z.pipe(
+  z.union([
+    z.pipe(
+      z.string(),
+      z.transform((passage) => [passage])
+    ),
+    arrayOf(z.string()),
+  ]),
+  z.transform((passages) => (passages.length > 0 ? passages : undefined))
+);
+
+/** What a provider says about a cited source: its URL, title and excerpts. */
+export const sourceShape = {
+  excerpts,
+  title: optionalString,
+  url: optionalString,
+};
+
+/** A cited source. */
+export const Source = looseObject(sourceShape);
+
+export type SourceBlock = z.output<typeof Source>;

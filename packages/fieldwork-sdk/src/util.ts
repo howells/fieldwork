@@ -1,5 +1,5 @@
 import { FieldworkError } from "./errors.js";
-import type { Original } from "./parse.js";
+import type { Original, SourceBlock } from "./parse.js";
 import type {
   Citation,
   CallOptions,
@@ -85,6 +85,16 @@ export const citation = (value: unknown): Citation | undefined => {
       : strings(item.excerpts);
   return compact({ excerpts, title: text(item.title), url });
 };
+
+/** The citation a parsed source amounts to, or undefined when it has no URL. */
+export const citationOf = (source: SourceBlock): Citation | undefined =>
+  source.url === undefined
+    ? undefined
+    : compact({
+        excerpts: source.excerpts,
+        title: source.title,
+        url: source.url,
+      });
 
 export const citations = (value: unknown): Citation[] =>
   list(value)
