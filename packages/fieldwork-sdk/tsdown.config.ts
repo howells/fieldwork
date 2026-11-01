@@ -1,18 +1,21 @@
 import { defineConfig } from "tsdown";
 
 export default defineConfig({
+  clean: false,
+  dts: true,
   entry: {
-    index: "src/index.ts",
+    brave: "src/adapters/brave.ts",
+    browserbase: "src/adapters/browserbase.ts",
     exa: "src/adapters/exa.ts",
     firecrawl: "src/adapters/firecrawl.ts",
-    tavily: "src/adapters/tavily.ts",
+    index: "src/index.ts",
     parallel: "src/adapters/parallel.ts",
     perplexity: "src/adapters/perplexity.ts",
+    serpapi: "src/adapters/serpapi.ts",
+    tavily: "src/adapters/tavily.ts",
     tools: "src/tools.ts",
   },
   format: ["esm"],
-  dts: true,
-  clean: false,
+  outExtensions: () => ({ dts: ".d.ts", js: ".js" }),
   sourcemap: false,
-  outExtensions: () => ({ js: ".js", dts: ".d.ts" }),
 });

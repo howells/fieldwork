@@ -1,6 +1,6 @@
 # fieldwork
 
-One API over Exa, Firecrawl, Tavily, Parallel and Perplexity. Two packages:
+One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase. Two packages:
 
 - `packages/fieldwork-sdk`, published as `@howells/fieldwork-sdk`: the client, the adapters and agent tool definitions (`/tools`).
 - `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: an MCP server over stdio that serves those tools.
@@ -11,9 +11,11 @@ Plans, decisions and evidence live on Linear (material-instruments, MG-2960; the
 
 ```sh
 pnpm install
-pnpm build && pnpm typecheck && pnpm lint && pnpm test   # the gate; run before every commit
+pnpm build && pnpm typecheck && pnpm lint:ratchet && pnpm test   # the gate; run before every commit
 pnpm test:live                                            # real provider calls; ask first
 ```
+
+Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config switches a rule off. `pnpm lint` lists every finding. The gate is `pnpm lint:ratchet`, which fails when any package's count for a rule rises above `lint-baseline.json`. When you lower a count, run `pnpm lint:rebaseline` and commit the baseline with the fix. Never rebaseline to absorb a rise.
 
 `pnpm test` uses a fake `fetch` and costs nothing. Every adapter change needs a test in `packages/fieldwork-sdk/tests/` that checks the request the provider receives and the normalized result.
 
@@ -30,11 +32,12 @@ pnpm test:live                                            # real provider calls;
 Always:
 
 - Run the gate before committing.
-- Keep each provider's option names in its adapter's types, and the shared names (`limit`, `includeDomains`, `excludeDomains`, `publishedAfter`) where the meaning is the same.
+- Keep each provider's option names in its adapter's types, and use the shared names in the README's options table (`limit`, `includeDomains`, `excludeDomains`, `publishedAfter`, `publishedBefore`, `recency`, `maxAge`, `country`, `language`, `schema`, `prompt`, `query`, `content`, `continueFrom`, `resume`, `interval`) wherever the meaning is the same. A field that takes regular expressions or paths gets its own name, never `includeDomains`.
+- Refuse an option combination the provider rejects or ignores with `refuseTogether` before sending.
 
 Ask Daniel first:
 
-- Running `pnpm test:live`, or any call to a real provider. A full live run costs about $0.20.
+- Running `pnpm test:live`, or any call to a real provider. A full live run is capped at $5.
 - Adding a provider or a capability.
 - Changing a published name: a package, export path, tool name or error code.
 
@@ -46,8 +49,8 @@ Never:
 
 ## Adding an adapter
 
-1. Create `packages/fieldwork-sdk/src/adapters/<provider>.ts`. Export a factory that calls `requireKey`, builds `createRawClient`, and returns `defineAdapter({ name, operations, raw })`. Give `operations` only the capabilities the provider has, each typed with that provider's options.
+1. Create `packages/fieldwork-sdk/src/adapters/<provider>.ts`, with option types in `<provider>/options.ts` and response parsing in `<provider>/parse.ts` once the file nears the 600-line lint limit. Export a factory that calls `requireKey`, builds `createRawClient`, and returns `defineAdapter({ name, operations, raw })`. Give `operations` only the capabilities the provider has, each typed with that provider's options.
 2. Add the entry to `tsdown.config.ts` and the subpath to `package.json` `exports`.
-3. In `src/tool-specs.ts`, add the provider to the `providers` list of each tool option it supports.
+3. In `src/tool-specs/<group>.ts`, add the provider to the `providers` list of each tool option it supports. The tools test proves each listed option reaches the provider's request.
 4. Add request and result tests, and a block in `tests/live/providers.live.ts`.
 5. Add the provider to the capability table and the keys table in the README, and to `PROVIDERS` in `packages/fieldwork-mcp/src/config.ts`.

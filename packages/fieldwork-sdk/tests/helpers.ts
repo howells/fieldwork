@@ -21,10 +21,10 @@ export function fakeFetch(...replies: Reply[]) {
   const fetchImpl = async (input: URL | string, init: RequestInit = {}) => {
     const { body } = init;
     const call: RecordedCall = {
+      body: typeof body === "string" ? JSON.parse(body) : body,
+      headers: Object.fromEntries(new Headers(init.headers).entries()),
       method: init.method ?? "GET",
       url: new URL(String(input)),
-      headers: Object.fromEntries(new Headers(init.headers).entries()),
-      body: typeof body === "string" ? JSON.parse(body) : body,
     };
     calls.push(call);
     const reply = queue.shift();
@@ -33,8 +33,8 @@ export function fakeFetch(...replies: Reply[]) {
     }
     return new Response(
       reply.body === undefined ? "" : JSON.stringify(reply.body),
-      { status: reply.status ?? 200, headers: reply.headers }
+      { headers: reply.headers, status: reply.status ?? 200 }
     );
   };
-  return { fetch: fetchImpl as typeof fetch, calls };
+  return { calls, fetch: fetchImpl as typeof fetch };
 }

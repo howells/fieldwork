@@ -1,6 +1,6 @@
 # Fieldwork
 
-One API for searching the web, reading pages, extracting values, walking sites, running research, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel and Perplexity.
+One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.
 
 ```sh
 npm i @howells/fieldwork-sdk
@@ -22,35 +22,75 @@ Swap the adapter to switch providers. Everything below the constructor stays the
 
 ## Capabilities
 
-Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. `new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent. Nothing falls back to another provider.
+Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. `new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent. Nothing falls back to another provider, and nothing is emulated: a provider without an answer endpoint has no `answer`, even though search plus a model could imitate one.
 
-| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity |
-| --- | --- | --- | --- | --- | --- |
-| `search(query)` | yes | yes | yes | yes | yes |
-| `read(url)` | yes | yes | yes | yes |  |
-| `extract(url, { schema })` | yes | yes |  | yes |  |
-| `product(url)` |  | yes |  |  |  |
-| `map(url)` |  | yes | yes |  |  |
-| `crawl(url)` |  | yes | yes |  |  |
-| `research(question)` | yes | yes | yes | yes | yes |
-| `act(code)` |  | yes |  |  |  |
-| `parse(document)` |  | yes |  |  |  |
+| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |
+| `images(query)` |  | yes | yes | yes |  | yes | yes |  |
+| `read(url)` | yes | yes | yes | yes |  |  |  | yes |
+| `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |
+| `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |
+| `product(url)` |  | yes |  |  |  |  |  |  |
+| `map(url)` |  | yes | yes |  |  |  |  |  |
+| `crawl(url)` |  | yes | yes |  |  |  |  |  |
+| `answer(question)` | yes |  | yes | yes | yes | yes |  |  |
+| `research(question)` | yes | yes | yes | yes | yes |  |  |  |
+| `discover(objective, { entityType, conditions })` |  |  |  | yes |  |  |  |  |
+| `decide(context, questions)` |  |  |  | yes | yes |  |  |  |
+| `act(code)` |  | yes |  |  |  |  |  |  |
+| `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes |
+| `parse(document)` |  | yes |  |  |  |  |  |  |
+| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |
+| `usage()` |  | yes | yes |  |  |  | yes | yes |
 
 `web.capabilities` and `web.supports("crawl")` report the same table at runtime.
 
-Options are typed per provider too. Shared ideas share a name (`limit`, `includeDomains`, `excludeDomains`, `publishedAfter`, `country`); options only one provider has keep that provider's meaning, such as Tavily's `topic` or Exa's `category`.
+- `answer` is a provider's own cited answer, returned in one call. `research` is a longer job of many steps, polled until it finishes.
+- `discover` returns a list of entities, such as companies or products, that meet every condition you give.
+- `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
+- `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer; `act(code)` runs one script in a fresh session.
+- `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
+
+### Options
+
+Options are typed per provider. An option means the same thing under the same name everywhere:
+
+| Option | Meaning |
+| --- | --- |
+| `limit` | The most results or pages to return. |
+| `includeDomains`, `excludeDomains` | Plain domains such as `example.com`. Options that take regular expressions or paths have their own names, such as Firecrawl's `includePaths`. |
+| `publishedAfter`, `publishedBefore` | Dates as `YYYY-MM-DD`. |
+| `recency` | `"hour"`, `"day"`, `"week"`, `"month"` or `"year"`, narrowed to what the provider supports. |
+| `maxAge` | Seconds a cached copy may be old; `0` always fetches the page fresh. |
+| `country` | An ISO 3166-1 code such as `"GB"`. |
+| `language` | An ISO 639-1 code such as `"de"`. |
+| `schema`, `prompt` | A JSON Schema for structured output, and extraction instructions in plain words. |
+| `query` | On `read`: return the passages that answer it as `excerpts`. |
+| `content` | On `search`: include each result's page text. |
+| `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
+| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks. |
+
+Options only one provider has keep that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. A combination a provider would reject or silently ignore, such as `includeDomains` with `excludeDomains` on Parallel, throws `InvalidRequest` before anything is sent.
 
 ## Results
 
-Every result is normalized and keeps the provider's response in `raw`:
+Every result is normalized and keeps the provider's response in `raw`. Most also carry `meta`: the provider's `requestId`, `usage` (credits, US dollars, or counted units such as tokens) and `warnings`, when the provider returns them.
 
-- `search` returns `{ results: [{ url, title, snippet, content, publishedAt, score }], answer, raw }`.
-- `read` returns a `Page`: `{ url, title, markdown, html, rawHtml, links, images, excerpts, raw }`.
-- `extract` returns `{ data, fields, raw }`. `data` follows your schema; `fields` lists each field's citations when the provider returns them (Parallel).
-- `research` returns `{ id, output, sources, fields, raw }`. `output` follows your schema when you pass one, otherwise it is the report text. Exa and Parallel return per-field sources in `fields`.
-- `product` returns `{ title, brand, category, url, variants: [{ sku, values, price, inStock, images }], raw }`.
+- `search` returns `{ results, answer, images, meta, raw }`. Each result has `url`, `title`, `snippet` and, when the provider has them, `content`, `publishedAt`, `author`, `image`, `favicon` and `score`. Shopping, place, news, scholar and patent results set `kind` and carry `price`, `rating`, `reviewCount` and `place`.
+- `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them.
+- `readMany` returns `{ pages, failed }`. A URL that could not be read is listed in `failed` with the reason; it does not throw.
+- `extract` returns `{ data, fields }`. `data` follows your schema; `fields` lists each field's citations when the provider returns them.
+- `product` returns the product and its `variants`, each with `sku`, option `values`, `price` (`amount`, `currency`, `formatted`), `originalPrice`, `availability`, `gtin` and `images` (`{ url, alt }`).
+- `answer` returns `{ answer, output, citations, continuationId }`.
+- `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
+- `crawl` returns `{ pages, failed, robotsBlocked, total }`.
 
-Asynchronous jobs (research on Exa, Firecrawl, Tavily and Parallel, Parallel extraction, and Firecrawl crawls) are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
+A job that stopped early but produced output, for example on a credit or step limit, returns `status: "partial"` with `stopReason`. A job with no usable output throws `JobFailed`.
+
+### Long jobs
+
+Research, discovery, crawls, batch reads and Parallel extraction are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
 
 When a job outlasts `timeout`, or `signal` stops the wait, the provider keeps running it and charging for it. The error carries the job's id as `jobId`; pass it back as `resume` to collect the result instead of starting another job:
 
@@ -65,27 +105,50 @@ try {
 }
 ```
 
+### Monitors and browsers
+
+`monitor` and `browser` are groups of methods:
+
+```ts
+const watch = await web.monitor.create({
+  urls: ["https://www.tilebar.com/portmore-aqua"],
+  query: "price or stock changes",
+  schedule: { every: "day" },
+  webhookUrl: "https://example.com/hooks/fieldwork",
+});
+const { events } = await web.monitor.events(watch.id);
+await web.monitor.delete(watch.id);
+
+const session = await web.browser.open();
+// connect Playwright to session.cdpUrl
+await web.browser.close(session.id);
+```
+
+A schedule is `{ every: "day" }`, `{ every: "6h" }` or `{ cron: "0 9 * * 1" }`. A schedule the provider cannot express throws `InvalidRequest`.
+
 ## Choosing a provider per capability
 
 `router` sends each capability to exactly one adapter:
 
 ```ts
 import { Fieldwork, router } from "@howells/fieldwork-sdk";
+import { brave } from "@howells/fieldwork-sdk/brave";
 import { exa } from "@howells/fieldwork-sdk/exa";
 import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
 import { parallel } from "@howells/fieldwork-sdk/parallel";
 
 const web = new Fieldwork({
   adapter: router({
-    search: parallel(),
+    search: brave(),
     read: firecrawl(),
     product: firecrawl(),
+    answer: parallel(),
     research: exa(),
   }),
 });
 ```
 
-A capability without a route is unsupported. A route to an adapter that lacks the capability is a type error and throws when the router is built.
+A capability without a route is unsupported. A route to an adapter that lacks the capability is a type error and throws when the router is built. For routes known only at run time, such as from flags or configuration, `runtimeRouter(routes)` makes the same check when it is called.
 
 ## Errors
 
@@ -106,7 +169,7 @@ Every failure is a `FieldworkError`. It carries:
 | `Unauthorized` | The key is missing, wrong or not allowed. | Fix the key. Repeating does not help. |
 | `RateLimited` | A rate or plan limit was reached. | Wait `retryAfter` seconds, then repeat. |
 | `NotFound` | The page, product or job does not exist. | Check the URL or id. |
-| `InvalidRequest` | The provider rejected the input. | Correct the input; the message says what is wrong. |
+| `InvalidRequest` | The input was refused, by Fieldwork or by the provider. | Correct the input; the message says what is wrong. |
 | `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
 | `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat. |
 | `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
@@ -116,7 +179,7 @@ An error with a `jobId` is never `retryable`, because repeating the call would s
 
 ## Agent tools
 
-`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model: one per capability, named `search_web`, `read_page`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `research_question`, `parse_document` and `run_browser_script`. Each tool has:
+`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method: `search_web`, `search_images`, `read_page`, `read_pages`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `answer_question`, `research_question`, `find_entities`, `make_decisions`, `parse_document`, `check_usage`, `run_browser_script`, `open_browser`, `close_browser`, `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. Each tool has:
 
 - a description that says when to use it and which tool to use instead;
 - a JSON Schema input that lists only the options its provider supports;
@@ -142,7 +205,7 @@ const tools = Object.fromEntries(
 );
 ```
 
-`run_browser_script` runs code in a remote browser, so it is left out unless you name it: `toolsFor(web, { capabilities: ["read", "act"] })`. `toolError(error)` formats an error for a model.
+Tools that start remote browsers or create lasting, billed resources are left out unless you allow them: `toolsFor(web, { allow: ["act", "browser", "monitor"] })`. `toolError(error)` formats an error for a model.
 
 For MCP clients such as Claude, Cursor and Codex, [`@howells/fieldwork-mcp`](https://www.npmjs.com/package/@howells/fieldwork-mcp) serves these tools over stdio.
 
@@ -151,9 +214,9 @@ For MCP clients such as Claude, Cursor and Codex, [`@howells/fieldwork-mcp`](htt
 `web.raw.request(method, path, options)` calls the provider's HTTP API with authentication applied, for anything Fieldwork does not wrap:
 
 ```ts
-const usage = await new Fieldwork({ adapter: tavily() }).raw.request(
+const check = await new Fieldwork({ adapter: firecrawl() }).raw.request(
   "GET",
-  "/usage"
+  `/monitor/${monitorId}/checks/${checkId}`
 );
 ```
 
@@ -161,14 +224,17 @@ On a router, `raw` is keyed by provider name.
 
 ## Keys
 
-| Adapter                 | Environment variable |
-| ----------------------- | -------------------- |
-| `exa()`                 | `EXA_API_KEY`        |
-| `firecrawl()`           | `FIRECRAWL_API_KEY`  |
-| `tavily()`              | `TAVILY_API_KEY`     |
-| `parallel()`            | `PARALLEL_API_KEY`   |
-| `perplexity({ model })` | `PERPLEXITY_API_KEY` |
+| Adapter | Environment variable |
+| --- | --- |
+| `exa()` | `EXA_API_KEY` |
+| `firecrawl()` | `FIRECRAWL_API_KEY` |
+| `tavily()` | `TAVILY_API_KEY` |
+| `parallel()` | `PARALLEL_API_KEY` |
+| `perplexity()` | `PERPLEXITY_API_KEY` |
+| `brave()` | `BRAVE_API_KEY` |
+| `serpapi()` | `SERPAPI_API_KEY` |
+| `browserbase()` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` |
 
-Pass `apiKey` to override. Perplexity research also needs a `model`, on the adapter or the call.
+Pass `apiKey` (and Browserbase's `projectId`) to override, and `fetch` to supply your own. Requests follow redirects only within the provider's origin; a redirect to any other host, scheme or port fails before the key is sent there.
 
 ESM only, Node 22 or later. No dependencies.

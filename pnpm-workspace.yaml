@@ -3,7 +3,7 @@ packages:
 
 catalog:
   "@howells/husky": "^0.2.5"
-  "@howells/lint": "^3.5.1"
+  "@howells/lint": "^3.9.1"
   "@howells/typescript-config": "^0.1.8"
   "@types/node": "^26.6.2"
   "husky": "^9.1.7"

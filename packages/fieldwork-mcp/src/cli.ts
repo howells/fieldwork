@@ -6,8 +6,15 @@ import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { USAGE, fieldworkFor, parseArgs } from "./config.js";
 import { createFieldworkServer } from "./server.js";
 
-const { version } = createRequire(import.meta.url)("../package.json") as {
-  version: string;
+const hasVersion = (value: unknown): value is { version: string } =>
+  typeof value === "object" &&
+  value !== null &&
+  "version" in value &&
+  typeof value.version === "string";
+
+const readVersion = (): string => {
+  const manifest: unknown = createRequire(import.meta.url)("../package.json");
+  return hasVersion(manifest) ? manifest.version : "0.0.0";
 };
 
 // stdout carries the protocol, so everything for a person goes to stderr.
@@ -16,17 +23,12 @@ try {
   if (config.help) {
     process.stderr.write(`${USAGE}\n`);
   } else if (config.version) {
-    process.stderr.write(`${version}\n`);
+    process.stderr.write(`${readVersion()}\n`);
   } else {
-    const web = fieldworkFor(config);
-    const server = createFieldworkServer(web, {
-      version,
+    const server = createFieldworkServer(fieldworkFor(config), {
+      allow: config.allow,
       maxCharacters: config.maxCharacters,
-      capabilities: config.allowAct
-        ? Object.entries(web.capabilities)
-            .filter(([, offered]) => offered)
-            .map(([capability]) => capability as keyof typeof web.capabilities)
-        : undefined,
+      version: readVersion(),
     });
     await server.connect(new StdioServerTransport());
   }

@@ -1,0 +1,361 @@
+import type { RequestOptions } from "../../http.js";
+import type { CallOptions, DocumentInput, Recency } from "../../types.js";
+import { compact, refuseTogether } from "../../util.js";
+import type { Json } from "../../util.js";
+import type {
+  FirecrawlActOptions,
+  FirecrawlCrawlOptions,
+  FirecrawlImagesOptions,
+  FirecrawlMapOptions,
+  FirecrawlMonitorOptions,
+  FirecrawlPageSettings,
+  FirecrawlParseOptions,
+  FirecrawlReadSettings,
+  FirecrawlResearchOptions,
+  FirecrawlSearchOptions,
+  FirecrawlSessionSettings,
+} from "./options.js";
+import { cronFor } from "./schedule.js";
+import { country, invalid, provider } from "./shared.js";
+
+/** The largest file `/parse` takes. */
+const MAX_PARSE_BYTES = 50 * 1024 * 1024;
+/** Longest script `/interact/{id}/execute` runs, in seconds. */
+const MAX_SCRIPT_SECONDS = 300;
+/** Milliseconds the request outlives the script's own limit, so a killed script reports back. */
+const SCRIPT_GRACE_MS = 10_000;
+/** The most monitors or checks Firecrawl returns per request. */
+export const PAGE_SIZE = 100;
+/** The longest query a search monitor takes. */
+const MAX_MONITOR_QUERY = 256;
+
+const MEDIA_TYPES = new Map<string, string>(
+  Object.entries({
+    csv: "text/csv",
+    doc: "application/msword",
+    docm: "application/vnd.ms-word.document.macroEnabled.12",
+    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    epub: "application/epub+zip",
+    htm: "text/html",
+    html: "text/html",
+    odp: "application/vnd.oasis.opendocument.presentation",
+    ods: "application/vnd.oasis.opendocument.spreadsheet",
+    odt: "application/vnd.oasis.opendocument.text",
+    pdf: "application/pdf",
+    ppt: "application/vnd.ms-powerpoint",
+    pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
+    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    rtf: "application/rtf",
+    xhtml: "application/xhtml+xml",
+    xls: "application/vnd.ms-excel",
+    xlsb: "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
+    xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12",
+    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  })
+);
+
+const RECENCY = {
+  day: "d",
+  hour: "h",
+  month: "m",
+  week: "w",
+  year: "y",
+} as const satisfies Record<Recency, string>;
+
+const DATE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
+
+export function pageBody(o: FirecrawlPageSettings) {
+  return compact({
+    actions: o.actions,
+    excludeTags: o.excludeTags,
+    includeTags: o.includeTags,
+    location: o.location,
+    maxAge: o.maxAge === undefined ? undefined : Math.round(o.maxAge * 1000),
+    mobile: o.mobile,
+    onlyMainContent: o.onlyMainContent,
+    parsers: o.parsers,
+    proxy: o.proxy,
+    waitFor: o.waitFor,
+  });
+}
+
+export function readFormats(o: FirecrawlReadSettings): unknown[] {
+  const query =
+    o.query === undefined
+      ? []
+      : [
+          o.queryFormat === "question"
+            ? { question: o.query, type: "question" }
+            : { query: o.query, type: "highlights" },
+        ];
+  return ["markdown", ...(o.include ?? []), ...query];
+}
+
+export function readBody(o: FirecrawlReadSettings) {
+  return { formats: readFormats(o), ...pageBody(o) };
+}
+
+function usDate(value: string): string {
+  const groups = DATE.exec(value)?.groups;
+  if (!groups) {
+    throw invalid(`firecrawl needs dates as YYYY-MM-DD, got "${value}"`);
+  }
+  return `${groups.month}/${groups.day}/${groups.year}`;
+}
+
+type SearchSettings = Omit<FirecrawlSearchOptions, keyof CallOptions>;
+
+/** The `tbs` time filter for the named recency or date range. */
+function timeFilter(o: SearchSettings): string | undefined {
+  refuseTogether(provider, o, "tbs", "recency", "publishedAfter");
+  refuseTogether(provider, o, "tbs", "recency", "publishedBefore");
+  if (o.tbs !== undefined) {
+    return o.tbs;
+  }
+  if (o.recency !== undefined) {
+    return `qdr:${RECENCY[o.recency]}`;
+  }
+  if (o.publishedAfter === undefined && o.publishedBefore === undefined) {
+    return undefined;
+  }
+  const after =
+    o.publishedAfter === undefined
+      ? undefined
+      : `cd_min:${usDate(o.publishedAfter)}`;
+  const before =
+    o.publishedBefore === undefined
+      ? undefined
+      : `cd_max:${usDate(o.publishedBefore)}`;
+  return ["cdr:1", after, before]
+    .filter((part) => part !== undefined)
+    .join(",");
+}
+
+export function searchBody(query: string, o: SearchSettings) {
+  refuseTogether(provider, o, "includeDomains", "excludeDomains");
+  if (o.categories?.includes("gov") && o.categories.length > 1) {
+    throw invalid(
+      "firecrawl searches the gov category on its own; do not combine it with another category"
+    );
+  }
+  return compact({
+    categories: o.categories?.map((type) => ({ type })),
+    country: country(o.country),
+    excludeDomains: o.excludeDomains,
+    ignoreInvalidURLs: o.ignoreInvalidURLs,
+    includeDomains: o.includeDomains,
+    limit: o.limit,
+    location: o.location,
+    query,
+    safe: o.safe,
+    scrapeOptions: o.content ? { formats: ["markdown"] } : undefined,
+    sources: o.sources?.map((type) => ({ type })),
+    tbs: timeFilter(o),
+  });
+}
+
+export function imagesBody(
+  query: string,
+  o: Omit<FirecrawlImagesOptions, keyof CallOptions>
+) {
+  return compact({
+    country: country(o.country),
+    limit: o.limit,
+    location: o.location,
+    query,
+    safe: o.safe,
+    sources: [{ type: "images" }],
+  });
+}
+
+export function mapBody(
+  url: string,
+  o: Omit<FirecrawlMapOptions, keyof CallOptions>
+) {
+  return compact({
+    ignoreCache: o.ignoreCache,
+    ignoreQueryParameters: o.ignoreQueryParameters,
+    includeSubdomains: o.includeSubdomains,
+    limit: o.limit,
+    location: o.location,
+    search: o.search,
+    sitemap: o.sitemap,
+    url,
+  });
+}
+
+export function crawlBody(
+  url: string,
+  o: Omit<FirecrawlCrawlOptions, keyof CallOptions>
+) {
+  return compact({
+    allowExternalLinks: o.allowExternalLinks,
+    allowSubdomains: o.allowSubdomains,
+    crawlEntireDomain: o.crawlEntireDomain,
+    delay: o.delay,
+    excludePaths: o.excludePaths,
+    ignoreQueryParameters: o.ignoreQueryParameters,
+    includePaths: o.includePaths,
+    limit: o.limit,
+    maxConcurrency: o.maxConcurrency,
+    maxDiscoveryDepth: o.maxDiscoveryDepth,
+    prompt: o.prompt,
+    regexOnFullURL: o.regexOnFullURL,
+    scrapeOptions: o.scrapeOptions ? readBody(o.scrapeOptions) : undefined,
+    sitemap: o.sitemap,
+    url,
+  });
+}
+
+export function researchBody(
+  question: string,
+  o: Omit<FirecrawlResearchOptions, keyof CallOptions>
+) {
+  return compact({
+    effort: o.effort,
+    location: o.country ? { country: country(o.country) } : undefined,
+    maxCredits: o.maxCredits,
+    model: o.model,
+    prompt: question,
+    schema: o.schema,
+    strictConstrainToURLs: o.strictConstrainToURLs,
+    threadId: o.continueFrom,
+    urls: o.urls,
+  });
+}
+
+export function sessionBody(o: FirecrawlSessionSettings) {
+  return compact({
+    activityTtl: o.activityTtl ?? o.ttl,
+    location: o.country ? { country: country(o.country) } : undefined,
+    profile: o.profile,
+    ttl: o.ttl,
+  });
+}
+
+/** Refuses settings that cannot apply, and returns the script's time limit in seconds. */
+export function checkAct(
+  o: Omit<FirecrawlActOptions, keyof CallOptions>,
+  timeout: number | undefined
+): number | undefined {
+  for (const name of ["ttl", "activityTtl", "profile", "country"]) {
+    refuseTogether(provider, o, "session", name);
+  }
+  if (timeout === undefined) {
+    return undefined;
+  }
+  const seconds = Math.max(1, Math.ceil(timeout / 1000));
+  if (seconds > MAX_SCRIPT_SECONDS) {
+    throw invalid(
+      `firecrawl runs a script for at most ${MAX_SCRIPT_SECONDS} seconds`
+    );
+  }
+  return seconds;
+}
+
+/** The request that runs a script in an open session. */
+export function scriptRequest(
+  code: string,
+  language: FirecrawlActOptions["language"],
+  call: CallOptions,
+  seconds: number | undefined
+): RequestOptions {
+  return {
+    body: compact({ code, language: language ?? "node", timeout: seconds }),
+    signal: call.signal,
+    timeout:
+      call.timeout === undefined ? undefined : call.timeout + SCRIPT_GRACE_MS,
+  };
+}
+
+/** The upload form for a file, after checking its type and size. */
+export function parseForm(
+  document: DocumentInput,
+  o: Omit<FirecrawlParseOptions, keyof CallOptions>
+): FormData {
+  const extension = document.name.split(".").pop()?.toLowerCase() ?? "";
+  const mediaType = MEDIA_TYPES.get(extension);
+  if (!mediaType) {
+    throw invalid(
+      `firecrawl parses ${[...MEDIA_TYPES.keys()].join(", ")} files, not "${document.name}"`
+    );
+  }
+  const size =
+    document.data instanceof Blob
+      ? document.data.size
+      : document.data.byteLength;
+  if (size > MAX_PARSE_BYTES) {
+    throw invalid(
+      `firecrawl parses files up to 50 MB; ${document.name} is ${(size / 1024 / 1024).toFixed(1)} MB`
+    );
+  }
+  const parser = compact({
+    blocks: o.blocks,
+    maxPages: o.maxPages,
+    mode: o.mode,
+    pageMarkers: o.pageMarkers,
+    pages: o.pages,
+    type: "pdf",
+  });
+  // Options go first, as a plain field: Firecrawl reads the parts in
+  // order and rejects a second part that carries a filename.
+  const form = new FormData();
+  form.set(
+    "options",
+    JSON.stringify({ formats: ["markdown"], parsers: [parser] })
+  );
+  form.set(
+    "file",
+    new Blob([document.data as ArrayBuffer], { type: mediaType }),
+    document.name
+  );
+  return form;
+}
+
+/** What a monitor watches: pages for `urls`, or a search for `query` alone. */
+function monitorTarget(o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) {
+  const searchOnly = [
+    o.searchWindow,
+    o.maxResults,
+    o.includeDomains,
+    o.excludeDomains,
+  ].some((value) => value !== undefined);
+  if (o.urls && o.urls.length > 0) {
+    if (searchOnly) {
+      throw invalid(
+        "firecrawl applies searchWindow, maxResults and the domain lists to search monitors, which take a query and no urls"
+      );
+    }
+    return { type: "scrape", urls: o.urls };
+  }
+  if (!o.query) {
+    throw invalid("firecrawl monitors need urls to watch or a query");
+  }
+  if (o.query.length > MAX_MONITOR_QUERY) {
+    throw invalid(
+      `firecrawl searches queries of up to ${MAX_MONITOR_QUERY} characters; pass urls to watch pages with a longer query`
+    );
+  }
+  return compact({
+    excludeDomains: o.excludeDomains,
+    includeDomains: o.includeDomains,
+    maxResults: o.maxResults,
+    queries: [o.query],
+    searchWindow: o.searchWindow,
+    type: "search",
+  });
+}
+
+export function monitorBody(
+  o: Omit<FirecrawlMonitorOptions, keyof CallOptions>
+): Json {
+  const target = monitorTarget(o);
+  return compact({
+    goal: o.query,
+    name: (o.name ?? o.query ?? o.urls?.[0] ?? "monitor").slice(0, 256),
+    retentionDays: o.retentionDays,
+    schedule: compact({ cron: cronFor(o.schedule), timezone: o.timezone }),
+    targets: [target],
+    webhook: o.webhookUrl ? { url: o.webhookUrl } : undefined,
+  });
+}

@@ -1,8 +1,16 @@
 import type { AnyAdapter } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
 import type { Fieldwork } from "./fieldwork.js";
-import { OUTPUTS, SPECS } from "./tool-specs.js";
-import type { Field } from "./tool-specs.js";
+import { SPECS } from "./tool-specs/index.js";
+import { toJsonSchema } from "./tool-specs/schema.js";
+import type { Field, Spec } from "./tool-specs/types.js";
+import { argumentsFor, operationFor } from "./tools/dispatch.js";
+import type { Dispatcher, Operation } from "./tools/dispatch.js";
+import { isJsonObject } from "./tools/json.js";
+import type { JsonObject, JsonValue } from "./tools/json.js";
+import { forModel } from "./tools/model.js";
+import { problem } from "./tools/validate.js";
+import { CAPABILITIES } from "./types.js";
 import type { CallOptions, Capability, JsonSchema } from "./types.js";
 
 /**
@@ -12,6 +20,15 @@ import type { CallOptions, Capability, JsonSchema } from "./types.js";
  * JSON Schema with MCP-style annotations, so they work with the AI SDK, MCP
  * servers and any framework that accepts JSON Schema tools.
  */
+
+/** What a model sends a tool: a parsed JSON value, which must be an object. */
+export type ToolInput = JsonValue;
+
+/** The arguments a tool accepts, once they are known to be an object. */
+export type ToolArguments = JsonObject;
+
+/** What a tool returns: a JSON object, shaped for a model. */
+export type ToolOutput = JsonObject;
 
 export interface ToolAnnotations {
   title: string;
@@ -29,6 +46,8 @@ export interface FieldworkTool {
   /** A verb_noun name, such as `search_web`. */
   name: string;
   capability: Capability;
+  /** For a group capability, the method this tool calls, such as `create` for `monitor`. */
+  method?: string;
   /** The provider that serves this tool, such as "firecrawl". */
   provider: string;
   /** What the tool does, when to use it and when to use another tool. */
@@ -44,16 +63,31 @@ export interface FieldworkTool {
    * with long text cut to the `maxCharacters` budget. Throws a
    * `FieldworkError`; bad input is `InvalidRequest`.
    */
-  execute(input: unknown, options?: CallOptions): Promise<unknown>;
+  execute: (input: ToolInput, options?: CallOptions) => Promise<ToolOutput>;
 }
+
+/**
+ * Capabilities that start remote browsers or create lasting or billed
+ * resources. `toolsFor` leaves them out unless they are named in `allow` or
+ * `capabilities`.
+ */
+export const EXCLUDED_BY_DEFAULT: readonly Capability[] = [
+  "act",
+  "browser",
+  "monitor",
+];
 
 export interface ToolsOptions {
   /**
    * Capabilities to make tools for. Defaults to every capability the instance
-   * supports except `act`, which runs code in a browser and is included only
-   * when named here.
+   * supports except those in `EXCLUDED_BY_DEFAULT`.
    */
   capabilities?: Capability[];
+  /**
+   * Capabilities left out by default to include as well, such as `act`,
+   * `browser` and `monitor`.
+   */
+  allow?: Capability[];
   /**
    * The most characters of long text (page Markdown, reports, document text)
    * one result returns, shared across its fields. Text of 500 characters or
@@ -62,241 +96,149 @@ export interface ToolsOptions {
   maxCharacters?: number;
 }
 
-/** Makes one tool per capability the instance supports. */
-export function toolsFor(
+const offers = (field: Field, provider: string): boolean =>
+  field.providers === undefined || field.providers.includes(provider);
+
+const needs = (field: Field, provider: string): boolean =>
+  field.required === true || field.requiredFor?.includes(provider) === true;
+
+const invalid = (tool: string, provider: string, message: string) =>
+  new FieldworkError("InvalidRequest", `${tool}: ${message}`, { provider });
+
+const readInput = (
+  tool: string,
+  provider: string,
+  fields: Field[],
+  input: ToolInput
+): ToolArguments => {
+  if (!isJsonObject(input)) {
+    throw invalid(tool, provider, "input must be an object");
+  }
+  const known = new Set(fields.map((field) => field.name));
+  for (const key of Object.keys(input)) {
+    if (!known.has(key)) {
+      throw invalid(
+        tool,
+        provider,
+        `${key} is not an input with ${provider}; the inputs are ${[...known].join(", ")}`
+      );
+    }
+  }
+  for (const field of fields) {
+    const value = input[field.name];
+    if (value === undefined) {
+      if (needs(field, provider)) {
+        throw invalid(tool, provider, `${field.name} is required`);
+      }
+      continue;
+    }
+    const found = problem(field.schema, value, field.name);
+    if (found !== undefined) {
+      throw invalid(tool, provider, found);
+    }
+  }
+  return input;
+};
+
+/** The tool's result as an object: a list is wrapped, a confirmation is spelled out. */
+const resultObject = (
+  spec: Spec,
+  values: ToolArguments,
+  result: JsonValue | undefined
+): ToolOutput => {
+  if (spec.wrapAs !== undefined) {
+    return { [spec.wrapAs]: result };
+  }
+  if (spec.confirmAs !== undefined) {
+    return { [spec.confirmAs]: true, id: values.id };
+  }
+  if (isJsonObject(result)) {
+    return result;
+  }
+  throw new FieldworkError(
+    "ProviderError",
+    `${spec.name} got a result that is not an object`
+  );
+};
+
+const inputSchema = (fields: Field[], provider: string): JsonSchema => ({
+  additionalProperties: false,
+  properties: Object.fromEntries(
+    fields.map((field) => [field.name, toJsonSchema(field.schema)])
+  ),
+  required: fields
+    .filter((field) => needs(field, provider))
+    .map((field) => field.name),
+  type: "object",
+});
+
+const toolFor = (
+  spec: Spec,
+  provider: string,
+  operation: Operation,
+  budget: number
+): FieldworkTool => {
+  const fields = spec.fields.filter((field) => offers(field, provider));
+  return {
+    annotations: {
+      destructiveHint: spec.destructive,
+      idempotentHint: spec.idempotent,
+      openWorldHint: true,
+      readOnlyHint: spec.readOnly,
+      title: spec.title,
+    },
+    capability: spec.capability,
+    description: spec.description,
+    execute: async (input, call = {}) => {
+      const values = readInput(spec.name, provider, fields, input);
+      const result = await operation(...argumentsFor(spec, values, call));
+      return forModel(resultObject(spec, values, result), budget);
+    },
+    inputSchema: inputSchema(fields, provider),
+    method: spec.method,
+    name: spec.name,
+    outputSchema: toJsonSchema(spec.output),
+    provider,
+  };
+};
+
+/** Makes one tool per capability, or per method of a group, the instance supports. */
+export const toolsFor = (
   web: Fieldwork<AnyAdapter>,
   options: ToolsOptions = {}
-): FieldworkTool[] {
-  const wanted = new Set(
-    options.capabilities ??
-      SPECS.map((spec) => spec.capability).filter((c) => c !== "act")
-  );
+): FieldworkTool[] => {
+  const wanted = new Set<Capability>([
+    ...(options.capabilities ??
+      CAPABILITIES.filter(
+        (capability) => !EXCLUDED_BY_DEFAULT.includes(capability)
+      )),
+    ...(options.allow ?? []),
+  ]);
   const budget = options.maxCharacters ?? 20_000;
-  const methods = web as unknown as Record<
-    Capability,
-    (subject: unknown, options: Record<string, unknown>) => Promise<unknown>
-  >;
+  const dispatcher: Dispatcher = web;
   return SPECS.flatMap((spec) => {
     const provider = web.providerFor(spec.capability);
-    if (!wanted.has(spec.capability) || provider === undefined) {
-      return [];
-    }
-    const fields = spec.fields.filter(
-      (field) =>
-        field.providers === undefined || field.providers.includes(provider)
-    );
-    const tool: FieldworkTool = {
-      name: spec.name,
-      capability: spec.capability,
-      provider,
-      description: spec.description,
-      inputSchema: {
-        type: "object",
-        properties: Object.fromEntries(
-          fields.map((field) => [field.name, field.schema])
-        ),
-        required: fields
-          .filter((field) => field.required)
-          .map((field) => field.name),
-        additionalProperties: false,
-      },
-      outputSchema: OUTPUTS[spec.capability],
-      annotations: {
-        title: spec.title,
-        readOnlyHint: spec.readOnly,
-        destructiveHint: !spec.readOnly,
-        idempotentHint: spec.idempotent,
-        openWorldHint: true,
-      },
-      async execute(input, call = {}) {
-        const values = checkInput(spec.name, provider, fields, input);
-        const { [spec.subject]: subject, ...rest } = values;
-        const result =
-          spec.capability === "parse"
-            ? await methods.parse(toDocument(values), {
-                pages: values.pages,
-                ...call,
-              })
-            : await methods[spec.capability](subject, { ...rest, ...call });
-        return forModel(result, budget);
-      },
-    };
-    return [tool];
+    const operation = operationFor(dispatcher, spec);
+    return wanted.has(spec.capability) &&
+      provider !== undefined &&
+      operation !== undefined
+      ? [toolFor(spec, provider, operation, budget)]
+      : [];
   });
-}
+};
 
 /**
  * An error as a model or an MCP client should see it: the code, the message
  * and what to do next, without the provider's response.
  */
-export function toolError(error: unknown) {
-  if (error instanceof FieldworkError) {
-    return error.toJSON();
+export const toolError = (cause: unknown) => {
+  if (cause instanceof FieldworkError) {
+    return cause.toJSON();
   }
   return {
-    name: "Error",
     code: "ProviderError" as const,
-    message: error instanceof Error ? error.message : String(error),
+    message: cause instanceof Error ? cause.message : String(cause),
+    name: "Error",
     retryable: false,
   };
-}
-
-function invalid(tool: string, provider: string, message: string) {
-  return new FieldworkError("InvalidRequest", `${tool}: ${message}`, {
-    provider,
-  });
-}
-
-function checkInput(
-  tool: string,
-  provider: string,
-  fields: Field[],
-  input: unknown
-): Record<string, unknown> {
-  if (!input || typeof input !== "object" || Array.isArray(input)) {
-    throw invalid(tool, provider, "input must be an object");
-  }
-  const values = input as Record<string, unknown>;
-  const known = new Map(fields.map((field) => [field.name, field]));
-  for (const key of Object.keys(values)) {
-    if (!known.has(key)) {
-      throw invalid(
-        tool,
-        provider,
-        `${key} is not an input with ${provider}; the inputs are ${[...known.keys()].join(", ")}`
-      );
-    }
-  }
-  for (const field of fields) {
-    const value = values[field.name];
-    if (value === undefined) {
-      if (field.required) {
-        throw invalid(tool, provider, `${field.name} is required`);
-      }
-      continue;
-    }
-    const problem = checkValue(field.schema, value);
-    if (problem) {
-      throw invalid(tool, provider, `${field.name} ${problem}`);
-    }
-  }
-  return values;
-}
-
-function checkString(schema: JsonSchema, value: unknown): string | undefined {
-  if (typeof value !== "string" || value === "") {
-    return "must be a non-empty string";
-  }
-  const allowed = schema.enum as string[] | undefined;
-  if (allowed && !allowed.includes(value)) {
-    return `must be one of ${allowed.join(", ")}`;
-  }
-  if (schema.format === "uri" && !URL.canParse(value)) {
-    return "must be a full URL, including https://";
-  }
-  if (schema.format === "date" && !/^\d{4}-\d{2}-\d{2}$/u.test(value)) {
-    return "must be a date as YYYY-MM-DD";
-  }
-  return undefined;
-}
-
-function checkInteger(schema: JsonSchema, value: unknown): string | undefined {
-  const minimum = schema.minimum as number;
-  const maximum = schema.maximum as number;
-  const ok =
-    Number.isInteger(value) &&
-    (value as number) >= minimum &&
-    (value as number) <= maximum;
-  return ok
-    ? undefined
-    : `must be a whole number from ${minimum} to ${maximum}`;
-}
-
-const CHECKS = new Map<
-  unknown,
-  (schema: JsonSchema, value: unknown) => string | undefined
->([
-  ["string", checkString],
-  ["integer", checkInteger],
-  [
-    "boolean",
-    (_, value) =>
-      typeof value === "boolean" ? undefined : "must be true or false",
-  ],
-  [
-    "array",
-    (_, value) =>
-      Array.isArray(value) &&
-      value.every((item) => typeof item === "string" && item !== "")
-        ? undefined
-        : "must be a list of strings",
-  ],
-  [
-    "object",
-    (_, value) =>
-      value && typeof value === "object" && !Array.isArray(value)
-        ? undefined
-        : "must be a JSON object",
-  ],
-]);
-
-function checkValue(schema: JsonSchema, value: unknown): string | undefined {
-  return CHECKS.get(schema.type)?.(schema, value);
-}
-
-function toDocument(values: Record<string, unknown>) {
-  return {
-    name: values.name as string,
-    data: new Uint8Array(Buffer.from(values.contentBase64 as string, "base64")),
-  };
-}
-
-const SHORT_TEXT = 500;
-
-/**
- * Drops the provider's `raw` response (on the result and on each crawled
- * page) and cuts long text to a budget shared across the result. Keys inside
- * extracted data are left alone, whatever their names.
- */
-function strip(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return value;
-  }
-  const { raw: _raw, ...rest } = value as Record<string, unknown>;
-  return rest;
-}
-
-function forModel(result: unknown, budget: number): unknown {
-  let remaining = budget;
-  const cut = (value: unknown): unknown => {
-    if (typeof value === "string") {
-      if (value.length <= SHORT_TEXT) {
-        return value;
-      }
-      const kept = Math.min(value.length, remaining);
-      remaining -= kept;
-      return kept === value.length
-        ? value
-        : `${value.slice(0, kept)}\n\n[cut: ${kept} of ${value.length} characters shown]`;
-    }
-    if (Array.isArray(value)) {
-      return value.map((item) => cut(item));
-    }
-    if (value && typeof value === "object") {
-      return Object.fromEntries(
-        Object.entries(value).map(([key, item]) => [key, cut(item)])
-      );
-    }
-    return value;
-  };
-  const shaped = strip(result);
-  if (
-    shaped &&
-    typeof shaped === "object" &&
-    "pages" in shaped &&
-    Array.isArray(shaped.pages)
-  ) {
-    shaped.pages = shaped.pages.map((page) => strip(page));
-  }
-  return cut(shaped);
-}
+};

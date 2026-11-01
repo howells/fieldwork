@@ -1,9 +1,14 @@
 import type { RawClient } from "./http.js";
 import type { Capability } from "./types.js";
 
-/** The methods an adapter implements, keyed by capability. */
+type Method = (...args: never[]) => Promise<unknown>;
+
+/**
+ * The methods an adapter implements, keyed by capability. Most capabilities
+ * are one method; `monitor` and `browser` are a group of methods.
+ */
 export type Operations = Partial<
-  Record<Capability, (...args: never[]) => Promise<unknown>>
+  Record<Capability, Method | Readonly<Record<string, Method>>>
 >;
 
 /**

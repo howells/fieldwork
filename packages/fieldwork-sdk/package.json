@@ -1,17 +1,21 @@
 {
   "name": "@howells/fieldwork-sdk",
   "version": "0.2.0",
-  "description": "One API for web search, page reading, extraction, crawling, research, browser actions and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity.",
+  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.",
   "keywords": [
     "agents",
+    "brave",
+    "browserbase",
     "exa",
     "extraction",
     "firecrawl",
+    "monitoring",
     "parallel",
     "perplexity",
     "research",
     "scraping",
     "sdk",
+    "serpapi",
     "tavily",
     "web-search"
   ],
@@ -54,6 +58,18 @@
     "./perplexity": {
       "types": "./dist/perplexity.d.ts",
       "import": "./dist/perplexity.js"
+    },
+    "./brave": {
+      "types": "./dist/brave.d.ts",
+      "import": "./dist/brave.js"
+    },
+    "./serpapi": {
+      "types": "./dist/serpapi.d.ts",
+      "import": "./dist/serpapi.js"
+    },
+    "./browserbase": {
+      "types": "./dist/browserbase.d.ts",
+      "import": "./dist/browserbase.js"
     },
     "./tools": {
       "types": "./dist/tools.d.ts",

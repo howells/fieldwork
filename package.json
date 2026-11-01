@@ -7,10 +7,12 @@
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
     "prepare": "howells-husky",
-    "prepush": "pnpm typecheck && pnpm lint && pnpm test",
+    "prepush": "pnpm typecheck && pnpm lint:ratchet && pnpm test",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "test:live": "pnpm --filter @howells/fieldwork-sdk test:live"
+    "test:live": "pnpm --filter @howells/fieldwork-sdk test:live",
+    "lint:ratchet": "howells-ratchet",
+    "lint:rebaseline": "howells-ratchet --write"
   },
   "devDependencies": {
     "@howells/husky": "catalog:",

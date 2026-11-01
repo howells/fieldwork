@@ -34,8 +34,8 @@ export interface ClientConfig {
 export function createRawClient(config: ClientConfig): RawClient {
   const doFetch = config.fetch ?? globalThis.fetch;
   return {
-    provider: config.provider,
     baseUrl: config.baseUrl,
+    provider: config.provider,
     async request<T>(
       method: string,
       path: string,
@@ -59,12 +59,26 @@ export function createRawClient(config: ClientConfig): RawClient {
         body = JSON.stringify(options.body);
       }
       const signal = combineSignals(options.signal, options.timeout);
-      let response: Response;
-      try {
-        response = await doFetch(url, { method, headers, body, signal });
-      } catch (error) {
-        throw transportError(config.provider, error, options.signal);
-      }
+      const send = async (request: Hop) => {
+        try {
+          return await doFetch(request.url, {
+            body: request.body,
+            headers,
+            method: request.method,
+            // Redirects are followed below, so the key is never sent to a
+            // host other than the provider's.
+            redirect: "manual",
+            signal,
+          });
+        } catch (error) {
+          throw transportError(config.provider, error, options.signal);
+        }
+      };
+      const response = await followRedirects(config.provider, send, {
+        body,
+        method,
+        url,
+      });
       const text = await response.text();
       const parsed = parseBody(text);
       if (!response.ok) {
@@ -72,10 +86,10 @@ export function createRawClient(config: ClientConfig): RawClient {
           codeForStatus(response.status),
           `${config.provider} ${method} ${path} returned ${response.status}: ${describe(parsed, text)}`,
           {
-            provider: config.provider,
-            status: response.status,
-            retryAfter: retryAfterSeconds(response.headers.get("retry-after")),
             cause: parsed,
+            provider: config.provider,
+            retryAfter: retryAfterSeconds(response.headers.get("retry-after")),
+            status: response.status,
           }
         );
       }
@@ -83,6 +97,64 @@ export function createRawClient(config: ClientConfig): RawClient {
     },
   };
 }
+
+interface Hop {
+  url: URL;
+  method: string;
+  body: string | FormData | undefined;
+}
+
+const REDIRECTS = new Set([301, 302, 303, 307, 308]);
+const MAX_REDIRECTS = 5;
+
+/**
+ * Follows a provider's redirects only within its own origin, so the key in
+ * the request's headers or query never reaches another host. A redirect to
+ * another origin, scheme or port fails before anything is sent there.
+ */
+const followRedirects = async (
+  provider: string,
+  send: (hop: Hop) => Promise<Response>,
+  first: Hop
+): Promise<Response> => {
+  let hop = first;
+  for (let count = 0; count <= MAX_REDIRECTS; count += 1) {
+    // oxlint-disable-next-line no-await-in-loop -- each hop depends on the previous response
+    const response = await send(hop);
+    if (response.type === "opaqueredirect") {
+      throw new FieldworkError(
+        "ProviderError",
+        `${provider} redirected the request, and this runtime hides where to; Fieldwork does not follow it`,
+        { provider }
+      );
+    }
+    const location = response.headers.get("location");
+    if (!REDIRECTS.has(response.status) || location === null) {
+      return response;
+    }
+    const target = new URL(location, hop.url);
+    if (target.origin !== first.url.origin) {
+      throw new FieldworkError(
+        "ProviderError",
+        `${provider} redirected the request to ${target.origin}; Fieldwork follows redirects only within ${first.url.origin}, so the key was not sent`,
+        { provider, status: response.status }
+      );
+    }
+    // As fetch does: 303, and 301 or 302 after a POST, become a GET without a body.
+    const toGet =
+      response.status === 303 ||
+      ((response.status === 301 || response.status === 302) &&
+        hop.method === "POST");
+    hop = toGet
+      ? { body: undefined, method: "GET", url: target }
+      : { ...hop, url: target };
+  }
+  throw new FieldworkError(
+    "ProviderError",
+    `${provider} redirected the request more than ${MAX_REDIRECTS} times`,
+    { provider }
+  );
+};
 
 function combineSignals(
   signal: AbortSignal | undefined,
@@ -102,14 +174,14 @@ function transportError(
 ) {
   if (signal?.aborted) {
     return new FieldworkError("Aborted", `${provider} request was cancelled`, {
-      provider,
       cause: error,
+      provider,
     });
   }
   if (error instanceof DOMException && error.name === "TimeoutError") {
     return new FieldworkError("Timeout", `${provider} request timed out`, {
-      provider,
       cause: error,
+      provider,
     });
   }
   // The request never reached a response, so repeating it can succeed.
@@ -117,9 +189,9 @@ function transportError(
     "ProviderError",
     `${provider} request failed: ${String(error)}`,
     {
+      cause: error,
       provider,
       retryable: true,
-      cause: error,
     }
   );
 }
@@ -193,7 +265,7 @@ export async function poll<T>(
       throw new FieldworkError(
         "Aborted",
         `stopped waiting for ${provider} job ${jobId}; it may still be running`,
-        { provider, jobId }
+        { jobId, provider }
       );
     }
     let value: T | undefined;
@@ -209,7 +281,7 @@ export async function poll<T>(
       throw new FieldworkError(
         "Timeout",
         `${provider} job ${jobId} did not finish in time; it may still be running`,
-        { provider, jobId }
+        { jobId, provider }
       );
     }
     await sleep(interval, options.signal);

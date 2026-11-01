@@ -41,8 +41,8 @@ describe("retrying and recovering", () => {
     );
     const web = new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) });
     const attempt = web.research("Which tiles are frost resistant?", {
-      timeout: 1,
       interval: 5,
+      timeout: 1,
     });
     await expect(attempt).rejects.toMatchObject({
       code: "Timeout",
@@ -55,8 +55,8 @@ describe("retrying and recovering", () => {
     const { fetch, calls } = fakeFetch({
       body: {
         id: "run_9",
-        status: "completed",
         output: { text: "Porcelain." },
+        status: "completed",
       },
     });
     const web = new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) });
@@ -70,34 +70,38 @@ describe("retrying and recovering", () => {
   it("attaches the job id to a provider error raised while waiting", async () => {
     const { fetch } = fakeFetch(
       { body: { request_id: "req_4" } },
-      { status: 502, body: { error: "bad gateway" } }
+      { body: { error: "bad gateway" }, status: 502 }
     );
     const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
     await expect(web.research("question")).rejects.toMatchObject({
       code: "ProviderError",
-      status: 502,
       jobId: "req_4",
       retryable: false,
+      status: 502,
     });
   });
 
   it("resumes a Firecrawl crawl", async () => {
-    const { fetch, calls } = fakeFetch({
-      body: {
-        status: "completed",
-        data: [{ markdown: "# Home", metadata: { url: "https://a.test/" } }],
+    const { fetch, calls } = fakeFetch(
+      {
+        body: {
+          data: [{ markdown: "# Home", metadata: { url: "https://a.test/" } }],
+          status: "completed",
+        },
       },
-    });
+      { body: { errors: [], robotsBlocked: [] } }
+    );
     const web = new Fieldwork({ adapter: firecrawl({ apiKey: "k", fetch }) });
     const crawl = await web.crawl("https://a.test/", { resume: "crawl_2" });
     expect(crawl.pages[0]?.markdown).toBe("# Home");
     expect(calls[0]?.url.pathname).toBe("/v2/crawl/crawl_2");
+    expect(calls[1]?.url.pathname).toBe("/v2/crawl/crawl_2/errors");
   });
 
   it("keeps the Parallel run id when the result never arrives", async () => {
     const { fetch } = fakeFetch(
       { body: { run_id: "trun_7" } },
-      { status: 401, body: { error: "expired key" } }
+      { body: { error: "expired key" }, status: 401 }
     );
     const web = new Fieldwork({ adapter: parallel({ apiKey: "k", fetch }) });
     await expect(web.research("question")).rejects.toMatchObject({

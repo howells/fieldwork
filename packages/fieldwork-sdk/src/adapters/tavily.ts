@@ -1,219 +1,149 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
-import type {
-  CallOptions,
-  Crawl,
-  JsonSchema,
-  Page,
-  Research,
-  SearchResponse,
-  SiteMap,
-} from "../types.js";
+import type { Citation } from "../types.js";
 import {
   callSettings,
-  citations,
   compact,
   list,
+  meta,
   num,
   record,
-  strings,
-  text,
   requireId,
+  text,
 } from "../util.js";
+import type {
+  TavilyConfig,
+  TavilyOperations,
+  TavilyResearchOptions,
+} from "./tavily/options.js";
+import {
+  RESEARCH_FILE,
+  base64,
+  chunks,
+  extractBody,
+  failures,
+  imageResults,
+  invalid,
+  page,
+  responseMeta,
+  searchBody,
+  searchResults,
+  traversal,
+} from "./tavily/parse.js";
 
-export interface TavilyConfig {
-  /** Defaults to the TAVILY_API_KEY environment variable. */
-  apiKey?: string;
-  baseUrl?: string;
-  fetch?: typeof fetch;
-}
-
-export interface TavilySearchOptions extends CallOptions {
-  /** Results to return; Tavily allows up to 20. */
-  limit?: number;
-  depth?: "ultra-fast" | "fast" | "basic" | "advanced";
-  topic?: "general" | "news" | "finance";
-  timeRange?: "day" | "week" | "month" | "year";
-  /** YYYY-MM-DD. */
-  publishedAfter?: string;
-  /** YYYY-MM-DD. */
-  publishedBefore?: string;
-  includeDomains?: string[];
-  excludeDomains?: string[];
-  /** "restrict" keeps to includeDomains; "prefer" only ranks them higher. */
-  includeDomainsMode?: "restrict" | "prefer";
-  /** A country name in lower case, such as "united states". */
-  country?: string;
-  /** Add a generated answer above the results. */
-  answer?: boolean | "basic" | "advanced";
-  /** Include each result's page text. */
-  content?: boolean;
-  exactMatch?: boolean;
-  /** Hours of cache Tavily may use; 0 forces live results. */
-  maxAgeHours?: number;
-}
-
-export interface TavilyReadOptions extends CallOptions {
-  /** "advanced" handles JavaScript, tables and embedded content. */
-  depth?: "basic" | "advanced";
-  /** Return only the passages that answer this query, not the whole page. */
-  query?: string;
-  chunksPerSource?: number;
-  format?: "markdown" | "text";
-  includeImages?: boolean;
-}
-
-interface TavilyTraversal {
-  /** Plain-words instructions that focus the walk. */
-  instructions?: string;
-  maxDepth?: number;
-  maxBreadth?: number;
-  limit?: number;
-  selectPaths?: string[];
-  excludePaths?: string[];
-  selectDomains?: string[];
-  excludeDomains?: string[];
-  /** Tavily defaults to true. */
-  allowExternal?: boolean;
-}
-
-export interface TavilyMapOptions extends CallOptions, TavilyTraversal {}
-
-export interface TavilyCrawlOptions extends CallOptions, TavilyTraversal {
-  extractDepth?: "basic" | "advanced";
-  format?: "markdown" | "text";
-  includeImages?: boolean;
-}
-
-export interface TavilyResearchOptions extends CallOptions {
-  /** Tavily accepts object, string, integer, number and array types only. */
-  schema?: JsonSchema;
-  model?: "mini" | "pro" | "auto";
-  citationFormat?: "numbered" | "mla" | "apa" | "chicago";
-  outputLength?: "short" | "standard" | "long";
-  /** A preference, not a restriction. */
-  includeDomains?: string[];
-  excludeDomains?: string[];
-  interval?: number;
-  /**
-   * The id of a job that timed out or was cancelled, from the error's
-   * `jobId`. Waits for that job instead of starting a new one.
-   */
-  resume?: string;
-}
-
-export interface TavilyOperations {
-  search(query: string, options?: TavilySearchOptions): Promise<SearchResponse>;
-  read(url: string, options?: TavilyReadOptions): Promise<Page>;
-  map(url: string, options?: TavilyMapOptions): Promise<SiteMap>;
-  crawl(url: string, options?: TavilyCrawlOptions): Promise<Crawl>;
-  research<T = unknown>(
-    question: string,
-    options?: TavilyResearchOptions
-  ): Promise<Research<T>>;
-}
-
-function traversal(o: TavilyTraversal) {
-  return compact({
-    instructions: o.instructions,
-    max_depth: o.maxDepth,
-    max_breadth: o.maxBreadth,
-    limit: o.limit,
-    select_paths: o.selectPaths,
-    exclude_paths: o.excludePaths,
-    select_domains: o.selectDomains,
-    exclude_domains: o.excludeDomains,
-    allow_external: o.allowExternal,
-  });
-}
+export type {
+  TavilyAnswerOptions,
+  TavilyConfig,
+  TavilyCrawlOptions,
+  TavilyImagesOptions,
+  TavilyMapOptions,
+  TavilyOperations,
+  TavilyReadManyOptions,
+  TavilyReadOptions,
+  TavilyResearchFile,
+  TavilyResearchOptions,
+  TavilySearchDepth,
+  TavilySearchOptions,
+} from "./tavily/options.js";
 
 export function tavily(config: TavilyConfig = {}) {
   const provider = "tavily";
   const raw = createRawClient({
-    provider,
     baseUrl: config.baseUrl ?? "https://api.tavily.com",
-    headers: {
-      authorization: `Bearer ${requireKey(provider, config.apiKey, "TAVILY_API_KEY")}`,
-    },
     fetch: config.fetch,
+    headers: compact({
+      authorization: `Bearer ${requireKey(provider, config.apiKey, "TAVILY_API_KEY")}`,
+      "x-project-id": config.projectId,
+    }) as Record<string, string>,
+    provider,
   });
 
   const operations: TavilyOperations = {
-    async search(query, options) {
-      const { call, rest: o } = callSettings(options);
+    async answer(question, options) {
+      const { call, rest } = callSettings(options);
+      const { answerDepth, ...o } = rest;
       const response = record(
         await raw.request("POST", "/search", {
           ...call,
-          body: compact({
-            query,
-            max_results: o.limit,
-            search_depth: o.depth,
-            topic: o.topic,
-            time_range: o.timeRange,
-            start_date: o.publishedAfter,
-            end_date: o.publishedBefore,
-            include_domains: o.includeDomains,
-            exclude_domains: o.excludeDomains,
-            include_domains_mode: o.includeDomainsMode,
-            country: o.country,
-            include_answer: o.answer,
-            include_raw_content: o.content ? "markdown" : undefined,
-            exact_match: o.exactMatch,
-            max_age_hours: o.maxAgeHours,
-          }),
+          body: {
+            ...searchBody(question, o),
+            include_answer: answerDepth ?? "basic",
+          },
         })
       );
+      const answer = text(response.answer);
+      if (answer === undefined) {
+        throw new FieldworkError("ProviderError", "tavily returned no answer", {
+          cause: response,
+          provider,
+        });
+      }
+      const sources: Citation[] = searchResults(response)
+        .filter((result) => result.url !== "")
+        .map((result) =>
+          compact({
+            excerpts: chunks(result.snippet),
+            title: result.title,
+            url: result.url,
+          })
+        );
       return compact({
-        results: list(response.results).map((item) => {
-          const result = record(item);
-          return compact({
-            url: text(result.url) ?? "",
-            title: text(result.title),
-            snippet: text(result.content),
-            content: text(result.raw_content),
-            publishedAt: text(result.published_date),
-            score: num(result.score),
-          });
-        }),
-        answer: text(response.answer),
+        answer,
+        citations: sources,
+        meta: responseMeta(response),
         raw: response,
       });
     },
 
-    async read(url, options) {
+    async crawl(url, options) {
       const { call, rest: o } = callSettings(options);
+      if (o.chunksPerSource !== undefined && o.instructions === undefined) {
+        throw invalid("tavily chunksPerSource needs instructions");
+      }
       const response = record(
-        await raw.request("POST", "/extract", {
+        await raw.request("POST", "/crawl", {
           ...call,
           body: compact({
-            urls: [url],
-            extract_depth: o.depth,
-            query: o.query,
+            url,
+            ...traversal(o),
             chunks_per_source: o.chunksPerSource,
+            extract_depth: o.extractDepth,
             format: o.format,
             include_images: o.includeImages,
+            include_favicon: o.favicon,
           }),
         })
       );
-      const result = record(list(response.results)[0]);
-      if (!result.url) {
-        const failure = record(list(response.failed_results)[0]);
-        throw new FieldworkError(
-          "ProviderError",
-          `tavily could not read ${url}: ${text(failure.error) ?? "no content returned"}`,
-          {
-            provider,
-            cause: response,
-          }
-        );
-      }
       return compact({
-        url: text(result.url) ?? "",
-        title: text(result.title),
-        markdown: text(result.raw_content),
-        images: strings(result.images),
+        meta: responseMeta(response),
+        pages: list(response.results).map((item) =>
+          page(item, o.instructions !== undefined)
+        ),
         raw: response,
+      });
+    },
+
+    async images(query, options) {
+      const { call, rest: o } = callSettings(options);
+      const response = record(
+        await raw.request("POST", "/search", {
+          ...call,
+          body: searchBody(query, {
+            excludeDomains: o.excludeDomains,
+            imageDescriptions: o.descriptions ?? true,
+            includeDomains: o.includeDomains,
+            includeImages: true,
+            safeSearch: o.safeSearch,
+            searchDepth: o.searchDepth,
+            topic: o.topic,
+          }),
+        })
+      );
+      return compact({
+        meta: responseMeta(response),
+        raw: response,
+        results: imageResults(response.images) ?? [],
       });
     },
 
@@ -225,44 +155,82 @@ export function tavily(config: TavilyConfig = {}) {
           body: { url, ...traversal(o) },
         })
       );
-      return {
+      return compact({
         links: list(response.results).flatMap((item) =>
           typeof item === "string" ? [{ url: item }] : []
         ),
+        meta: responseMeta(response),
         raw: response,
-      };
+      });
     },
 
-    async crawl(url, options) {
+    async read(url, options) {
       const { call, rest: o } = callSettings(options);
       const response = record(
-        await raw.request("POST", "/crawl", {
+        await raw.request("POST", "/extract", {
           ...call,
-          body: compact({
-            url,
-            ...traversal(o),
-            extract_depth: o.extractDepth,
-            format: o.format,
-            include_images: o.includeImages,
-          }),
+          body: extractBody([url], o),
         })
       );
-      return {
-        pages: list(response.results).map((item) => {
-          const page = record(item);
-          return compact({
-            url: text(page.url) ?? "",
-            markdown: text(page.raw_content),
-            images: strings(page.images),
-            raw: item,
-          });
-        }),
+      const [result] = list(response.results);
+      if (!text(record(result).url)) {
+        const [failure] = failures(response);
+        const reason = failure?.error ?? "no content returned";
+        throw new FieldworkError(
+          /\b404\b|not found/iu.test(reason) ? "NotFound" : "ProviderError",
+          `tavily could not read ${url}: ${reason}`,
+          { cause: response, provider }
+        );
+      }
+      return compact({
+        ...page(result, o.query !== undefined),
+        meta: responseMeta(response),
         raw: response,
-      };
+      });
+    },
+
+    async readMany(urls, options) {
+      const { call, rest: o } = callSettings(options);
+      if (urls.length === 0 || urls.length > 20) {
+        throw invalid("tavily reads 1 to 20 URLs in one call");
+      }
+      const response = record(
+        await raw.request("POST", "/extract", {
+          ...call,
+          body: extractBody(urls, o),
+        })
+      );
+      return compact({
+        failed: failures(response),
+        meta: responseMeta(response),
+        pages: list(response.results).map((item) =>
+          page(item, o.query !== undefined)
+        ),
+        raw: response,
+      });
     },
 
     async research<T>(question: string, options?: TavilyResearchOptions) {
       const { call, rest: o } = callSettings(options);
+      const files = o.files?.map((file) => {
+        if (!RESEARCH_FILE.test(file.name)) {
+          throw invalid(
+            `tavily reads .txt, .md and .json files, not ${file.name}`
+          );
+        }
+        return {
+          data: base64(
+            typeof file.data === "string"
+              ? new TextEncoder().encode(file.data)
+              : file.data
+          ),
+          name: file.name,
+          type: "base64",
+        };
+      });
+      if (files && files.length > 5) {
+        throw invalid("tavily research takes up to 5 files");
+      }
       const id =
         o.resume ??
         requireId(
@@ -271,13 +239,14 @@ export function tavily(config: TavilyConfig = {}) {
             await raw.request("POST", "/research", {
               ...call,
               body: compact({
+                citation_format: o.citationFormat,
+                exclude_domains: o.excludeDomains,
+                files,
+                include_domains: o.includeDomains,
                 input: question,
                 model: o.model,
-                output_schema: o.schema,
-                citation_format: o.citationFormat,
                 output_length: o.outputLength,
-                include_domains: o.includeDomains,
-                exclude_domains: o.excludeDomains,
+                output_schema: o.schema,
                 stream: false,
               }),
             })
@@ -288,25 +257,89 @@ export function tavily(config: TavilyConfig = {}) {
         id,
         async () => {
           const current = record(
-            await raw.request("GET", `/research/${id}`, { signal: call.signal })
+            await raw.request("GET", `/research/${id}`, {
+              query: { include_usage: true },
+              signal: call.signal,
+            })
           );
           if (current.status === "failed") {
             throw new FieldworkError(
               "JobFailed",
               `tavily research ${id} failed`,
-              { provider, cause: current }
+              { cause: current, provider }
             );
           }
           return current.status === "completed" ? current : undefined;
         },
         { ...call, interval: o.interval }
       );
-      return {
+      const { content } = run;
+      if (content === undefined || content === null || content === "") {
+        throw new FieldworkError(
+          "JobFailed",
+          `tavily research ${id} finished without output`,
+          { cause: run, jobId: id, provider }
+        );
+      }
+      return compact({
         id,
-        output: run.content as T,
-        sources: citations(run.sources),
+        meta: meta({
+          credits: record(run.usage).credits,
+          requestId: run.request_id,
+          units: { responseTimeSeconds: run.response_time },
+        }),
+        output: content as T,
         raw: run,
-      };
+        sources: list(run.sources).flatMap((item) => {
+          const source = record(item);
+          const url = text(source.url);
+          return url ? [compact({ title: text(source.title), url })] : [];
+        }),
+        status: "completed" as const,
+      });
+    },
+
+    async search(query, options) {
+      const { call, rest: o } = callSettings(options);
+      const response = record(
+        await raw.request("POST", "/search", {
+          ...call,
+          body: searchBody(query, o),
+        })
+      );
+      return compact({
+        answer: text(response.answer),
+        images: imageResults(response.images),
+        meta: responseMeta(response),
+        raw: response,
+        results: searchResults(response),
+      });
+    },
+
+    async usage(options) {
+      const { call } = callSettings(options);
+      const response = record(await raw.request("GET", "/usage", call));
+      const key = record(response.key);
+      const account = record(response.account);
+      const breakdown = Object.fromEntries(
+        Object.entries({
+          crawl: account.crawl_usage,
+          extract: account.extract_usage,
+          keyTotal: key.usage,
+          map: account.map_usage,
+          paygo: account.paygo_usage,
+          research: account.research_usage,
+          search: account.search_usage,
+        }).filter(
+          (entry): entry is [string, number] => num(entry[1]) !== undefined
+        )
+      );
+      return compact({
+        breakdown: Object.keys(breakdown).length > 0 ? breakdown : undefined,
+        limit: num(account.plan_limit),
+        raw: response,
+        used: num(account.plan_usage),
+      });
     },
   };
 

@@ -1,6 +1,7 @@
 import { defineAdapter } from "./adapter.js";
-import type { AnyAdapter } from "./adapter.js";
+import type { Adapter, AnyAdapter, Operations } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
+import { bindOperation } from "./fieldwork.js";
 import type { Capability } from "./types.js";
 
 export type Routes = Partial<Record<Capability, AnyAdapter>>;
@@ -16,10 +17,7 @@ type ValidRoutes<R extends Routes> = {
 
 type RouterOperations<R extends Routes> = {
   [C in keyof R & Capability]: R[C] extends {
-    operations: Record<
-      C,
-      infer Op extends (...args: never[]) => Promise<unknown>
-    >;
+    operations: Record<C, infer Op extends NonNullable<Operations[C]>>;
   }
     ? Op
     : never;
@@ -31,23 +29,19 @@ type RouterRaw<R extends Routes> = {
   ]: R[C] extends AnyAdapter ? R[C]["raw"] : never;
 };
 
-/**
- * One adapter per capability: `router({ search: parallel(), read: firecrawl() })`.
- * Each capability goes to exactly the adapter named for it; a capability with
- * no route is unsupported, and nothing falls back to another provider.
- */
-export function router<const R extends Routes>(routes: R & ValidRoutes<R>) {
+const build = (routes: Routes) => {
   const operations: Record<string, unknown> = {};
   const raw: Record<string, unknown> = {};
   const providers: Partial<Record<Capability, string>> = {};
-  for (const [capability, adapter] of Object.entries(routes as Routes)) {
+  for (const [capability, adapter] of Object.entries(routes)) {
     if (!adapter) {
       continue;
     }
-    const operation = (adapter.operations as Record<string, unknown>)[
-      capability
-    ];
-    if (typeof operation !== "function") {
+    const operation = bindOperation(
+      adapter.operations,
+      capability as Capability
+    );
+    if (operation === undefined) {
       throw new FieldworkError(
         "Unsupported",
         `${adapter.name} does not offer ${capability}`,
@@ -56,14 +50,37 @@ export function router<const R extends Routes>(routes: R & ValidRoutes<R>) {
         }
       );
     }
-    operations[capability] = operation.bind(adapter.operations);
+    operations[capability] = operation;
     providers[capability as Capability] = adapter.name;
     raw[adapter.name] = adapter.raw;
   }
+  return { operations, providers, raw };
+};
+
+/**
+ * One adapter per capability: `router({ search: parallel(), read: firecrawl() })`.
+ * Each capability goes to exactly the adapter named for it; a capability with
+ * no route is unsupported, and nothing falls back to another provider.
+ */
+export const router = <const R extends Routes>(
+  routes: R & ValidRoutes<R>
+): Adapter<"router", RouterOperations<R>, RouterRaw<R>> => {
+  const built = build(routes);
   return defineAdapter({
     name: "router",
-    operations: operations as RouterOperations<R>,
-    raw: raw as RouterRaw<R>,
-    providers,
+    // SAFETY: ValidRoutes proved at compile time that each route's adapter
+    // offers its capability, and build() bound exactly those operations.
+    operations: built.operations as RouterOperations<R>,
+    providers: built.providers,
+    // SAFETY: build() keys each adapter's raw client by the adapter's name.
+    raw: built.raw as RouterRaw<R>,
   });
-}
+};
+
+/**
+ * A router for routes known only at run time, such as from command-line
+ * flags. A route to an adapter that lacks its capability throws
+ * `Unsupported` here instead of failing to compile.
+ */
+export const runtimeRouter = (routes: Routes): AnyAdapter =>
+  defineAdapter({ name: "router", ...build(routes) });

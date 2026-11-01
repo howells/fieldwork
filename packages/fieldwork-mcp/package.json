@@ -1,7 +1,7 @@
 {
   "name": "@howells/fieldwork-mcp",
   "version": "0.1.0",
-  "description": "An MCP server for Fieldwork: web search, page reading, extraction, crawling, research and document parsing across Exa, Firecrawl, Tavily, Parallel and Perplexity, as tools for any MCP client.",
+  "description": "An MCP server for Fieldwork: web and image search, page reading, extraction, product data, crawling, answers, research, entity discovery, decisions, monitors, remote browsers and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase, as tools for any MCP client.",
   "keywords": [
     "agents",
     "exa",

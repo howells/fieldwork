@@ -1,6 +1,6 @@
 import type { AnyAdapter } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
-import { CAPABILITIES } from "./types.js";
+import { CAPABILITIES, GROUP_CAPABILITIES } from "./types.js";
 import type { Capability } from "./types.js";
 
 export interface FieldworkOptions<A extends AnyAdapter> {
@@ -28,6 +28,55 @@ interface FieldworkBase<A extends AnyAdapter> {
 export type Fieldwork<A extends AnyAdapter> = FieldworkBase<A> &
   Readonly<A["operations"]>;
 
+type Bound =
+  | ((...args: unknown[]) => Promise<unknown>)
+  | Record<string, unknown>;
+
+/**
+ * The operation an adapter offers for a capability, bound to its adapter: a
+ * method, or for `monitor` and `browser` an object of methods. Undefined when
+ * the adapter does not offer the capability.
+ */
+export function bindOperation(
+  operations: unknown,
+  capability: Capability
+): Bound | undefined {
+  const all = operations as Record<string, unknown>;
+  const operation = all[capability];
+  if (typeof operation === "function") {
+    return (operation as (...args: unknown[]) => Promise<unknown>).bind(all);
+  }
+  if (
+    GROUP_CAPABILITIES.includes(capability) &&
+    operation &&
+    typeof operation === "object"
+  ) {
+    const group = operation as Record<string, unknown>;
+    return Object.fromEntries(
+      Object.entries(group).map(([name, method]) => [
+        name,
+        typeof method === "function" ? method.bind(group) : method,
+      ])
+    );
+  }
+  return undefined;
+}
+
+function unsupported(provider: string, capability: Capability): Bound {
+  const refuse = async () => {
+    throw new FieldworkError(
+      "Unsupported",
+      `${provider} does not offer ${capability}`,
+      { provider }
+    );
+  };
+  if (!GROUP_CAPABILITIES.includes(capability)) {
+    return refuse;
+  }
+  // Every method of a group the provider lacks refuses the same way.
+  return new Proxy({}, { get: () => refuse });
+}
+
 class FieldworkClient {
   readonly provider: string;
   readonly capabilities: Readonly<Record<Capability, boolean>>;
@@ -36,30 +85,17 @@ class FieldworkClient {
 
   constructor(options: FieldworkOptions<AnyAdapter>) {
     const { adapter } = options;
-    const operations = adapter.operations as Record<
-      string,
-      ((...args: unknown[]) => Promise<unknown>) | undefined
-    >;
     this.provider = adapter.name;
     this.raw = adapter.raw;
     this.#providers = adapter.providers ?? {};
     const capabilities = {} as Record<Capability, boolean>;
     const self = this as unknown as Record<string, unknown>;
     for (const capability of CAPABILITIES) {
-      const operation = operations[capability];
-      capabilities[capability] = typeof operation === "function";
+      const operation = bindOperation(adapter.operations, capability);
+      capabilities[capability] = operation !== undefined;
       // Untyped callers and dynamic dispatch reach every name; a capability the
       // provider lacks refuses rather than falling back to another provider.
-      self[capability] =
-        typeof operation === "function"
-          ? operation.bind(operations)
-          : async () => {
-              throw new FieldworkError(
-                "Unsupported",
-                `${adapter.name} does not offer ${capability}`,
-                { provider: adapter.name }
-              );
-            };
+      self[capability] = operation ?? unsupported(adapter.name, capability);
     }
     this.capabilities = Object.freeze(capabilities);
   }

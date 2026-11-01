@@ -65,14 +65,14 @@ export class FieldworkError extends Error {
   /** The fields an agent or a log needs, without the provider's response. */
   toJSON() {
     return {
-      name: this.name,
       code: this.code,
-      message: this.message,
-      provider: this.provider,
-      status: this.status,
-      retryable: this.retryable,
-      retryAfter: this.retryAfter,
       jobId: this.jobId,
+      message: this.message,
+      name: this.name,
+      provider: this.provider,
+      retryAfter: this.retryAfter,
+      retryable: this.retryable,
+      status: this.status,
     };
   }
 }
@@ -93,11 +93,11 @@ export function withJob<E>(error: E, jobId: string): E | FieldworkError {
     return error;
   }
   return new FieldworkError(error.code, error.message, {
-    provider: error.provider,
-    status: error.status,
-    retryAfter: error.retryAfter,
-    jobId,
     cause: error.cause,
+    jobId,
+    provider: error.provider,
+    retryAfter: error.retryAfter,
+    status: error.status,
   });
 }
 
@@ -111,8 +111,8 @@ export function codeForStatus(status: number): FieldworkErrorCode {
   if (status === 408) {
     return "Timeout";
   }
-  // Tavily uses 432 and 433 for plan and pay-as-you-go limits.
-  if (status === 429 || status === 432 || status === 433) {
+  // Tavily uses 432, 433 and 434 for plan, pay-as-you-go and capacity limits.
+  if (status === 429 || status === 432 || status === 433 || status === 434) {
     return "RateLimited";
   }
   if (status === 400 || status === 422) {

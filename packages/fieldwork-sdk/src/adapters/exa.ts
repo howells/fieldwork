@@ -1,241 +1,275 @@
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
-import type {
-  CallOptions,
-  Extraction,
-  FieldSource,
-  JsonSchema,
-  Page,
-  Research,
-  SearchResponse,
-} from "../types.js";
+import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
   callSettings,
-  compact,
+  hours,
   list,
   num,
   parseJson,
   record,
-  strings,
+  requireId,
   text,
   uniqueCitations,
   citations,
-  requireId,
+  compact,
 } from "../util.js";
+import type {
+  ExaAnswerOptions,
+  ExaConfig,
+  ExaExtractOptions,
+  ExaMonitor,
+  ExaOperations,
+  ExaResearchOptions,
+} from "./exa/options.js";
+import {
+  MAX_READ_URLS,
+  checkResearch,
+  checkSearch,
+  dateTime,
+  failedStatuses,
+  failureCode,
+  generatedAnswer,
+  invalid,
+  monitorEvent,
+  monitorInfo,
+  pageFrom,
+  period,
+  provider,
+  readBody,
+  researchBody,
+  researchResult,
+  responseMeta,
+  searchContents,
+  searchResult,
+  statusReason,
+} from "./exa/parse.js";
 
-export interface ExaConfig {
-  /** Defaults to the EXA_API_KEY environment variable. */
-  apiKey?: string;
-  baseUrl?: string;
-  fetch?: typeof fetch;
-}
-
-export interface ExaSearchOptions extends CallOptions {
-  /** Results to return; Exa allows up to 100. */
-  limit?: number;
-  type?: "auto" | "lite" | "deep-lite" | "deep";
-  category?:
-    | "company"
-    | "people"
-    | "research paper"
-    | "news"
-    | "pdf"
-    | "github"
-    | "personal site"
-    | "financial report";
-  includeDomains?: string[];
-  excludeDomains?: string[];
-  /** YYYY-MM-DD. */
-  publishedAfter?: string;
-  /** YYYY-MM-DD. */
-  publishedBefore?: string;
-  /** YYYY-MM-DD: only pages Exa crawled after this date. */
-  crawledAfter?: string;
-  crawledBefore?: string;
-  includeText?: string[];
-  excludeText?: string[];
-  /** Two-letter country code. */
-  country?: string;
-  /** Include each result's page text. */
-  content?: boolean;
-  additionalQueries?: string[];
-}
-
-export interface ExaReadOptions extends CallOptions {
-  /** Return passages that answer this query as `excerpts`. */
-  query?: string;
-  maxCharacters?: number;
-  /** 0 forces a live fetch, -1 reads only the cache. */
-  maxAgeHours?: number;
-  /** Read Exa's stored copy of the page as of this ISO date. */
-  snapshotAsOf?: string;
-}
-
-export interface ExaExtractOptions extends CallOptions {
-  schema: JsonSchema;
-  /** What to extract, in plain words. */
-  prompt?: string;
-  maxAgeHours?: number;
-}
-
-export interface ExaResearchOptions extends CallOptions {
-  schema?: JsonSchema;
-  effort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "auto" | "ultra";
-  /** Spend cap in dollars, for auto and ultra effort. */
-  maxCostDollars?: number;
-  maxDurationSeconds?: number;
-  /** Milliseconds between status checks. */
-  interval?: number;
-  /**
-   * The id of a job that timed out or was cancelled, from the error's
-   * `jobId`. Waits for that job instead of starting a new one.
-   */
-  resume?: string;
-}
-
-export interface ExaOperations {
-  search(query: string, options?: ExaSearchOptions): Promise<SearchResponse>;
-  read(url: string, options?: ExaReadOptions): Promise<Page>;
-  extract<T = unknown>(
-    url: string,
-    options: ExaExtractOptions
-  ): Promise<Extraction<T>>;
-  research<T = unknown>(
-    question: string,
-    options?: ExaResearchOptions
-  ): Promise<Research<T>>;
-}
+export type {
+  ExaAnswerOptions,
+  ExaConfig,
+  ExaExtractOptions,
+  ExaHighlightOptions,
+  ExaMonitor,
+  ExaMonitorCreateOptions,
+  ExaMonitorEventsOptions,
+  ExaOperations,
+  ExaOutputSchema,
+  ExaReadManyOptions,
+  ExaReadOptions,
+  ExaResearchOptions,
+  ExaSearchOptions,
+  ExaWebhookEvent,
+} from "./exa/options.js";
 
 export function exa(config: ExaConfig = {}) {
-  const provider = "exa";
   const raw = createRawClient({
-    provider,
     baseUrl: config.baseUrl ?? "https://api.exa.ai",
+    fetch: config.fetch,
     headers: {
       "x-api-key": requireKey(provider, config.apiKey, "EXA_API_KEY"),
     },
-    fetch: config.fetch,
+    provider,
   });
 
-  async function contents(
+  async function fetchContents(
+    urls: string[],
+    body: Record<string, unknown>,
+    call: CallOptions
+  ) {
+    return record(
+      await raw.request("POST", "/contents", {
+        ...call,
+        body: { urls, ...body },
+      })
+    );
+  }
+
+  async function readOne(
     url: string,
     body: Record<string, unknown>,
     call: CallOptions
   ) {
-    const response = await raw.request("POST", "/contents", {
-      ...call,
-      body: { urls: [url], ...body },
-    });
-    const status = record(list(record(response).statuses)[0]);
-    if (status.status && status.status !== "success") {
-      const reason =
-        text(record(status.error).tag) ?? text(status.status) ?? "unknown";
+    const response = await fetchContents([url], body, call);
+    const [failed] = failedStatuses(response);
+    if (failed) {
+      const error = record(failed.error);
       throw new FieldworkError(
-        reason === "CRAWL_NOT_FOUND" ? "NotFound" : "ProviderError",
-        `exa could not read ${url}: ${reason}`,
-        {
-          provider,
-          cause: response,
-        }
+        failureCode(text(error.tag), num(error.httpStatusCode)),
+        `exa could not read ${url}: ${statusReason(failed)}`,
+        { cause: response, provider, status: num(error.httpStatusCode) }
       );
     }
-    return { response, result: record(list(record(response).results)[0]) };
+    const [result] = list(response.results);
+    if (result === undefined) {
+      throw new FieldworkError(
+        "ProviderError",
+        `exa returned no content for ${url}`,
+        { cause: response, provider }
+      );
+    }
+    return { response, result };
   }
 
-  const operations: ExaOperations = {
-    async search(query, options) {
+  const monitor: ExaMonitor = {
+    async create(options) {
+      const { call, rest: o } = callSettings(options);
+      const every = period(o.schedule);
+      const body = compact({
+        metadata: o.metadata,
+        name: o.name,
+        outputSchema: o.outputSchema,
+        search: compact({
+          contents: o.content ? { text: true } : undefined,
+          excludeDomains: o.excludeDomains,
+          includeDomains: o.includeDomains,
+          numResults: o.limit,
+          query: o.query,
+        }),
+        trigger: every ? { period: every, type: "interval" } : undefined,
+        webhook: compact({ events: o.webhookEvents, url: o.webhookUrl }),
+      });
+      return monitorInfo(
+        await raw.request("POST", "/monitors", { ...call, body })
+      );
+    },
+
+    async delete(id, options) {
+      const { call } = callSettings(options);
+      await raw.request("DELETE", `/monitors/${encodeURIComponent(id)}`, call);
+    },
+
+    async events(id, options) {
       const { call, rest: o } = callSettings(options);
       const response = record(
-        await raw.request("POST", "/search", {
+        await raw.request("GET", `/monitors/${encodeURIComponent(id)}/runs`, {
+          ...call,
+          query: { cursor: o.cursor, limit: o.limit },
+        })
+      );
+      return compact({
+        events: list(response.data).map((item) => monitorEvent(item)),
+        next: response.hasMore === true ? text(response.nextCursor) : undefined,
+        raw: response,
+      });
+    },
+
+    async get(id, options) {
+      const { call } = callSettings(options);
+      return monitorInfo(
+        await raw.request("GET", `/monitors/${encodeURIComponent(id)}`, call)
+      );
+    },
+
+    async list(options) {
+      const { call } = callSettings(options);
+      const monitors: MonitorInfo[] = [];
+      const seen = new Set<string>();
+      let cursor: string | undefined;
+      for (;;) {
+        const page = record(
+          await raw.request("GET", "/monitors", {
+            ...call,
+            query: { cursor, limit: 100 },
+          })
+        );
+        monitors.push(...list(page.data).map((item) => monitorInfo(item)));
+        cursor = text(page.nextCursor);
+        if (page.hasMore !== true || cursor === undefined || seen.has(cursor)) {
+          return monitors;
+        }
+        seen.add(cursor);
+      }
+    },
+  };
+
+  const operations: ExaOperations = {
+    async answer<T>(question: string, options?: ExaAnswerOptions) {
+      const { call, rest: o } = callSettings(options);
+      const response = record(
+        await raw.request("POST", "/answer", {
           ...call,
           body: compact({
-            query,
-            numResults: o.limit,
-            type: o.type,
-            category: o.category,
-            includeDomains: o.includeDomains,
-            excludeDomains: o.excludeDomains,
-            startPublishedDate: o.publishedAfter,
-            endPublishedDate: o.publishedBefore,
-            startCrawlDate: o.crawledAfter,
-            endCrawlDate: o.crawledBefore,
-            includeText: o.includeText,
-            excludeText: o.excludeText,
+            model: o.model,
+            outputSchema: o.schema,
+            query: question,
+            systemPrompt: o.systemPrompt,
             userLocation: o.country ? { country: o.country } : undefined,
-            additionalQueries: o.additionalQueries,
-            contents: o.content ? { text: true } : undefined,
           }),
         })
       );
-      return {
-        results: list(response.results).map((item) => {
-          const result = record(item);
-          return compact({
-            url: text(result.url) ?? "",
-            title: text(result.title),
-            snippet: strings(result.highlights)?.join(" … "),
-            content: text(result.text),
-            publishedAt: text(result.publishedDate),
-            score: num(result.score),
-          });
-        }),
-        raw: response,
-      };
-    },
-
-    async read(url, options) {
-      const { call, rest: o } = callSettings(options);
-      const { response, result } = await contents(
-        url,
-        compact({
-          text: compact({ maxCharacters: o.maxCharacters }),
-          highlights: o.query ? { query: o.query } : undefined,
-          maxAgeHours: o.maxAgeHours,
-          snapshotAsOf: o.snapshotAsOf,
-          extras: { links: 100, imageLinks: 100 },
-        }),
-        call
-      );
-      const extras = record(result.extras);
+      const { answer: value } = response;
+      const structured = typeof value === "object" && value !== null;
       return compact({
-        url: text(result.url) ?? url,
-        title: text(result.title),
-        markdown: text(result.text),
-        excerpts: strings(result.highlights),
-        links: strings(extras.links),
-        images: strings(extras.imageLinks),
+        answer: structured ? JSON.stringify(value) : (text(value) ?? ""),
+        citations: uniqueCitations(citations(response.citations)),
+        meta: responseMeta(response),
+        output: structured ? (value as T) : undefined,
         raw: response,
       });
     },
 
     async extract<T>(url: string, options: ExaExtractOptions) {
       const { call, rest: o } = callSettings(options);
-      const { response, result } = await contents(
+      const { response, result } = await readOne(
         url,
         compact({
-          text: true,
+          maxAgeHours: hours(o.maxAge),
           summary: compact({ query: o.prompt, schema: o.schema }),
-          maxAgeHours: o.maxAgeHours,
         }),
         call
       );
-      if (result.summary === undefined) {
+      const { summary } = record(result);
+      if (summary === undefined) {
         throw new FieldworkError(
           "ProviderError",
           `exa returned no structured summary for ${url}`,
-          { provider, cause: response }
+          { cause: response, provider }
         );
       }
-      return { data: parseJson(provider, result.summary) as T, raw: response };
+      return compact({
+        data: parseJson(provider, summary) as T,
+        meta: responseMeta(response),
+        raw: response,
+      });
+    },
+
+    monitor,
+
+    async read(url, options) {
+      const { call, rest: o } = callSettings(options);
+      const { response, result } = await readOne(url, readBody(o), call);
+      return compact({
+        ...pageFrom(url, result, response),
+        meta: responseMeta(response),
+      });
+    },
+
+    async readMany(urls, options) {
+      const { call, rest: o } = callSettings(options);
+      if (urls.length === 0) {
+        invalid("readMany needs at least one URL");
+      }
+      if (urls.length > MAX_READ_URLS) {
+        invalid(`readMany reads at most ${MAX_READ_URLS} URLs per call`);
+      }
+      const response = await fetchContents(urls, readBody(o), call);
+      const failed: FailedUrl[] = failedStatuses(response).map((status) => ({
+        error: statusReason(status),
+        url: text(status.id) ?? "",
+      }));
+      return {
+        failed,
+        meta: responseMeta(response),
+        pages: list(response.results).map((item) => pageFrom("", item, item)),
+        raw: response,
+      };
     },
 
     async research<T>(question: string, options?: ExaResearchOptions) {
       const { call, rest: o } = callSettings(options);
-      const budget = compact({
-        maxCostDollars: o.maxCostDollars,
-        maxDurationSeconds: o.maxDurationSeconds,
-      });
+      checkResearch(o);
       const id =
         o.resume ??
         requireId(
@@ -243,12 +277,7 @@ export function exa(config: ExaConfig = {}) {
           record(
             await raw.request("POST", "/agent/runs", {
               ...call,
-              body: compact({
-                query: question,
-                outputSchema: o.schema,
-                effort: o.effort,
-                budget: Object.keys(budget).length > 0 ? budget : undefined,
-              }),
+              body: researchBody(question, o),
             })
           ).id
         );
@@ -257,40 +286,59 @@ export function exa(config: ExaConfig = {}) {
         id,
         async () => {
           const current = record(
-            await raw.request("GET", `/agent/runs/${id}`, {
+            await raw.request("GET", `/agent/runs/${encodeURIComponent(id)}`, {
               signal: call.signal,
             })
           );
-          if (current.status === "failed" || current.status === "cancelled") {
-            throw new FieldworkError(
-              "JobFailed",
-              `exa research run ${id} ended ${text(current.status) ?? "unknown"}`,
-              {
-                provider,
-                cause: current,
-              }
-            );
-          }
-          return current.status === "completed" ? current : undefined;
+          return current.status === "completed" ||
+            current.status === "failed" ||
+            current.status === "cancelled"
+            ? current
+            : undefined;
         },
         { ...call, interval: o.interval }
       );
-      const output = record(run.output);
-      const fields: FieldSource[] = list(output.grounding).map((item) => {
-        const grounding = record(item);
-        return compact({
-          field: text(grounding.field) ?? "",
-          citations: citations(grounding.citations),
-          confidence: text(grounding.confidence) ?? num(grounding.confidence),
-        });
+      // A resumed run echoes the request it was started with.
+      const { outputSchema } = record(run.request);
+      const structured =
+        o.schema !== undefined ||
+        (outputSchema !== undefined && outputSchema !== null);
+      return researchResult<T>(id, run, structured);
+    },
+
+    async search(query, options) {
+      const { call, rest: o } = callSettings(options);
+      checkSearch(o);
+      const response = record(
+        await raw.request("POST", "/search", {
+          ...call,
+          body: compact({
+            additionalQueries: o.additionalQueries,
+            category: o.category,
+            contents: searchContents(o),
+            endPublishedDate: dateTime(o.publishedBefore, true),
+            excludeDomains: o.excludeDomains,
+            includeDomains: o.includeDomains,
+            moderation: o.moderation,
+            numResults: o.limit,
+            outputSchema: o.outputSchema,
+            query,
+            startPublishedDate: dateTime(o.publishedAfter, false),
+            systemPrompt: o.systemPrompt,
+            type: o.type,
+            userLocation: o.country ? { country: o.country } : undefined,
+          }),
+        })
+      );
+      return compact({
+        answer: generatedAnswer(record(response.output)),
+        meta: responseMeta(response, [
+          ...list(response.warnings),
+          ...list(response.notices),
+        ]),
+        raw: response,
+        results: list(response.results).map((item) => searchResult(item)),
       });
-      return {
-        id,
-        output: (o.schema ? output.structured : output.text) as T,
-        sources: uniqueCitations(fields.flatMap((field) => field.citations)),
-        fields,
-        raw: run,
-      };
     },
   };
 

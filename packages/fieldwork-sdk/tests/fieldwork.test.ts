@@ -5,7 +5,12 @@ import { firecrawl } from "../src/adapters/firecrawl.js";
 import { parallel } from "../src/adapters/parallel.js";
 import { perplexity } from "../src/adapters/perplexity.js";
 import { tavily } from "../src/adapters/tavily.js";
-import { Fieldwork, FieldworkError, router } from "../src/index.js";
+import {
+  Fieldwork,
+  FieldworkError,
+  router,
+  runtimeRouter,
+} from "../src/index.js";
 import { fakeFetch } from "./helpers.js";
 
 describe("a Fieldwork instance", () => {
@@ -15,15 +20,23 @@ describe("a Fieldwork instance", () => {
     });
     expect(web.provider).toBe("tavily");
     expect(web.capabilities).toStrictEqual({
-      search: true,
-      read: true,
-      extract: false,
-      product: false,
-      map: true,
-      crawl: true,
-      research: true,
       act: false,
+      answer: true,
+      browser: false,
+      crawl: true,
+      decide: false,
+      discover: false,
+      extract: false,
+      images: true,
+      map: true,
+      monitor: false,
       parse: false,
+      product: false,
+      read: true,
+      readMany: true,
+      research: true,
+      search: true,
+      usage: true,
     });
     expect(web.supports("act")).toBe(false);
   });
@@ -63,18 +76,18 @@ describe("a Fieldwork instance", () => {
   it("maps provider HTTP failures to normalized codes", async () => {
     const { fetch } = fakeFetch(
       {
-        status: 429,
         body: { error: "slow down" },
         headers: { "retry-after": "3" },
+        status: 429,
       },
-      { status: 432, body: { detail: { error: "plan limit" } } },
-      { status: 401, body: { message: "bad key" } }
+      { body: { detail: { error: "plan limit" } }, status: 432 },
+      { body: { message: "bad key" }, status: 401 }
     );
     const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
     await expect(web.search("a")).rejects.toMatchObject({
       code: "RateLimited",
-      status: 429,
       retryAfter: 3,
+      status: 429,
     });
     await expect(web.search("a")).rejects.toMatchObject({
       code: "RateLimited",
@@ -91,19 +104,19 @@ describe("routing by capability", () => {
   it("sends each capability to its named adapter and nothing else", async () => {
     const searchFetch = fakeFetch({
       body: {
-        results: [{ url: "https://a.test", title: "A", excerpts: ["x"] }],
+        results: [{ excerpts: ["x"], title: "A", url: "https://a.test" }],
       },
     });
     const readFetch = fakeFetch({
       body: {
-        success: true,
         data: { markdown: "# A", metadata: { url: "https://a.test" } },
+        success: true,
       },
     });
     const web = new Fieldwork({
       adapter: router({
-        search: parallel({ apiKey: "p", fetch: searchFetch.fetch }),
         read: firecrawl({ apiKey: "f", fetch: readFetch.fetch }),
+        search: parallel({ apiKey: "p", fetch: searchFetch.fetch }),
       }),
     });
     const found = await web.search("a");
@@ -125,5 +138,18 @@ describe("routing by capability", () => {
         crawl: perplexity({ apiKey: "k", fetch: fakeFetch().fetch }),
       })
     ).toThrow(/does not offer crawl/u);
+  });
+
+  it("checks routes built at run time when the router is built", () => {
+    const routes = {
+      crawl: perplexity({ apiKey: "k", fetch: fakeFetch().fetch }),
+    };
+    expect(() => runtimeRouter(routes)).toThrow(/does not offer crawl/u);
+    const web = new Fieldwork({
+      adapter: runtimeRouter({
+        read: firecrawl({ apiKey: "k", fetch: fakeFetch().fetch }),
+      }),
+    });
+    expect(web.providerFor("read")).toBe("firecrawl");
   });
 });
