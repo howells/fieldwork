@@ -1,16 +1,10 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, requireKey } from "../http.js";
-import type { ImageResult, SearchResult } from "../types.js";
-import {
-  callSettings,
-  compact,
-  list,
-  meta,
-  num,
-  record,
-  text,
-} from "../util.js";
+import type { ImageResult } from "../types.js";
+import { callSettings, compact, meta } from "../util.js";
 import type {
   BraveConfig,
   BraveOperations,
@@ -31,11 +25,20 @@ import {
   refuseUnsupported,
   result,
   section,
+  streamText,
   tagBodies,
   upper,
   warningsOf,
   withQuery,
 } from "./brave/parse.js";
+import {
+  Completion,
+  ContextResponse,
+  ImageSearchResponse,
+  UsageTag,
+  VerticalSearchResponse,
+  WebSearchResponse,
+} from "./brave/response.js";
 
 export type {
   BraveAnswerOptions,
@@ -99,7 +102,10 @@ export const brave = (config: BraveConfig = {}) => {
             Object.keys(searchOptions).length > 0 ? searchOptions : undefined,
         }),
       });
-      const content = completionText(response);
+      const stream = z.safeParse(z.string(), response);
+      const content = stream.success
+        ? streamText(stream.data)
+        : completionText(z.parse(Completion, response));
       const answer = content
         .replace(CITATION_TAG, "")
         .replace(USAGE_TAG, "")
@@ -111,17 +117,17 @@ export const brave = (config: BraveConfig = {}) => {
           { cause: response, provider }
         );
       }
-      const usage = tagBodies(content, USAGE_TAG).at(-1) ?? {};
+      const usage = tagBodies(content, USAGE_TAG, UsageTag).at(-1);
       return compact({
         answer,
         citations: answerCitations(content),
         meta: meta({
-          costUsd: usage["X-Request-Total-Cost"],
+          costUsd: usage?.["X-Request-Total-Cost"],
           units: {
-            queries: usage["X-Request-Queries"],
-            requests: usage["X-Request-Requests"],
-            tokensIn: usage["X-Request-Tokens-In"],
-            tokensOut: usage["X-Request-Tokens-Out"],
+            queries: usage?.["X-Request-Queries"],
+            requests: usage?.["X-Request-Requests"],
+            tokensIn: usage?.["X-Request-Tokens-In"],
+            tokensOut: usage?.["X-Request-Tokens-Out"],
           },
         }),
         raw: response,
@@ -130,43 +136,40 @@ export const brave = (config: BraveConfig = {}) => {
 
     async images(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request(
-          "GET",
-          withQuery("/images/search", {
-            count: o.limit,
-            country: upper(o.country),
-            q: query,
-            safesearch: o.safesearch,
-            search_lang: lower(o.language),
-            spellcheck: o.spellcheck,
-          }),
-          call
-        )
+      const response = await raw.request(
+        "GET",
+        withQuery("/images/search", {
+          count: o.limit,
+          country: upper(o.country),
+          q: query,
+          safesearch: o.safesearch,
+          search_lang: lower(o.language),
+          spellcheck: o.spellcheck,
+        }),
+        call
       );
+      const body = z.parse(ImageSearchResponse, response);
       const results: ImageResult[] = [];
       let withoutImage = 0;
-      for (const item of list(response.results)) {
-        const r = record(item);
-        const properties = record(r.properties);
-        const url = text(properties.url);
+      for (const item of body.results) {
+        const { url } = item.properties;
         if (url === undefined) {
           withoutImage += 1;
           continue;
         }
         results.push(
           compact({
-            height: num(properties.height),
-            sourceUrl: text(r.url),
-            thumbnailUrl: text(record(r.thumbnail).src),
-            title: text(r.title),
+            height: item.properties.height,
+            sourceUrl: item.url,
+            thumbnailUrl: item.thumbnail.src,
+            title: item.title,
             url,
-            width: num(properties.width),
+            width: item.properties.width,
           })
         );
       }
       const warnings = [
-        ...warningsOf(response.query),
+        ...warningsOf(body.query),
         ...(withoutImage > 0
           ? [`${withoutImage} results had no image URL and were left out`]
           : []),
@@ -197,74 +200,71 @@ export const brave = (config: BraveConfig = {}) => {
       };
 
       if (mode === "context") {
-        const response = record(
-          await raw.request(
-            "GET",
-            withQuery("/llm/context", {
-              ...shared,
-              context_threshold_mode: o.relevance,
-              enable_source_metadata: o.sourceMetadata,
-              maximum_number_of_tokens: o.maxTokens,
-              maximum_number_of_tokens_per_url: o.maxTokensPerUrl,
-              maximum_number_of_urls: o.limit,
-            }),
-            call
-          )
+        const response = await raw.request(
+          "GET",
+          withQuery("/llm/context", {
+            ...shared,
+            context_threshold_mode: o.relevance,
+            enable_source_metadata: o.sourceMetadata,
+            maximum_number_of_tokens: o.maxTokens,
+            maximum_number_of_tokens_per_url: o.maxTokensPerUrl,
+            maximum_number_of_urls: o.limit,
+          }),
+          call
         );
-        return compact({ raw: response, results: parseContext(response) });
-      }
-
-      if (mode === "news" || mode === "videos") {
-        const response = record(
-          await raw.request(
-            "GET",
-            withQuery(`/${mode}/search`, {
-              ...shared,
-              extra_snippets: mode === "news" ? o.extraSnippets : undefined,
-              offset: o.offset,
-              spellcheck: o.spellcheck,
-              ui_lang: o.uiLanguage,
-            }),
-            call
-          )
-        );
-        const kind = mode === "news" ? "news" : "video";
         return compact({
-          meta: meta({ warnings: warningsOf(response.query) }),
           raw: response,
-          results: list(response.results)
-            .map((item) => result(item, kind))
-            .filter((item): item is SearchResult => item !== undefined),
+          results: parseContext(z.parse(ContextResponse, response)),
         });
       }
 
-      const response = record(
-        await raw.request(
+      if (mode === "news" || mode === "videos") {
+        const response = await raw.request(
           "GET",
-          withQuery("/web/search", {
+          withQuery(`/${mode}/search`, {
             ...shared,
-            extra_snippets: o.extraSnippets,
+            extra_snippets: mode === "news" ? o.extraSnippets : undefined,
             offset: o.offset,
-            result_filter: o.resultTypes?.join(","),
             spellcheck: o.spellcheck,
-            text_decorations: o.textDecorations ?? false,
             ui_lang: o.uiLanguage,
-            units: o.units,
           }),
           call
-        )
+        );
+        const body = z.parse(VerticalSearchResponse, response);
+        const kind = mode === "news" ? "news" : "video";
+        return compact({
+          meta: meta({ warnings: warningsOf(body.query) }),
+          raw: response,
+          results: section(body.results, (item) => result(item, kind)),
+        });
+      }
+
+      const response = await raw.request(
+        "GET",
+        withQuery("/web/search", {
+          ...shared,
+          extra_snippets: o.extraSnippets,
+          offset: o.offset,
+          result_filter: o.resultTypes?.join(","),
+          spellcheck: o.spellcheck,
+          text_decorations: o.textDecorations ?? false,
+          ui_lang: o.uiLanguage,
+          units: o.units,
+        }),
+        call
       );
+      const body = z.parse(WebSearchResponse, response);
       return compact({
-        meta: meta({ warnings: warningsOf(response.query) }),
+        meta: meta({ warnings: warningsOf(body.query) }),
         raw: response,
         results: [
-          ...section(response, "web", (item) => result(item, "web")),
-          ...section(response, "news", (item) => result(item, "news")),
-          ...section(response, "discussions", (item) =>
+          ...section(body.web.results, (item) => result(item, "web")),
+          ...section(body.news.results, (item) => result(item, "news")),
+          ...section(body.discussions.results, (item) =>
             result(item, "discussion")
           ),
-          ...section(response, "videos", (item) => result(item, "video")),
-          ...section(response, "locations", placeResult),
+          ...section(body.videos.results, (item) => result(item, "video")),
+          ...section(body.locations.results, placeResult),
         ],
       });
     },

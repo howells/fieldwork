@@ -1,15 +1,18 @@
+import * as z from "zod/mini";
+
 import { FieldworkError } from "../../errors.js";
 import type { Citation, Place, SearchResult } from "../../types.js";
-import {
-  compact,
-  list,
-  num,
-  record,
-  refuseTogether,
-  text,
-} from "../../util.js";
-import type { Json } from "../../util.js";
+import { compact, refuseTogether } from "../../util.js";
 import type { BraveRecency, SearchInput } from "./options.js";
+import { CitationTag, Completion } from "./response.js";
+import type {
+  CompletionBlock,
+  ContextBlock,
+  ContextItemBlock,
+  ContextSourceBlock,
+  QueryBlock,
+  ResultItem,
+} from "./response.js";
 
 export const provider = "brave";
 
@@ -175,179 +178,164 @@ export const upper = (value: string | undefined) => value?.toUpperCase();
 
 export const lower = (value: string | undefined) => value?.toLowerCase();
 
-export const warningsOf = (query: unknown) => {
-  const q = record(query);
+export const warningsOf = (query: QueryBlock) => {
   const warnings: string[] = [];
-  const altered = text(q.altered);
-  if (altered !== undefined) {
-    warnings.push(`brave searched the spell-corrected query "${altered}"`);
+  if (query.altered !== undefined) {
+    warnings.push(
+      `brave searched the spell-corrected query "${query.altered}"`
+    );
   }
-  if (q.show_strict_warning === true) {
+  if (query.show_strict_warning === true) {
     warnings.push("strict safe search hid some results");
   }
   return warnings;
 };
 
 export const result = (
-  item: unknown,
+  r: ResultItem,
   kind: string
 ): SearchResult | undefined => {
-  const r = record(item);
-  const url = text(r.url);
-  if (url === undefined) {
+  if (r.url === undefined) {
     return undefined;
   }
-  const thumbnail = record(r.thumbnail);
-  const extra = list(r.extra_snippets).filter(
-    (s): s is string => typeof s === "string" && s !== ""
-  );
-  const snippet = [text(r.description), ...extra]
+  const snippet = [r.description, ...r.extra_snippets]
     .filter((s): s is string => s !== undefined)
     .join("\n\n");
   return compact({
-    favicon: text(record(r.meta_url).favicon),
-    image: text(thumbnail.original) ?? text(thumbnail.src),
+    favicon: r.meta_url.favicon,
+    image: r.thumbnail.original ?? r.thumbnail.src,
     kind,
-    publishedAt: text(r.page_age),
+    publishedAt: r.page_age,
     snippet: snippet === "" ? undefined : snippet,
-    title: text(r.title),
-    url,
+    title: r.title,
+    url: r.url,
   });
 };
 
-export const placeResult = (item: unknown): SearchResult | undefined => {
-  const base = result(item, "place");
+export const placeResult = (r: ResultItem): SearchResult | undefined => {
+  const base = result(r, "place");
   if (!base) {
     return undefined;
   }
-  const r = record(item);
-  const [latitude, longitude] = list(r.coordinates);
+  const [latitude, longitude] = r.coordinates;
   const place: Place = compact({
-    address: text(record(r.postal_address).displayAddress),
-    latitude: num(latitude),
-    longitude: num(longitude),
+    address: r.postal_address.displayAddress,
+    latitude,
+    longitude,
   });
-  const rating = record(r.rating);
   return compact({
     ...base,
     place: Object.keys(place).length > 0 ? place : undefined,
-    rating: num(rating.ratingValue),
-    reviewCount: num(rating.reviewCount),
+    rating: r.rating.ratingValue,
+    reviewCount: r.rating.reviewCount,
   });
 };
 
 export const section = (
-  response: Json,
-  name: string,
-  map: (item: unknown) => SearchResult | undefined
+  items: ResultItem[],
+  map: (item: ResultItem) => SearchResult | undefined
 ): SearchResult[] =>
-  list(record(response[name]).results)
+  items
     .map((item) => map(item))
     .filter((item): item is SearchResult => item !== undefined);
 
 const contextResult = (
-  item: unknown,
+  r: ContextItemBlock,
   kind: string,
-  sources: Json
+  sources: Record<string, ContextSourceBlock>
 ): SearchResult | undefined => {
-  const r = record(item);
-  const url = text(r.url);
-  if (url === undefined) {
+  if (r.url === undefined) {
     return undefined;
   }
-  const source = record(sources[url]);
-  const passages = list(r.snippets).filter(
-    (s): s is string => typeof s === "string" && s !== ""
-  );
+  const source = sources[r.url];
   return compact({
-    content: passages.length > 0 ? passages.join("\n\n") : undefined,
-    favicon: text(source.favicon),
-    image: text(source.thumbnail),
+    content: r.snippets.length > 0 ? r.snippets.join("\n\n") : undefined,
+    favicon: source?.favicon,
+    image: source?.thumbnail,
     kind,
-    snippet: text(source.description),
-    title: text(r.title) ?? text(r.name) ?? text(source.title),
-    url,
+    snippet: source?.description,
+    title: r.title ?? r.name ?? source?.title,
+    url: r.url,
   });
 };
 
-export const parseContext = (response: Json): SearchResult[] => {
-  const grounding = record(response.grounding);
-  const sources = record(response.sources);
-  const poi = record(grounding.poi);
-  return [
-    ...list(grounding.generic).map((item) =>
-      contextResult(item, "web", sources)
-    ),
-    ...(Object.keys(poi).length > 0
-      ? [contextResult(poi, "place", sources)]
-      : []),
-    ...list(grounding.map).map((item) => contextResult(item, "place", sources)),
+export const parseContext = ({
+  grounding,
+  sources,
+}: ContextBlock): SearchResult[] =>
+  [
+    ...grounding.generic.map((item) => contextResult(item, "web", sources)),
+    contextResult(grounding.poi, "place", sources),
+    ...grounding.map.map((item) => contextResult(item, "place", sources)),
   ].filter((item): item is SearchResult => item !== undefined);
+
+/** The text of a streamed answer: the content of each `data:` line's chunk. */
+export const streamText = (stream: string): string => {
+  let content = "";
+  for (const line of stream.split(/\r?\n/u)) {
+    if (!line.startsWith("data:")) {
+      continue;
+    }
+    const payload = line.slice(5).trim();
+    if (payload === "" || payload === "[DONE]") {
+      continue;
+    }
+    try {
+      const chunk = z.parse(Completion, JSON.parse(payload));
+      for (const choice of chunk.choices) {
+        content += choice.delta.content ?? "";
+      }
+    } catch {
+      // A line that is not a chunk carries no answer text.
+    }
+  }
+  return content;
 };
 
-export const completionText = (response: unknown): string => {
-  if (typeof response === "string") {
-    let content = "";
-    for (const line of response.split(/\r?\n/u)) {
-      if (!line.startsWith("data:")) {
-        continue;
-      }
-      const payload = line.slice(5).trim();
-      if (payload === "" || payload === "[DONE]") {
-        continue;
-      }
-      try {
-        for (const choice of list(record(JSON.parse(payload)).choices)) {
-          const delta = text(record(record(choice).delta).content);
-          content += delta ?? "";
-        }
-      } catch {
-        // A line that is not a chunk carries no answer text.
-      }
-    }
-    return content;
-  }
-  const choice = record(list(record(response).choices)[0]);
-  return (
-    text(record(choice.message).content) ??
-    text(record(choice.delta).content) ??
-    ""
-  );
+/** The text of an answer sent whole, from its first choice. */
+export const completionText = (completion: CompletionBlock): string => {
+  const [choice] = completion.choices;
+  return choice?.message.content ?? choice?.delta.content ?? "";
 };
 
 export const CITATION_TAG = /<citation>(?<body>[\s\S]*?)<\/citation>/gu;
 export const USAGE_TAG = /<usage>(?<body>[\s\S]*?)<\/usage>/gu;
 
-const tagJson = (body: string): Json | undefined => {
+/** The JSON inside a tag, which Brave sometimes encodes twice, read through `schema`. */
+const parseTag = <Schema extends z.ZodMiniType>(
+  body: string,
+  schema: Schema
+): z.output<Schema>[] => {
   try {
-    let value: unknown = JSON.parse(body);
-    if (typeof value === "string") {
-      value = JSON.parse(value);
-    }
-    return record(value);
+    const value: unknown = JSON.parse(body);
+    const twice = z.safeParse(z.string(), value);
+    return [z.parse(schema, twice.success ? JSON.parse(twice.data) : value)];
   } catch {
-    return undefined;
+    return [];
   }
 };
 
-export const tagBodies = (content: string, tag: RegExp): Json[] =>
-  [...content.matchAll(tag)]
-    .map((match) => tagJson(match.groups?.body ?? ""))
-    .filter((item): item is Json => item !== undefined);
+/** Every tag in the content whose body is JSON, read through `schema`. */
+export const tagBodies = <Schema extends z.ZodMiniType>(
+  content: string,
+  tag: RegExp,
+  schema: Schema
+): z.output<Schema>[] =>
+  [...content.matchAll(tag)].flatMap((match) =>
+    parseTag(match.groups?.body ?? "", schema)
+  );
 
 export const answerCitations = (content: string): Citation[] => {
   const byUrl = new Map<string, string[]>();
-  for (const item of tagBodies(content, CITATION_TAG)) {
-    const url = text(item.url);
-    if (url === undefined) {
+  for (const item of tagBodies(content, CITATION_TAG, CitationTag)) {
+    if (item.url === undefined) {
       continue;
     }
-    const excerpts = byUrl.get(url) ?? [];
-    const snippet = text(item.snippet);
-    if (snippet !== undefined && !excerpts.includes(snippet)) {
-      excerpts.push(snippet);
+    const excerpts = byUrl.get(item.url) ?? [];
+    if (item.snippet !== undefined && !excerpts.includes(item.snippet)) {
+      excerpts.push(item.snippet);
     }
-    byUrl.set(url, excerpts);
+    byUrl.set(item.url, excerpts);
   }
   return [...byUrl].map(([url, excerpts]) =>
     compact({ excerpts: excerpts.length > 0 ? excerpts : undefined, url })
