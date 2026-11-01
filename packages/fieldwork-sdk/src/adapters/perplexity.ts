@@ -171,12 +171,10 @@ const provider = "perplexity";
 const MAX_QUERIES = 5;
 const TERMINAL = new Set(["completed", "failed", "incomplete", "cancelled"]);
 
-function invalid(message: string): FieldworkError {
-  return new FieldworkError("InvalidRequest", message, { provider });
-}
+const invalid = (message: string): FieldworkError =>
+  new FieldworkError("InvalidRequest", message, { provider });
 
-/** Perplexity takes dates as MM/DD/YYYY. */
-function usDate(name: string, date: string | undefined) {
+const usDate = (name: string, date: string | undefined) => {
   if (date === undefined) {
     return date;
   }
@@ -186,10 +184,9 @@ function usDate(name: string, date: string | undefined) {
   }
   const { year, month, day } = match.groups;
   return `${month}/${day}/${year}`;
-}
+};
 
-/** The filter fields shared by `/search` and the agent's `web_search` tool. */
-function filterFields(o: PerplexityFilters) {
+const filterFields = (o: PerplexityFilters) => {
   refuseTogether(provider, { ...o }, "includeDomains", "excludeDomains");
   const domains = o.includeDomains ?? o.excludeDomains?.map((d) => `-${d}`);
   return compact({
@@ -203,10 +200,9 @@ function filterFields(o: PerplexityFilters) {
     search_domain_filter: domains && domains.length > 0 ? domains : undefined,
     search_recency_filter: o.recency,
   });
-}
+};
 
-/** A `web_search` tool entry carrying the caller's filters, or undefined when there are none. */
-function webSearchTool(o: PerplexityFilters & { country?: string }) {
+const webSearchTool = (o: PerplexityFilters & { country?: string }) => {
   const filters = filterFields(o);
   const tool = compact({
     filters: Object.keys(filters).length > 0 ? filters : undefined,
@@ -214,22 +210,21 @@ function webSearchTool(o: PerplexityFilters & { country?: string }) {
     user_location: o.country ? { country: o.country } : undefined,
   });
   return Object.keys(tool).length > 1 ? tool : undefined;
-}
+};
 
-function languageCodes(language: string | string[] | undefined) {
+const languageCodes = (language: string | string[] | undefined) => {
   const codes = [language ?? []].flat().map((code) => code.toLowerCase());
   return codes.length > 0 ? codes : undefined;
-}
+};
 
-function errorCode(jobId: string | undefined, rateLimited: boolean) {
+const errorCode = (jobId: string | undefined, rateLimited: boolean) => {
   if (jobId) {
     return "JobFailed";
   }
   return rateLimited ? "RateLimited" : "ProviderError";
-}
+};
 
-/** The error an Agent API response carries, as a Fieldwork error. */
-function responseError(response: Json, jobId?: string) {
+const responseError = (response: Json, jobId?: string) => {
   const error = record(response.error);
   const message =
     text(error.message) ?? `ended ${text(response.status) ?? "unknown"}`;
@@ -247,29 +242,25 @@ function responseError(response: Json, jobId?: string) {
       retryable: rateLimited || type === "overloaded",
     }
   );
-}
+};
 
-/** The sources a tool-result output item lists: search results or fetched pages. */
-function retrievedBy(entry: Json): unknown[] {
+const retrievedBy = (entry: Json): unknown[] => {
   if (entry.type === "search_results") {
     return list(entry.results);
   }
   return entry.type === "fetch_url_results" ? list(entry.contents) : [];
-}
+};
 
-/** The URL citations in a message part's annotations. */
-function annotated(part: Json): Citation[] {
-  return list(part.annotations)
+const annotated = (part: Json): Citation[] =>
+  list(part.annotations)
     .map((annotation) => record(annotation))
     .filter(
       (found) => found.type === undefined || found.type === "url_citation"
     )
     .map((found) => citation(found))
     .filter((source): source is Citation => source !== undefined);
-}
 
-/** What an Agent API response says: its text, the sources the text cites and everything retrieved. */
-function readResponse(response: Json) {
+const readResponse = (response: Json) => {
   const parts: string[] = [];
   const cited: Citation[] = [];
   const retrieved: Citation[] = [];
@@ -294,9 +285,9 @@ function readResponse(response: Json) {
     retrieved: uniqueCitations(retrieved),
     text: parts.join(""),
   };
-}
+};
 
-function responseMeta(response: Json, warnings?: string) {
+const responseMeta = (response: Json, warnings?: string) => {
   const usage = record(response.usage);
   const input = record(usage.input_tokens_details);
   return meta({
@@ -312,23 +303,21 @@ function responseMeta(response: Json, warnings?: string) {
     },
     warnings,
   });
-}
+};
 
-function responseFormat(schema: JsonSchema | undefined) {
-  return schema
+const responseFormat = (schema: JsonSchema | undefined) =>
+  schema
     ? { json_schema: { name: "output", schema }, type: "json_schema" }
     : undefined;
-}
 
-function numbers(value: unknown): Record<string, number> {
-  return Object.fromEntries(
+const numbers = (value: unknown): Record<string, number> =>
+  Object.fromEntries(
     Object.entries(record(value)).filter(
       (entry): entry is [string, number] => num(entry[1]) !== undefined
     )
   );
-}
 
-function decisionState(context: unknown) {
+const decisionState = (context: unknown) => {
   if (typeof context === "string" || (typeof context === "object" && context)) {
     return context;
   }
@@ -336,13 +325,13 @@ function decisionState(context: unknown) {
     return String(context);
   }
   throw invalid("perplexity decide needs a context: a string, object or array");
-}
+};
 
-async function search(
+const search = async (
   raw: RawClient,
   query: string,
   options: PerplexitySearchOptions | undefined
-): Promise<SearchResponse> {
+): Promise<SearchResponse> => {
   const { call, rest: o } = callSettings(options);
   const queries = [query, ...(o.queries ?? [])];
   if (queries.length > MAX_QUERIES) {
@@ -384,13 +373,13 @@ async function search(
       });
     }),
   };
-}
+};
 
-async function answer<T>(
+const answer = async <T>(
   raw: RawClient,
   question: string,
   options: PerplexityAnswerOptions | undefined
-): Promise<Answer<T>> {
+): Promise<Answer<T>> => {
   const { call, rest: o } = callSettings(options);
   const response = record(
     await raw.request("POST", "/v1/agent", {
@@ -422,10 +411,9 @@ async function answer<T>(
     output: o.schema ? parseJson(provider, read.text) : undefined,
     raw: response,
   }) as Answer<T>;
-}
+};
 
-/** The model-and-tools part of a research request. */
-function researchSetup(o: PerplexityResearchOptions) {
+const researchSetup = (o: PerplexityResearchOptions) => {
   if (o.models && (o.models.length < 1 || o.models.length > 5)) {
     throw invalid("perplexity models takes one to five models");
   }
@@ -448,15 +436,14 @@ function researchSetup(o: PerplexityResearchOptions) {
     models: o.models,
     tools: searchTool ? [searchTool] : undefined,
   };
-}
+};
 
-/** Starts a background run, or picks up `resume`, and returns its id. */
-async function startResearch(
+const startResearch = async (
   raw: RawClient,
   question: string,
   o: PerplexityResearchOptions,
   call: CallOptions
-) {
+) => {
   if (o.resume) {
     return o.resume;
   }
@@ -476,15 +463,14 @@ async function startResearch(
     })
   );
   return requireId(provider, created.id);
-}
+};
 
-/** The run's output, parsed against the schema when there is one. */
-function researchOutput(
+const researchOutput = (
   response: Json,
   reply: string,
   schema: JsonSchema | undefined,
   id: string
-) {
+) => {
   if (!schema) {
     return reply;
   }
@@ -502,13 +488,13 @@ function researchOutput(
       { cause: response, jobId: id, provider }
     );
   }
-}
+};
 
-async function research<T>(
+const research = async <T>(
   raw: RawClient,
   question: string,
   options: PerplexityResearchOptions | undefined
-): Promise<Research<T>> {
+): Promise<Research<T>> => {
   const { call, rest: o } = callSettings(options);
   const id = await startResearch(raw, question, o, call);
   const response = await poll(
@@ -540,10 +526,9 @@ async function research<T>(
     status: status === "completed" ? "completed" : "partial",
     stopReason: status === "completed" ? undefined : status,
   }) as Research<T>;
-}
+};
 
-/** The question in Perplexity's form. A score scale's keys are its scores; Perplexity numbers levels from 0. */
-function decisionQuestion(question: DecisionQuestion) {
+const decisionQuestion = (question: DecisionQuestion) => {
   if (question.type === "yesno") {
     return { instructions: question.question, type: "noul" };
   }
@@ -561,10 +546,9 @@ function decisionQuestion(question: DecisionQuestion) {
     instructions: question.question,
     type: "score",
   };
-}
+};
 
-/** The most likely option and its probability map, with score levels renamed to the scale's keys. */
-function decisionAnswer(value: unknown, scores: string[] | undefined) {
+const decisionAnswer = (value: unknown, scores: string[] | undefined) => {
   const found = record(value);
   if (found.type === "noul") {
     return compact({ probability: num(found.noul) });
@@ -586,14 +570,14 @@ function decisionAnswer(value: unknown, scores: string[] | undefined) {
     confidence: num(found.confidence),
     probabilities,
   });
-}
+};
 
-async function decide(
+const decide = async (
   raw: RawClient,
   context: unknown,
   questions: Record<string, DecisionQuestion>,
   options: PerplexityDecideOptions | undefined
-): Promise<Decisions> {
+): Promise<Decisions> => {
   const { call, rest: o } = callSettings(options);
   const response = record(
     await raw.request("POST", "/v1/decisions", {
@@ -630,9 +614,9 @@ async function decide(
     }),
     raw: response,
   };
-}
+};
 
-export function perplexity(config: PerplexityConfig = {}) {
+export const perplexity = (config: PerplexityConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.perplexity.ai",
     fetch: config.fetch,
@@ -658,4 +642,4 @@ export function perplexity(config: PerplexityConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

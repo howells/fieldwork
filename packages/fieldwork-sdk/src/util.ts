@@ -3,47 +3,38 @@ import type { Citation, CallOptions, Meta, ProductImage } from "./types.js";
 
 export type Json = Record<string, unknown>;
 
-export function record(value: unknown): Json {
-  return value && typeof value === "object" && !Array.isArray(value)
+export const record = (value: unknown): Json =>
+  value && typeof value === "object" && !Array.isArray(value)
     ? (value as Json)
     : {};
-}
 
-export function list(value: unknown): unknown[] {
-  return Array.isArray(value) ? value : [];
-}
+export const list = (value: unknown): unknown[] =>
+  Array.isArray(value) ? value : [];
 
-export function text(value: unknown): string | undefined {
-  return typeof value === "string" && value !== "" ? value : undefined;
-}
+export const text = (value: unknown): string | undefined =>
+  typeof value === "string" && value !== "" ? value : undefined;
 
-export function num(value: unknown): number | undefined {
-  return typeof value === "number" && Number.isFinite(value)
-    ? value
-    : undefined;
-}
+export const num = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
-export function strings(value: unknown): string[] | undefined {
+export const strings = (value: unknown): string[] | undefined => {
   const items = list(value).filter(
     (item): item is string => typeof item === "string"
   );
   return items.length > 0 ? items : undefined;
-}
+};
 
-/** Drops keys whose value is undefined, so request bodies carry only what was set. */
-export function compact<T extends Json>(value: T): T {
-  return Object.fromEntries(
+export const compact = <T extends Json>(value: T): T =>
+  Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
   ) as T;
-}
 
-/** Splits Fieldwork's own call settings from the provider options. */
-export function callSettings<T extends CallOptions>(options: T | undefined) {
+export const callSettings = <T extends CallOptions>(options: T | undefined) => {
   const { signal, timeout, ...rest } = options ?? ({} as T);
   return { call: { signal, timeout }, rest };
-}
+};
 
-export function parseJson(provider: string, value: unknown): unknown {
+export const parseJson = (provider: string, value: unknown): unknown => {
   if (typeof value !== "string") {
     return value;
   }
@@ -59,9 +50,9 @@ export function parseJson(provider: string, value: unknown): unknown {
       }
     );
   }
-}
+};
 
-export function uniqueCitations(all: Citation[]): Citation[] {
+export const uniqueCitations = (all: Citation[]): Citation[] => {
   const seen = new Map<string, Citation>();
   for (const item of all) {
     if (!seen.has(item.url)) {
@@ -69,9 +60,9 @@ export function uniqueCitations(all: Citation[]): Citation[] {
     }
   }
   return [...seen.values()];
-}
+};
 
-export function citation(value: unknown): Citation | undefined {
+export const citation = (value: unknown): Citation | undefined => {
   const item = record(value);
   const url = text(item.url);
   if (!url) {
@@ -82,16 +73,14 @@ export function citation(value: unknown): Citation | undefined {
       ? [item.excerpts]
       : strings(item.excerpts);
   return compact({ excerpts, title: text(item.title), url });
-}
+};
 
-export function citations(value: unknown): Citation[] {
-  return list(value)
+export const citations = (value: unknown): Citation[] =>
+  list(value)
     .map((item) => citation(item))
     .filter((item): item is Citation => item !== undefined);
-}
 
-/** The id of a job the provider just created; a missing id means the job cannot be followed. */
-export function requireId(provider: string, value: unknown): string {
+export const requireId = (provider: string, value: unknown): string => {
   const id = typeof value === "number" ? String(value) : text(value);
   if (id === undefined) {
     throw new FieldworkError(
@@ -101,26 +90,24 @@ export function requireId(provider: string, value: unknown): string {
     );
   }
   return id;
-}
+};
 
-/** Any scalar as text, for values a provider may send as a string or a number. */
-export function scalar(value: unknown): string | undefined {
+export const scalar = (value: unknown): string | undefined => {
   if (typeof value === "string") {
     return value;
   }
   return typeof value === "number" || typeof value === "boolean"
     ? String(value)
     : undefined;
-}
+};
 
-/** A Meta block with only the parts that were set, or undefined when none was. */
-export function meta(parts: {
+export const meta = (parts: {
   requestId?: unknown;
   credits?: unknown;
   costUsd?: unknown;
   units?: Record<string, unknown>;
   warnings?: unknown;
-}): Meta | undefined {
+}): Meta | undefined => {
   const units = Object.fromEntries(
     Object.entries(parts.units ?? {}).filter(
       (entry): entry is [string, number] =>
@@ -148,10 +135,9 @@ export function meta(parts: {
     warnings: warnings.length > 0 ? warnings : undefined,
   });
   return Object.keys(result).length > 0 ? result : undefined;
-}
+};
 
-/** Product images, whether the provider sends URLs or `{url, alt}` objects. */
-export function productImages(value: unknown): ProductImage[] | undefined {
+export const productImages = (value: unknown): ProductImage[] | undefined => {
   const items = list(value)
     .map((item) => {
       if (typeof item === "string") {
@@ -163,17 +149,13 @@ export function productImages(value: unknown): ProductImage[] | undefined {
     })
     .filter((item): item is ProductImage => item !== undefined);
   return items.length > 0 ? items : undefined;
-}
+};
 
-/**
- * Refuses a call that sets options the provider cannot combine, before any
- * request is sent: `refuseTogether(provider, o, "includeDomains", "excludeDomains")`.
- */
-export function refuseTogether(
+export const refuseTogether = (
   provider: string,
   options: Record<string, unknown>,
   ...names: string[]
-): void {
+): void => {
   const set = names.filter((name) => options[name] !== undefined);
   if (set.length > 1) {
     throw new FieldworkError(
@@ -182,13 +164,11 @@ export function refuseTogether(
       { provider }
     );
   }
-}
+};
 
-/** Seconds to whole hours, rounding up, for providers that count freshness in hours. */
-export function hours(seconds: number | undefined): number | undefined {
-  return seconds === undefined
+export const hours = (seconds: number | undefined): number | undefined =>
+  seconds === undefined
     ? undefined
     : seconds < 0
       ? -1
       : Math.ceil(seconds / 3600);
-}

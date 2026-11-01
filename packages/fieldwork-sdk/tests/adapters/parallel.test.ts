@@ -12,42 +12,36 @@ const schema = {
 const url =
   "https://www.tilebar.com/product/portmore-aqua-3x8-glazed-ceramic-tile.html";
 
-function connect(...replies: Parameters<typeof fakeFetch>) {
+const connect = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
     web: new Fieldwork({ adapter: parallel({ apiKey: "k", fetch }) }),
   };
-}
+};
 
-/** A Task run in a status, as `GET /v1/tasks/runs/{id}` returns it. */
-function run(status: string, extra: Record<string, unknown> = {}) {
-  return {
-    interaction_id: "trun_1_int",
-    is_active: ["queued", "running", "cancelling"].includes(status),
-    processor: "base",
-    run_id: "trun_1",
-    status,
-    ...extra,
-  };
-}
+const run = (status: string, extra: Record<string, unknown> = {}) => ({
+  interaction_id: "trun_1_int",
+  is_active: ["queued", "running", "cancelling"].includes(status),
+  processor: "base",
+  run_id: "trun_1",
+  status,
+  ...extra,
+});
 
-/** A FindAll run in a status, as `GET /v1beta/findall/runs/{id}` returns it. */
-function findall(status: string, reason?: string, matched = 1) {
-  return {
-    findall_id: "findall_1",
-    generator: "base",
-    status: {
-      is_active: status === "queued" || status === "running",
-      metrics: {
-        generated_candidates_count: 4,
-        matched_candidates_count: matched,
-      },
-      status,
-      termination_reason: reason ?? null,
+const findall = (status: string, reason?: string, matched = 1) => ({
+  findall_id: "findall_1",
+  generator: "base",
+  status: {
+    is_active: status === "queued" || status === "running",
+    metrics: {
+      generated_candidates_count: 4,
+      matched_candidates_count: matched,
     },
-  };
-}
+    status,
+    termination_reason: reason ?? null,
+  },
+});
 
 describe("parallel search", () => {
   it("sends Parallel's v1 request with advanced settings", async () => {

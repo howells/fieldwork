@@ -11,11 +11,7 @@ interface Reply {
   headers?: Record<string, string>;
 }
 
-/**
- * A fetch that answers each request with the next queued reply and records what
- * was sent, so tests check the provider wire format without a network.
- */
-export function fakeFetch(...replies: Reply[]) {
+export const fakeFetch = (...replies: Reply[]) => {
   const calls: RecordedCall[] = [];
   const queue = [...replies];
   const fetchImpl = async (input: URL | string, init: RequestInit = {}) => {
@@ -37,4 +33,4 @@ export function fakeFetch(...replies: Reply[]) {
     );
   };
   return { calls, fetch: fetchImpl as typeof fetch };
-}
+};

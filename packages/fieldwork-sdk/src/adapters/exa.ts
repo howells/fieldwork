@@ -63,7 +63,7 @@ export type {
   ExaWebhookEvent,
 } from "./exa/options.js";
 
-export function exa(config: ExaConfig = {}) {
+export const exa = (config: ExaConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.exa.ai",
     fetch: config.fetch,
@@ -73,24 +73,23 @@ export function exa(config: ExaConfig = {}) {
     provider,
   });
 
-  async function fetchContents(
+  const fetchContents = async (
     urls: string[],
     body: Record<string, unknown>,
     call: CallOptions
-  ) {
-    return record(
+  ) =>
+    record(
       await raw.request("POST", "/contents", {
         ...call,
         body: { urls, ...body },
       })
     );
-  }
 
-  async function readOne(
+  const readOne = async (
     url: string,
     body: Record<string, unknown>,
     call: CallOptions
-  ) {
+  ) => {
     const response = await fetchContents([url], body, call);
     const [failed] = failedStatuses(response);
     if (failed) {
@@ -110,7 +109,7 @@ export function exa(config: ExaConfig = {}) {
       );
     }
     return { response, result };
-  }
+  };
 
   const monitor: ExaMonitor = {
     async create(options) {
@@ -343,4 +342,4 @@ export function exa(config: ExaConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

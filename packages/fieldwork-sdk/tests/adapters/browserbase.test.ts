@@ -4,16 +4,16 @@ import { browserbase } from "../../src/adapters/browserbase.js";
 import { Fieldwork } from "../../src/index.js";
 import { fakeFetch } from "../helpers.js";
 
-function client(
+const client = (
   replies: Parameters<typeof fakeFetch>,
   config: { projectId?: string } = {}
-) {
+) => {
   const { fetch, calls } = fakeFetch(...replies);
   const web = new Fieldwork({
     adapter: browserbase({ apiKey: "bb-key", fetch, ...config }),
   });
   return { calls, web };
-}
+};
 
 describe("browserbase adapter", () => {
   it("has exactly the capabilities Browserbase offers", () => {

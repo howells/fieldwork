@@ -220,16 +220,15 @@ export const IMAGE_OPTIONS = [
   "noCache",
 ] as const;
 
-/** Refuses an option the engine does not document, before any request is sent. */
-export function onlyAllowed(
+export const onlyAllowed = (
   engine: string,
   options: Json,
   allowed: readonly string[]
-) {
+) => {
   const refused = Object.keys(options).filter(
     (name) => options[name] !== undefined && !allowed.includes(name)
   );
   if (refused.length > 0) {
     throw invalid(`${engine} does not accept ${refused.join(", ")}`);
   }
-}
+};

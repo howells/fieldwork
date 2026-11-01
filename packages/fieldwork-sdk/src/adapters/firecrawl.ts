@@ -80,7 +80,7 @@ export type {
   FirecrawlSessionSettings,
 } from "./firecrawl/options.js";
 
-export function firecrawl(config: FirecrawlConfig = {}) {
+export const firecrawl = (config: FirecrawlConfig = {}) => {
   const baseUrl = config.baseUrl ?? "https://api.firecrawl.dev/v2";
   const raw = createRawClient({
     baseUrl,
@@ -91,12 +91,12 @@ export function firecrawl(config: FirecrawlConfig = {}) {
     provider,
   });
 
-  async function scrape(
+  const scrape = async (
     url: string,
     formats: unknown[],
     settings: FirecrawlPageSettings,
     call: CallOptions
-  ) {
+  ) => {
     const response = record(
       await raw.request("POST", "/scrape", {
         ...call,
@@ -104,25 +104,20 @@ export function firecrawl(config: FirecrawlConfig = {}) {
       })
     );
     return { data: record(response.data), response };
-  }
+  };
 
-  /** A path under the base URL from a `next` link, which Firecrawl sends as a full URL. */
-  function pathOf(link: string): string {
+  const pathOf = (link: string): string => {
     const next = new URL(link);
     const base = new URL(baseUrl).pathname.replace(/\/$/u, "");
     return next.pathname.slice(base.length) + next.search;
-  }
+  };
 
-  /**
-   * Waits for a crawl or batch scrape, then reads every page of its results
-   * and the pages it failed on. Every error carries the job id.
-   */
-  async function finished(
+  const finished = async (
     kind: "crawl" | "batch/scrape",
     id: string,
     call: CallOptions,
     interval: number | undefined
-  ) {
+  ) => {
     const path = `/${kind}/${segment(id)}`;
     const get = async (to: string) => {
       try {
@@ -160,9 +155,12 @@ export function firecrawl(config: FirecrawlConfig = {}) {
     // Pages that failed show up only here, and robots.txt blocks with them.
     const errors = await get(`${path}/errors`);
     return { batches, errors, failed: failedPages(errors), first };
-  }
+  };
 
-  async function openSession(o: FirecrawlSessionSettings, call: CallOptions) {
+  const openSession = async (
+    o: FirecrawlSessionSettings,
+    call: CallOptions
+  ) => {
     const response = record(
       await raw.request("POST", "/interact", {
         body: sessionBody(o),
@@ -170,10 +168,9 @@ export function firecrawl(config: FirecrawlConfig = {}) {
       })
     );
     return { id: requireId(provider, response.id), response };
-  }
+  };
 
-  /** Closing is best effort: the session also expires on its own, and a failed close must not hide a result. */
-  async function closeQuietly(id: string, call: CallOptions) {
+  const closeQuietly = async (id: string, call: CallOptions) => {
     try {
       return record(
         await raw.request("DELETE", `/interact/${segment(id)}`, {
@@ -183,7 +180,7 @@ export function firecrawl(config: FirecrawlConfig = {}) {
     } catch {
       return null;
     }
-  }
+  };
 
   const operations: FirecrawlOperations = {
     async act(code, options) {
@@ -477,4 +474,4 @@ export function firecrawl(config: FirecrawlConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

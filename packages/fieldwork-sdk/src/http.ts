@@ -31,7 +31,7 @@ export interface ClientConfig {
   fetch?: typeof fetch;
 }
 
-export function createRawClient(config: ClientConfig): RawClient {
+export const createRawClient = (config: ClientConfig): RawClient => {
   const doFetch = config.fetch ?? globalThis.fetch;
   return {
     baseUrl: config.baseUrl,
@@ -96,7 +96,7 @@ export function createRawClient(config: ClientConfig): RawClient {
       return parsed as T;
     },
   };
-}
+};
 
 interface Hop {
   url: URL;
@@ -156,22 +156,22 @@ const followRedirects = async (
   );
 };
 
-function combineSignals(
+const combineSignals = (
   signal: AbortSignal | undefined,
   timeout: number | undefined
-) {
+) => {
   const signals = [
     signal,
     timeout === undefined ? undefined : AbortSignal.timeout(timeout),
   ].filter((value): value is AbortSignal => value !== undefined);
   return signals.length <= 1 ? signals[0] : AbortSignal.any(signals);
-}
+};
 
-function transportError(
+const transportError = (
   provider: string,
   error: unknown,
   signal: AbortSignal | undefined
-) {
+) => {
   if (signal?.aborted) {
     return new FieldworkError("Aborted", `${provider} request was cancelled`, {
       cause: error,
@@ -194,9 +194,9 @@ function transportError(
       retryable: true,
     }
   );
-}
+};
 
-function parseBody(text: string): unknown {
+const parseBody = (text: string): unknown => {
   if (text === "") {
     return undefined;
   }
@@ -205,9 +205,9 @@ function parseBody(text: string): unknown {
   } catch {
     return text;
   }
-}
+};
 
-function describe(parsed: unknown, text: string): string {
+const describe = (parsed: unknown, text: string): string => {
   if (parsed && typeof parsed === "object") {
     const record = parsed as Record<string, unknown>;
     for (const key of ["error", "message", "detail"]) {
@@ -221,13 +221,12 @@ function describe(parsed: unknown, text: string): string {
     }
   }
   return text.slice(0, 300);
-}
+};
 
-/** Retry-After is either a number of seconds or an HTTP date. */
-export function retryAfterSeconds(
+export const retryAfterSeconds = (
   header: string | null,
   now = Date.now()
-): number | undefined {
+): number | undefined => {
   if (!header) {
     return undefined;
   }
@@ -239,25 +238,19 @@ export function retryAfterSeconds(
   return Number.isNaN(date)
     ? undefined
     : Math.max(0, Math.ceil((date - now) / 1000));
-}
+};
 
 export interface PollOptions extends CallOptions {
   /** Milliseconds between checks. */
   interval?: number;
 }
 
-/**
- * Calls `check` until it returns a value, waiting between calls. `check`
- * returns `undefined` while the job is still running. Every error raised while
- * waiting carries `jobId`, so the caller can resume the job instead of paying
- * for a second one.
- */
-export async function poll<T>(
+export const poll = async <T>(
   provider: string,
   jobId: string,
   check: () => Promise<T | undefined>,
   options: PollOptions = {}
-): Promise<T> {
+): Promise<T> => {
   const interval = options.interval ?? 2000;
   const deadline = Date.now() + (options.timeout ?? 600_000);
   for (;;) {
@@ -286,9 +279,9 @@ export async function poll<T>(
     }
     await sleep(interval, options.signal);
   }
-}
+};
 
-async function sleep(ms: number, signal?: AbortSignal) {
+const sleep = async (ms: number, signal?: AbortSignal) => {
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener(
@@ -300,14 +293,13 @@ async function sleep(ms: number, signal?: AbortSignal) {
       { once: true }
     );
   });
-}
+};
 
-/** Reads an API key from the adapter options or the environment. */
-export function requireKey(
+export const requireKey = (
   provider: string,
   given: string | undefined,
   envName: string
-): string {
+): string => {
   const key = given ?? process.env[envName];
   if (!key) {
     throw new FieldworkError(
@@ -319,4 +311,4 @@ export function requireKey(
     );
   }
   return key;
-}
+};

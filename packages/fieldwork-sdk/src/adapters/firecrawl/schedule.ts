@@ -18,20 +18,19 @@ const DAILY_CRON = new Map([
 const CRON_PART = /^(?:\*|(?<from>\d+)(?:-(?<to>\d+))?)(?:\/(?<step>\d+))?$/u;
 const INTERVAL = /^(?<count>\d+)(?<unit>[hd])$/u;
 
-function rangeEnd(
+const rangeEnd = (
   groups: Record<string, string | undefined>,
   wildcard: boolean,
   from: number,
   max: number
-): number {
+): number => {
   if (wildcard || (groups.to === undefined && groups.step !== undefined)) {
     return max;
   }
   return groups.to === undefined ? from : Number(groups.to);
-}
+};
 
-/** The values a cron field covers ("*\/5", "0,30", "10-20/2"), or undefined if it is not plain numbers. */
-function cronValues(field: string, max: number): number[] | undefined {
+const cronValues = (field: string, max: number): number[] | undefined => {
   const values = new Set<number>();
   for (const part of field.split(",")) {
     const groups = CRON_PART.exec(part)?.groups;
@@ -50,10 +49,9 @@ function cronValues(field: string, max: number): number[] | undefined {
     }
   }
   return [...values].toSorted((a, b) => a - b);
-}
+};
 
-/** Minutes between runs within an hour, and across the hour change when two hours in a row can run. */
-function runGaps(minutes: number[], hours: number[] | undefined): number[] {
+const runGaps = (minutes: number[], hours: number[] | undefined): number[] => {
   const gaps = minutes
     .slice(1)
     .map((minute, index) => minute - (minutes[index] ?? 0));
@@ -64,10 +62,9 @@ function runGaps(minutes: number[], hours: number[] | undefined): number[] {
     gaps.push(60 - last + first);
   }
   return gaps;
-}
+};
 
-/** Refuses a cron expression that runs more often than Firecrawl allows. */
-function checkCron(cron: string): string {
+const checkCron = (cron: string): string => {
   const fields = cron.trim().split(/\s+/u);
   if (fields.length !== 5) {
     throw invalid(
@@ -83,10 +80,9 @@ function checkCron(cron: string): string {
     );
   }
   return cron.trim();
-}
+};
 
-/** Whole-hour intervals that divide the day repeat evenly from midnight. */
-function hourlyCron(count: number): string | undefined {
+const hourlyCron = (count: number): string | undefined => {
   if (!Number.isInteger(count) || count < 1 || 24 % count !== 0) {
     return undefined;
   }
@@ -94,10 +90,9 @@ function hourlyCron(count: number): string | undefined {
     return "0 * * * *";
   }
   return count === 24 ? "0 0 * * *" : `0 */${count} * * *`;
-}
+};
 
-/** The cron expression for a schedule, or InvalidRequest when Firecrawl cannot express it. */
-export function cronFor(schedule: MonitorSchedule): string {
+export const cronFor = (schedule: MonitorSchedule): string => {
   if ("cron" in schedule) {
     return checkCron(schedule.cron);
   }
@@ -115,4 +110,4 @@ export function cronFor(schedule: MonitorSchedule): string {
   throw invalid(
     `firecrawl cannot run a monitor every "${every}"; use hour, day, week, a number of hours that divides 24, 1d, 7d or a cron expression`
   );
-}
+};

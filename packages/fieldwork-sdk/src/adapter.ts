@@ -35,10 +35,10 @@ export interface Adapter<
 // oxlint-disable-next-line typescript/no-explicit-any -- any adapter, whatever its operations
 export type AnyAdapter = Adapter<string, any, unknown>;
 
-export function defineAdapter<
+export const defineAdapter = <
   Name extends string,
   Ops extends Operations,
   Raw = RawClient,
->(adapter: Adapter<Name, Ops, Raw>): Adapter<Name, Ops, Raw> {
-  return adapter;
-}
+>(
+  adapter: Adapter<Name, Ops, Raw>
+): Adapter<Name, Ops, Raw> => adapter;

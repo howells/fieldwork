@@ -12,11 +12,11 @@ const schema = {
 const url =
   "https://www.tilebar.com/product/portmore-aqua-3x8-glazed-ceramic-tile.html";
 
-function make(...replies: Parameters<typeof fakeFetch>) {
+const make = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   const web = new Fieldwork({ adapter: tavily({ apiKey: "k", fetch }) });
   return { calls, web };
-}
+};
 
 describe("tavily config", () => {
   it("sends the key and the project id", async () => {

@@ -26,17 +26,15 @@ import type { ParallelDiscovery } from "./options.js";
 
 export const provider = "parallel";
 
-export function invalid(message: string): FieldworkError {
-  return new FieldworkError("InvalidRequest", message, { provider });
-}
+export const invalid = (message: string): FieldworkError =>
+  new FieldworkError("InvalidRequest", message, { provider });
 
-export function nonEmpty<T extends Json>(value: T): T | undefined {
+export const nonEmpty = <T extends Json>(value: T): T | undefined => {
   const result = compact(value);
   return Object.keys(result).length > 0 ? result : undefined;
-}
+};
 
-/** Billed SKUs from a `usage` array, by name. */
-export function usageUnits(value: unknown) {
+export const usageUnits = (value: unknown) => {
   const units = new Map<string, number>();
   for (const item of list(value)) {
     const entry = record(item);
@@ -47,10 +45,10 @@ export function usageUnits(value: unknown) {
     }
   }
   return Object.fromEntries(units);
-}
+};
 
-export function basis(entries: unknown): FieldSource[] {
-  return list(entries).map((item) => {
+export const basis = (entries: unknown): FieldSource[] =>
+  list(entries).map((item) => {
     const entry = record(item);
     return compact({
       citations: citations(entry.citations),
@@ -59,35 +57,33 @@ export function basis(entries: unknown): FieldSource[] {
       reasoning: text(entry.reasoning),
     });
   });
-}
 
-export function citedBy(fields: FieldSource[]): Citation[] {
-  return uniqueCitations(fields.flatMap((field) => field.citations));
-}
+export const citedBy = (fields: FieldSource[]): Citation[] =>
+  uniqueCitations(fields.flatMap((field) => field.citations));
 
-export function taskMeta(result: Json) {
+export const taskMeta = (result: Json) => {
   const run = record(result.run);
   return meta({ requestId: run.run_id, warnings: run.warnings });
-}
+};
 
-export function responseMessages(response: Json): Json[] {
+export const responseMessages = (response: Json): Json[] => {
   const messages = list(response.output)
     .map((item) => record(item))
     .filter((item) => item.type === "message");
   const final = messages.filter((item) => item.phase === "final_answer");
   return final.length > 0 ? final : messages;
-}
+};
 
-export function probabilities(
+export const probabilities = (
   value: unknown
-): Record<string, number> | undefined {
+): Record<string, number> | undefined => {
   const entries = Object.entries(record(value)).filter(
     (entry): entry is [string, number] => num(entry[1]) !== undefined
   );
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
+};
 
-export function mostLikely(chances: Record<string, number> | undefined) {
+export const mostLikely = (chances: Record<string, number> | undefined) => {
   let best: string | undefined;
   for (const [key, chance] of Object.entries(chances ?? {})) {
     if (best === undefined || chance > (chances?.[best] ?? 0)) {
@@ -95,12 +91,12 @@ export function mostLikely(chances: Record<string, number> | undefined) {
     }
   }
   return best;
-}
+};
 
-export function decisionAnswer(
+export const decisionAnswer = (
   question: DecisionQuestion,
   value: unknown
-): DecisionAnswer {
+): DecisionAnswer => {
   const answer = record(value);
   if (answer.type === "refusal") {
     return { refusal: "Parallel declined to answer this question" };
@@ -132,12 +128,12 @@ export function decisionAnswer(
     confidence,
     probabilities: byKey,
   });
-}
+};
 
 /** Termination reasons that mean the run found everything it could. */
 export const FINISHED = new Set(["match_limit_met", "candidates_exhausted"]);
 
-export function candidate<T>(value: unknown): Entity<T> | undefined {
+export const candidate = <T>(value: unknown): Entity<T> | undefined => {
   const item = record(value);
   const status = text(item.match_status);
   if (status === "discarded") {
@@ -167,9 +163,9 @@ export function candidate<T>(value: unknown): Entity<T> | undefined {
     name: text(item.name) ?? "",
     url: text(item.url),
   });
-}
+};
 
-export function monitorInfo(value: unknown): MonitorInfo {
+export const monitorInfo = (value: unknown): MonitorInfo => {
   const monitor = record(value);
   return compact({
     createdAt: text(monitor.created_at),
@@ -180,9 +176,9 @@ export function monitorInfo(value: unknown): MonitorInfo {
     watch: text(record(monitor.settings).query),
     webhookUrl: text(record(monitor.webhook).url),
   });
-}
+};
 
-export function monitorEvent(value: unknown): MonitorEvent {
+export const monitorEvent = (value: unknown): MonitorEvent => {
   const event = record(value);
   const type = text(event.event_type);
   if (type === "completion") {
@@ -212,10 +208,10 @@ export function monitorEvent(value: unknown): MonitorEvent {
     raw: event,
     summary: typeof content === "string" ? content : undefined,
   });
-}
+};
 
-export function pageFrom(result: Json, extra: Partial<Page> = {}): Page {
-  return compact({
+export const pageFrom = (result: Json, extra: Partial<Page> = {}): Page =>
+  compact({
     excerpts: strings(result.excerpts),
     markdown: text(result.full_content),
     publishedAt: text(result.publish_date),
@@ -224,10 +220,8 @@ export function pageFrom(result: Json, extra: Partial<Page> = {}): Page {
     url: text(result.url) ?? "",
     ...extra,
   });
-}
 
-/** What an Extract error says, for `failed` and for the error raised by `read`. */
-export function extractFailure(error: Json): string {
+export const extractFailure = (error: Json): string => {
   const status = num(error.http_status_code);
   const detail = text(error.content);
   return [
@@ -237,21 +231,19 @@ export function extractFailure(error: Json): string {
   ]
     .filter((part): part is string => part !== undefined)
     .join(": ");
-}
+};
 
-export function extractMeta(response: Json) {
-  return meta({
+export const extractMeta = (response: Json) =>
+  meta({
     requestId: response.extract_id,
     units: usageUnits(response.usage),
     warnings: response.warnings,
   });
-}
 
-/**
- * A run that stopped for a reason other than finding all it could is
- * `partial` when it has matches and `JobFailed` when it has none.
- */
-export function discovery<T>(id: string, result: Json): ParallelDiscovery<T> {
+export const discovery = <T>(
+  id: string,
+  result: Json
+): ParallelDiscovery<T> => {
   const run = record(record(result.run).status);
   const metrics = record(run.metrics);
   const reason = text(run.termination_reason);
@@ -286,4 +278,4 @@ export function discovery<T>(id: string, result: Json): ParallelDiscovery<T> {
     status: stoppedEarly ? ("partial" as const) : ("completed" as const),
     stopReason: stoppedEarly ? stopReason : undefined,
   });
-}
+};

@@ -74,7 +74,7 @@ export type {
   ParallelWebhookEvent,
 } from "./parallel/options.js";
 
-export function parallel(config: ParallelConfig = {}) {
+export const parallel = (config: ParallelConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.parallel.ai",
     fetch: config.fetch,
@@ -547,4 +547,4 @@ export function parallel(config: ParallelConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

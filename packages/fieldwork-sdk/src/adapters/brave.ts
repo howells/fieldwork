@@ -53,7 +53,7 @@ export type {
   BraveWebSearchOptions,
 } from "./brave/options.js";
 
-export function brave(config: BraveConfig = {}) {
+export const brave = (config: BraveConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.search.brave.com/res/v1",
     fetch: config.fetch,
@@ -271,4 +271,4 @@ export function brave(config: BraveConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

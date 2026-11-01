@@ -47,7 +47,7 @@ export type {
   TavilySearchOptions,
 } from "./tavily/options.js";
 
-export function tavily(config: TavilyConfig = {}) {
+export const tavily = (config: TavilyConfig = {}) => {
   const provider = "tavily";
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.tavily.com",
@@ -344,4 +344,4 @@ export function tavily(config: TavilyConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

@@ -14,34 +14,31 @@ const url =
 
 type Reply = Parameters<typeof fakeFetch>[number];
 
-function started(id: string): Reply {
-  return { body: { id, status: "queued" } };
-}
+const started = (id: string): Reply => ({ body: { id, status: "queued" } });
 
-async function readFailing(error: Record<string, unknown>) {
-  return await client({
+const readFailing = async (error: Record<string, unknown>) =>
+  await client({
     body: { results: [], statuses: [{ error, id: url, status: "error" }] },
   }).web.read(url);
-}
 
-async function refusesSearch(
+const refusesSearch = async (
   web: ReturnType<typeof client>["web"],
   options: Record<string, unknown>,
   pattern: RegExp
-) {
+) => {
   await expect(web.search("tile", options as never)).rejects.toMatchObject({
     code: "InvalidRequest",
     message: expect.stringMatching(pattern),
   });
-}
+};
 
-function client(...replies: Parameters<typeof fakeFetch>) {
+const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
     web: new Fieldwork({ adapter: exa({ apiKey: "k", fetch }) }),
   };
-}
+};
 
 describe("exa search", () => {
   it("sends Exa's current field names and asks for highlights", async () => {

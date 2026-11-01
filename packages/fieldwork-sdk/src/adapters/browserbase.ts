@@ -149,7 +149,7 @@ const SEARCH_MODES = {
   parallel: ["fast", "advanced"],
 } as const;
 
-export function browserbase(config: BrowserbaseConfig = {}) {
+export const browserbase = (config: BrowserbaseConfig = {}) => {
   const provider = "browserbase";
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.browserbase.com",
@@ -166,13 +166,13 @@ export function browserbase(config: BrowserbaseConfig = {}) {
   // oxlint-disable-next-line no-restricted-properties -- the SDK reads API keys and ids from the environment, like requireKey
   const projectId = config.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
 
-  function invalid(message: string): never {
+  const invalid: (message: string) => never = (message) => {
     throw new FieldworkError("InvalidRequest", `${provider} ${message}`, {
       provider,
     });
-  }
+  };
 
-  function fetchProxies(o: BrowserbaseReadOptions) {
+  const fetchProxies = (o: BrowserbaseReadOptions) => {
     refuseTogether(
       provider,
       o as Record<string, unknown>,
@@ -190,9 +190,9 @@ export function browserbase(config: BrowserbaseConfig = {}) {
       invalid("accepts a proxy state only with country US");
     }
     return proxies;
-  }
+  };
 
-  async function liveView(id: string, call: CallOptions) {
+  const liveView = async (id: string, call: CallOptions) => {
     try {
       const urls = record(
         await raw.request(
@@ -211,7 +211,7 @@ export function browserbase(config: BrowserbaseConfig = {}) {
         warning: `could not get the live view URL: ${error instanceof Error ? error.message : String(error)}`,
       };
     }
-  }
+  };
 
   const operations: BrowserbaseOperations = {
     browser: {
@@ -372,8 +372,7 @@ export function browserbase(config: BrowserbaseConfig = {}) {
     },
   };
 
-  /** The key's project, when it has exactly one. */
-  async function onlyProject(call: CallOptions): Promise<string> {
+  const onlyProject = async (call: CallOptions): Promise<string> => {
     const projects = list(await raw.request("GET", "/v1/projects", call));
     if (projects.length !== 1) {
       invalid(
@@ -381,7 +380,7 @@ export function browserbase(config: BrowserbaseConfig = {}) {
       );
     }
     return requireId(provider, record(projects[0]).id);
-  }
+  };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

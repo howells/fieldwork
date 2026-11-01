@@ -13,20 +13,18 @@ const schema = {
 const url =
   "https://www.tilebar.com/product/portmore-aqua-3x8-glazed-ceramic-tile.html";
 
-function client(...replies: Parameters<typeof fakeFetch>) {
+const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
     web: new Fieldwork({ adapter: perplexity({ apiKey: "k", fetch }) }),
   };
-}
+};
 
-function message(value: string, annotations: unknown[] = []) {
-  return {
-    content: [{ annotations, text: value, type: "output_text" }],
-    type: "message",
-  };
-}
+const message = (value: string, annotations: unknown[] = []) => ({
+  content: [{ annotations, text: value, type: "output_text" }],
+  type: "message",
+});
 
 describe("perplexity search", () => {
   it("sends Perplexity's field names, dates as MM/DD/YYYY and a bearer key", async () => {

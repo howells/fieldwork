@@ -5,17 +5,16 @@ import { FieldworkError } from "../../src/errors.js";
 import { Fieldwork } from "../../src/index.js";
 import { fakeFetch } from "../helpers.js";
 
-function client(...replies: Parameters<typeof fakeFetch>) {
+const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   return {
     calls,
     web: new Fieldwork({ adapter: serpapi({ apiKey: "k", fetch }) }),
   };
-}
+};
 
-function params(call: { url: URL } | undefined) {
-  return Object.fromEntries(call!.url.searchParams);
-}
+const params = (call: { url: URL } | undefined) =>
+  Object.fromEntries(call!.url.searchParams);
 
 const metadata = { id: "abc123", status: "Success" };
 

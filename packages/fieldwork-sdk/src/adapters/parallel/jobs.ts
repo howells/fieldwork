@@ -8,7 +8,7 @@ import type { ParallelDiscoverOptions } from "./options.js";
 import { jsonOutput } from "./options.js";
 import { provider } from "./parse.js";
 
-export function stoppedRun(id: string, run: Json): FieldworkError {
+export const stoppedRun = (id: string, run: Json): FieldworkError => {
   const status = text(run.status) ?? "unknown";
   const reason = text(record(run.error).message);
   const warnings = list(run.warnings)
@@ -30,17 +30,13 @@ export function stoppedRun(id: string, run: Json): FieldworkError {
     jobId: id,
     provider,
   });
-}
+};
 
-/**
- * The result call answers 404 for a failed run, so a 404 is followed by a look
- * at the run's status: a failed run is `JobFailed`, anything else keeps the 404.
- */
-export async function taskResult(
+export const taskResult = async (
   raw: RawClient,
   id: string,
   signal: AbortSignal | undefined
-): Promise<Json> {
+): Promise<Json> => {
   try {
     return record(
       await raw.request("GET", `/v1/tasks/runs/${id}/result`, { signal })
@@ -56,18 +52,13 @@ export async function taskResult(
     }
     throw error;
   }
-}
+};
 
-/**
- * Creates a Task run, or picks up `resume`, and waits for it by checking its
- * status. A run that failed, was cancelled or needs an action raises
- * `JobFailed` with the run's id.
- */
-export async function runTask(
+export const runTask = async (
   raw: RawClient,
   body: Json,
   settings: PollOptions & { resume?: string }
-): Promise<{ id: string; result: Json }> {
+): Promise<{ id: string; result: Json }> => {
   const { resume, ...wait } = settings;
   const id =
     resume ??
@@ -106,18 +97,14 @@ export async function runTask(
     wait
   );
   return { id, result };
-}
+};
 
-/**
- * Starts a FindAll run and, when a schema is given, adds the enrichment that
- * fills it. An error after the run exists carries the run's id.
- */
-export async function startFindAll(
+export const startFindAll = async (
   raw: RawClient,
   objective: string,
   o: ParallelDiscoverOptions,
   call: CallOptions
-): Promise<string> {
+): Promise<string> => {
   const created = record(
     await raw.request("POST", "/v1beta/findall/runs", {
       ...call,
@@ -150,14 +137,13 @@ export async function startFindAll(
     }
   }
   return id;
-}
+};
 
-/** The run's result once it has stopped; undefined while it is still going. */
-export async function findAllResult(
+export const findAllResult = async (
   raw: RawClient,
   id: string,
   signal: AbortSignal | undefined
-): Promise<Json | undefined> {
+): Promise<Json | undefined> => {
   const run = record(
     await raw.request("GET", `/v1beta/findall/runs/${id}`, { signal })
   );
@@ -178,4 +164,4 @@ export async function findAllResult(
         })
       )
     : undefined;
-}
+};

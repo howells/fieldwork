@@ -64,8 +64,8 @@ const RECENCY = {
 
 const DATE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
 
-export function pageBody(o: FirecrawlPageSettings) {
-  return compact({
+export const pageBody = (o: FirecrawlPageSettings) =>
+  compact({
     actions: o.actions,
     excludeTags: o.excludeTags,
     includeTags: o.includeTags,
@@ -77,9 +77,8 @@ export function pageBody(o: FirecrawlPageSettings) {
     proxy: o.proxy,
     waitFor: o.waitFor,
   });
-}
 
-export function readFormats(o: FirecrawlReadSettings): unknown[] {
+export const readFormats = (o: FirecrawlReadSettings): unknown[] => {
   const query =
     o.query === undefined
       ? []
@@ -89,24 +88,24 @@ export function readFormats(o: FirecrawlReadSettings): unknown[] {
             : { query: o.query, type: "highlights" },
         ];
   return ["markdown", ...(o.include ?? []), ...query];
-}
+};
 
-export function readBody(o: FirecrawlReadSettings) {
-  return { formats: readFormats(o), ...pageBody(o) };
-}
+export const readBody = (o: FirecrawlReadSettings) => ({
+  formats: readFormats(o),
+  ...pageBody(o),
+});
 
-function usDate(value: string): string {
+const usDate = (value: string): string => {
   const groups = DATE.exec(value)?.groups;
   if (!groups) {
     throw invalid(`firecrawl needs dates as YYYY-MM-DD, got "${value}"`);
   }
   return `${groups.month}/${groups.day}/${groups.year}`;
-}
+};
 
 type SearchSettings = Omit<FirecrawlSearchOptions, keyof CallOptions>;
 
-/** The `tbs` time filter for the named recency or date range. */
-function timeFilter(o: SearchSettings): string | undefined {
+const timeFilter = (o: SearchSettings): string | undefined => {
   refuseTogether(provider, o, "tbs", "recency", "publishedAfter");
   refuseTogether(provider, o, "tbs", "recency", "publishedBefore");
   if (o.tbs !== undefined) {
@@ -129,9 +128,9 @@ function timeFilter(o: SearchSettings): string | undefined {
   return ["cdr:1", after, before]
     .filter((part) => part !== undefined)
     .join(",");
-}
+};
 
-export function searchBody(query: string, o: SearchSettings) {
+export const searchBody = (query: string, o: SearchSettings) => {
   refuseTogether(provider, o, "includeDomains", "excludeDomains");
   if (o.categories?.includes("gov") && o.categories.length > 1) {
     throw invalid(
@@ -152,13 +151,13 @@ export function searchBody(query: string, o: SearchSettings) {
     sources: o.sources?.map((type) => ({ type })),
     tbs: timeFilter(o),
   });
-}
+};
 
-export function imagesBody(
+export const imagesBody = (
   query: string,
   o: Omit<FirecrawlImagesOptions, keyof CallOptions>
-) {
-  return compact({
+) =>
+  compact({
     country: country(o.country),
     limit: o.limit,
     location: o.location,
@@ -166,13 +165,12 @@ export function imagesBody(
     safe: o.safe,
     sources: [{ type: "images" }],
   });
-}
 
-export function mapBody(
+export const mapBody = (
   url: string,
   o: Omit<FirecrawlMapOptions, keyof CallOptions>
-) {
-  return compact({
+) =>
+  compact({
     ignoreCache: o.ignoreCache,
     ignoreQueryParameters: o.ignoreQueryParameters,
     includeSubdomains: o.includeSubdomains,
@@ -182,13 +180,12 @@ export function mapBody(
     sitemap: o.sitemap,
     url,
   });
-}
 
-export function crawlBody(
+export const crawlBody = (
   url: string,
   o: Omit<FirecrawlCrawlOptions, keyof CallOptions>
-) {
-  return compact({
+) =>
+  compact({
     allowExternalLinks: o.allowExternalLinks,
     allowSubdomains: o.allowSubdomains,
     crawlEntireDomain: o.crawlEntireDomain,
@@ -205,13 +202,12 @@ export function crawlBody(
     sitemap: o.sitemap,
     url,
   });
-}
 
-export function researchBody(
+export const researchBody = (
   question: string,
   o: Omit<FirecrawlResearchOptions, keyof CallOptions>
-) {
-  return compact({
+) =>
+  compact({
     effort: o.effort,
     location: o.country ? { country: country(o.country) } : undefined,
     maxCredits: o.maxCredits,
@@ -222,22 +218,19 @@ export function researchBody(
     threadId: o.continueFrom,
     urls: o.urls,
   });
-}
 
-export function sessionBody(o: FirecrawlSessionSettings) {
-  return compact({
+export const sessionBody = (o: FirecrawlSessionSettings) =>
+  compact({
     activityTtl: o.activityTtl ?? o.ttl,
     location: o.country ? { country: country(o.country) } : undefined,
     profile: o.profile,
     ttl: o.ttl,
   });
-}
 
-/** Refuses settings that cannot apply, and returns the script's time limit in seconds. */
-export function checkAct(
+export const checkAct = (
   o: Omit<FirecrawlActOptions, keyof CallOptions>,
   timeout: number | undefined
-): number | undefined {
+): number | undefined => {
   for (const name of ["ttl", "activityTtl", "profile", "country"]) {
     refuseTogether(provider, o, "session", name);
   }
@@ -251,28 +244,24 @@ export function checkAct(
     );
   }
   return seconds;
-}
+};
 
-/** The request that runs a script in an open session. */
-export function scriptRequest(
+export const scriptRequest = (
   code: string,
   language: FirecrawlActOptions["language"],
   call: CallOptions,
   seconds: number | undefined
-): RequestOptions {
-  return {
-    body: compact({ code, language: language ?? "node", timeout: seconds }),
-    signal: call.signal,
-    timeout:
-      call.timeout === undefined ? undefined : call.timeout + SCRIPT_GRACE_MS,
-  };
-}
+): RequestOptions => ({
+  body: compact({ code, language: language ?? "node", timeout: seconds }),
+  signal: call.signal,
+  timeout:
+    call.timeout === undefined ? undefined : call.timeout + SCRIPT_GRACE_MS,
+});
 
-/** The upload form for a file, after checking its type and size. */
-export function parseForm(
+export const parseForm = (
   document: DocumentInput,
   o: Omit<FirecrawlParseOptions, keyof CallOptions>
-): FormData {
+): FormData => {
   const extension = document.name.split(".").pop()?.toLowerCase() ?? "";
   const mediaType = MEDIA_TYPES.get(extension);
   if (!mediaType) {
@@ -310,10 +299,9 @@ export function parseForm(
     document.name
   );
   return form;
-}
+};
 
-/** What a monitor watches: pages for `urls`, or a search for `query` alone. */
-function monitorTarget(o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) {
+const monitorTarget = (o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) => {
   const searchOnly = [
     o.searchWindow,
     o.maxResults,
@@ -344,11 +332,11 @@ function monitorTarget(o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) {
     searchWindow: o.searchWindow,
     type: "search",
   });
-}
+};
 
-export function monitorBody(
+export const monitorBody = (
   o: Omit<FirecrawlMonitorOptions, keyof CallOptions>
-): Json {
+): Json => {
   const target = monitorTarget(o);
   return compact({
     goal: o.query,
@@ -358,4 +346,4 @@ export function monitorBody(
     targets: [target],
     webhook: o.webhookUrl ? { url: o.webhookUrl } : undefined,
   });
-}
+};

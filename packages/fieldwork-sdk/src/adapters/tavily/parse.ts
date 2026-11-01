@@ -20,12 +20,10 @@ import type {
 
 export const RESEARCH_FILE = /\.(?:txt|md|json)$/iu;
 
-export function invalid(message: string): FieldworkError {
-  return new FieldworkError("InvalidRequest", message, { provider: "tavily" });
-}
+export const invalid = (message: string): FieldworkError =>
+  new FieldworkError("InvalidRequest", message, { provider: "tavily" });
 
-/** Tavily joins ranked passages with `[...]`. */
-export function chunks(value: unknown): string[] | undefined {
+export const chunks = (value: unknown): string[] | undefined => {
   const content = text(value);
   if (!content) {
     return undefined;
@@ -35,9 +33,9 @@ export function chunks(value: unknown): string[] | undefined {
     .map((part) => part.trim())
     .filter((part) => part !== "");
   return parts.length > 0 ? parts : undefined;
-}
+};
 
-function countryName(code: string, topic: string | undefined): string {
+const countryName = (code: string, topic: string | undefined): string => {
   if (topic !== undefined && topic !== "general") {
     throw invalid(
       `tavily country only works with topic "general", not "${topic}"`
@@ -50,9 +48,9 @@ function countryName(code: string, topic: string | undefined): string {
     );
   }
   return name;
-}
+};
 
-export function imageResults(value: unknown): ImageResult[] | undefined {
+export const imageResults = (value: unknown): ImageResult[] | undefined => {
   const items = list(value)
     .map((item) => {
       if (typeof item === "string") {
@@ -66,18 +64,16 @@ export function imageResults(value: unknown): ImageResult[] | undefined {
     })
     .filter((item): item is ImageResult => item !== undefined);
   return items.length > 0 ? items : undefined;
-}
+};
 
-export function responseMeta(response: Json) {
-  return meta({
+export const responseMeta = (response: Json) =>
+  meta({
     credits: record(response.usage).credits,
     requestId: response.request_id,
     units: { responseTimeSeconds: response.response_time },
   });
-}
 
-/** Refuses option combinations Tavily rejects, before any request is sent. */
-function checkSearch(o: TavilySearchOptions): number | undefined {
+const checkSearch = (o: TavilySearchOptions): number | undefined => {
   if (o.includeDomainsMode !== undefined && !o.includeDomains?.length) {
     throw invalid("tavily includeDomainsMode needs includeDomains");
   }
@@ -107,18 +103,16 @@ function checkSearch(o: TavilySearchOptions): number | undefined {
     );
   }
   return maxAgeHours;
-}
+};
 
-/** `true` asks for Markdown; `false` and unset ask for nothing. */
-function rawContent(content: TavilySearchOptions["content"]) {
+const rawContent = (content: TavilySearchOptions["content"]) => {
   if (content === true) {
     return "markdown";
   }
   return content === false ? undefined : content;
-}
+};
 
-/** The request body fields shared by search, images and answer. */
-export function searchBody(query: string, o: TavilySearchOptions) {
+export const searchBody = (query: string, o: TavilySearchOptions) => {
   const maxAgeHours = checkSearch(o);
   const dated =
     o.recency !== undefined ||
@@ -152,10 +146,10 @@ export function searchBody(query: string, o: TavilySearchOptions) {
     time_range: o.recency,
     topic: o.topic,
   });
-}
+};
 
-export function searchResults(response: Json) {
-  return list(response.results).map((item) => {
+export const searchResults = (response: Json) =>
+  list(response.results).map((item) => {
     const result = record(item);
     return compact({
       content: text(result.raw_content),
@@ -167,20 +161,17 @@ export function searchResults(response: Json) {
       url: text(result.url) ?? "",
     });
   });
-}
 
-/** Failed pages of an extract call, with the reason Tavily gave. */
-export function failures(response: Json): FailedUrl[] {
-  return list(response.failed_results).flatMap((item) => {
+export const failures = (response: Json): FailedUrl[] =>
+  list(response.failed_results).flatMap((item) => {
     const failure = record(item);
     const url = text(failure.url);
     return url
       ? [{ error: text(failure.error) ?? "no content returned", url }]
       : [];
   });
-}
 
-export function page(item: unknown, query: boolean): Page {
+export const page = (item: unknown, query: boolean): Page => {
   const result = record(item);
   const passages = query ? chunks(result.raw_content) : undefined;
   return compact({
@@ -191,9 +182,9 @@ export function page(item: unknown, query: boolean): Page {
     raw: item,
     url: text(result.url) ?? "",
   });
-}
+};
 
-export function extractBody(urls: string[], o: TavilyExtractOptions) {
+export const extractBody = (urls: string[], o: TavilyExtractOptions) => {
   if (o.chunksPerSource !== undefined && o.query === undefined) {
     throw invalid("tavily chunksPerSource needs query");
   }
@@ -208,10 +199,10 @@ export function extractBody(urls: string[], o: TavilyExtractOptions) {
     timeout: o.serverTimeout,
     urls,
   });
-}
+};
 
-export function traversal(o: TavilyTraversal) {
-  return compact({
+export const traversal = (o: TavilyTraversal) =>
+  compact({
     allow_external: o.allowExternal,
     exclude_domains: o.excludeDomainPatterns,
     exclude_paths: o.excludePathPatterns,
@@ -224,12 +215,11 @@ export function traversal(o: TavilyTraversal) {
     select_paths: o.selectPathPatterns,
     timeout: o.serverTimeout,
   });
-}
 
-export function base64(bytes: Uint8Array): string {
+export const base64 = (bytes: Uint8Array): string => {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x80_00) {
     binary += String.fromCodePoint(...bytes.subarray(index, index + 0x80_00));
   }
   return btoa(binary);
-}
+};

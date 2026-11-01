@@ -45,41 +45,36 @@ const PAPER_URLS = new Map<string, (id: string) => string>([
 
 const LANGUAGE = /^(?<code>[a-z]{2})(?:[-_]|$)/u;
 
-/** The first string of a value Firecrawl sends as a string or a list of strings. */
-function firstText(value: unknown): string | undefined {
-  return Array.isArray(value)
+const firstText = (value: unknown): string | undefined =>
+  Array.isArray(value)
     ? text(value.find((item) => typeof item === "string" && item !== ""))
     : text(value);
-}
 
-/** "en-US" and ["en"] both become "en". */
-function languageCode(value: unknown): string | undefined {
-  return LANGUAGE.exec(firstText(value)?.toLowerCase() ?? "")?.groups?.code;
-}
+const languageCode = (value: unknown): string | undefined =>
+  LANGUAGE.exec(firstText(value)?.toLowerCase() ?? "")?.groups?.code;
 
-function excerptsOf(data: Json): string[] | undefined {
+const excerptsOf = (data: Json): string[] | undefined => {
   const highlight = text(data.highlights);
   const highlights = highlight ? [highlight] : strings(data.highlights);
   const answer = text(data.answer);
   return highlights ?? (answer ? [answer] : undefined);
-}
+};
 
-/** The request id, credits and warnings a scraped page reports. */
-export function pageMeta(top: Json, data: Json) {
+export const pageMeta = (top: Json, data: Json) => {
   const metadata = record(data.metadata);
   return meta({
     credits: metadata.creditsUsed,
     requestId: metadata.scrapeId,
     warnings: warnings(data.warning, top.warning),
   });
-}
+};
 
-export function toPage(
+export const toPage = (
   data: Json,
   fallbackUrl: string,
   raw: unknown,
   top: Json = {}
-): Page {
+): Page => {
   const metadata = record(data.metadata);
   return compact({
     author: firstText(metadata.author),
@@ -103,9 +98,9 @@ export function toPage(
     title: firstText(metadata.title),
     url: text(metadata.url) ?? text(metadata.sourceURL) ?? fallbackUrl,
   });
-}
+};
 
-function price(value: unknown): Price | undefined {
+const price = (value: unknown): Price | undefined => {
   const item = record(value);
   const result = compact({
     amount: text(item.amount) ?? num(item.amount)?.toString(),
@@ -113,10 +108,9 @@ function price(value: unknown): Price | undefined {
     formatted: text(item.formatted),
   });
   return Object.keys(result).length > 0 ? result : undefined;
-}
+};
 
-/** Barcodes arrive as `gtin` or under schema.org's length-specific names, as text or numbers. */
-function gtin(variant: Json): string | undefined {
+const gtin = (variant: Json): string | undefined => {
   for (const key of ["gtin", "gtin14", "gtin13", "gtin12", "gtin8"]) {
     const value = scalar(variant[key]);
     if (value) {
@@ -124,9 +118,9 @@ function gtin(variant: Json): string | undefined {
     }
   }
   return undefined;
-}
+};
 
-function toVariant(value: unknown): ProductVariant {
+const toVariant = (value: unknown): ProductVariant => {
   const variant = record(value);
   const availability = record(variant.availability);
   const values = Object.fromEntries(
@@ -150,10 +144,9 @@ function toVariant(value: unknown): ProductVariant {
     title: text(variant.title),
     values: Object.keys(values).length > 0 ? values : undefined,
   });
-}
+};
 
-/** Every image of a product once, in the order its variants list them. */
-function allImages(variants: ProductVariant[]): ProductImage[] | undefined {
+const allImages = (variants: ProductVariant[]): ProductImage[] | undefined => {
   const seen = new Map<string, ProductImage>();
   for (const image of variants.flatMap((variant) => variant.images ?? [])) {
     if (!seen.has(image.url)) {
@@ -161,10 +154,9 @@ function allImages(variants: ProductVariant[]): ProductImage[] | undefined {
     }
   }
   return seen.size > 0 ? [...seen.values()] : undefined;
-}
+};
 
-/** The product on a scraped page; the product format omits it, with a warning, on an ambiguous page. */
-export function toProduct(url: string, response: Json, data: Json): Product {
+export const toProduct = (url: string, response: Json, data: Json): Product => {
   if (!data.product) {
     const why = text(data.warning) ?? text(response.warning);
     throw new FieldworkError(
@@ -186,9 +178,9 @@ export function toProduct(url: string, response: Json, data: Json): Product {
     url: text(product.url),
     variants,
   });
-}
+};
 
-function searchItem(item: unknown, kind: string): SearchResult {
+const searchItem = (item: unknown, kind: string): SearchResult => {
   const result = record(item);
   return compact({
     content: text(result.markdown),
@@ -199,10 +191,9 @@ function searchItem(item: unknown, kind: string): SearchResult {
     title: text(result.title),
     url: text(result.url) ?? "",
   });
-}
+};
 
-/** A research result is a paper record with no URL, so the URL comes from its id. */
-function paperItem(item: unknown): SearchResult {
+const paperItem = (item: unknown): SearchResult => {
   const paper = record(item);
   const paperId = text(paper.paperId) ?? "";
   const primary = text(paper.primaryId) ?? paperId;
@@ -218,10 +209,10 @@ function paperItem(item: unknown): SearchResult {
       ? paperId.slice("web:".length)
       : (resolve?.(primary.slice(colon + 1)) ?? primary),
   });
-}
+};
 
-function imageItems(value: unknown): ImageResult[] {
-  return list(value).flatMap((item) => {
+const imageItems = (value: unknown): ImageResult[] =>
+  list(value).flatMap((item) => {
     const image = record(item);
     const url = text(image.imageUrl);
     return url
@@ -236,17 +227,15 @@ function imageItems(value: unknown): ImageResult[] {
         ]
       : [];
   });
-}
 
-function searchMeta(response: Json) {
-  return meta({
+const searchMeta = (response: Json) =>
+  meta({
     credits: response.creditsUsed,
     requestId: response.id,
     warnings: warnings(response.warning, response.warnings),
   });
-}
 
-export function searchResult(response: Json): SearchResponse {
+export const searchResult = (response: Json): SearchResponse => {
   const data = record(response.data);
   return compact({
     images: Array.isArray(data.images) ? imageItems(data.images) : undefined,
@@ -258,33 +247,25 @@ export function searchResult(response: Json): SearchResponse {
       ...list(data.research).map((item) => paperItem(item)),
     ],
   });
-}
+};
 
-export function imagesResult(response: Json) {
-  return compact({
+export const imagesResult = (response: Json) =>
+  compact({
     meta: searchMeta(response),
     raw: response,
     results: imageItems(record(response.data).images),
   });
-}
 
-/** Pages a crawl or batch could not read, from its errors endpoint. */
-export function failedPages(errors: Json): FailedUrl[] {
-  return list(errors.errors).map((item) => {
+export const failedPages = (errors: Json): FailedUrl[] =>
+  list(errors.errors).map((item) => {
     const entry = record(item);
     return {
       error: text(entry.error) ?? "unknown error",
       url: text(entry.url) ?? "",
     };
   });
-}
 
-/**
- * The run's status when it has finished with output, undefined while it is
- * still going, and a thrown error when it ended with nothing. A run that hit
- * its credit limit fails but hands back what it had.
- */
-export function researchState(id: string, status: Json): Json | undefined {
+export const researchState = (id: string, status: Json): Json | undefined => {
   const state = text(status.status);
   const hasPartial = status.partial !== undefined && status.partial !== null;
   const done = state === "completed" || (state === "failed" && hasPartial);
@@ -296,13 +277,13 @@ export function researchState(id: string, status: Json): Json | undefined {
     );
   }
   return done ? status : undefined;
-}
+};
 
-export function researchResult<T>(
+export const researchResult = <T>(
   id: string,
   started: Json,
   run: Json
-): Research<T> {
+): Research<T> => {
   const stopped = run.status === "failed";
   const status: RunStatus = stopped ? "partial" : "completed";
   return compact({
@@ -328,14 +309,13 @@ export function researchResult<T>(
       ? (text(run.stopReason) ?? text(run.error) ?? "failed")
       : undefined,
   });
-}
+};
 
-/** A script's outcome. A failed script still answers 200, sometimes with success: true beside the error. */
-export function actResult(
+export const actResult = (
   result: Json,
   sessionId: string | undefined,
   closed: Json | null
-): ActResult {
+): ActResult => {
   const stdout = text(result.stdout) ?? "";
   const failure =
     result.success === false
@@ -355,19 +335,18 @@ export function actResult(
     stderr: text(result.stderr) ?? "",
     stdout,
   });
-}
+};
 
-export function browserSession(response: Json): BrowserSession {
-  return compact({
+export const browserSession = (response: Json): BrowserSession =>
+  compact({
     cdpUrl: text(response.cdpUrl),
     expiresAt: text(response.expiresAt),
     id: requireId(provider, response.id),
     liveViewUrl: text(response.liveViewUrl),
     raw: response,
   });
-}
 
-export function parseResult(response: Json): ParsedDocument {
+export const parseResult = (response: Json): ParsedDocument => {
   const data = record(response.data);
   const metadata = record(data.metadata);
   return compact({
@@ -384,10 +363,9 @@ export function parseResult(response: Json): ParsedDocument {
     meta: pageMeta(response, data),
     raw: response,
   });
-}
+};
 
-/** What a monitor watches, in words: its goal, else its pages, crawl start or queries. */
-function watching(monitor: Json): string | undefined {
+const watching = (monitor: Json): string | undefined => {
   const goal = text(monitor.goal);
   if (goal) {
     return goal;
@@ -403,9 +381,9 @@ function watching(monitor: Json): string | undefined {
     return strings(target.queries) ?? [];
   });
   return watched.filter((item) => item !== undefined).join(", ") || undefined;
-}
+};
 
-export function monitorInfo(value: unknown): MonitorInfo {
+export const monitorInfo = (value: unknown): MonitorInfo => {
   const monitor = record(value);
   const schedule = record(monitor.schedule);
   return compact({
@@ -417,10 +395,9 @@ export function monitorInfo(value: unknown): MonitorInfo {
     watch: watching(monitor),
     webhookUrl: text(record(monitor.webhook).url),
   });
-}
+};
 
-/** A check is the event: its page counts say what the run noticed. */
-function checkEvent(check: Json): MonitorEvent {
+const checkEvent = (check: Json): MonitorEvent => {
   const summary = record(check.summary);
   const counts = (["changed", "new", "removed", "error"] as const).flatMap(
     (key) => {
@@ -446,9 +423,12 @@ function checkEvent(check: Json): MonitorEvent {
       .filter((part) => part !== undefined)
       .join(": "),
   });
-}
+};
 
-export function monitorEvents(response: Json, offset: number): MonitorEvents {
+export const monitorEvents = (
+  response: Json,
+  offset: number
+): MonitorEvents => {
   const checks = list(response.data).map((item) => record(item));
   return compact({
     events: checks.map((check) => checkEvent(check)),
@@ -456,9 +436,9 @@ export function monitorEvents(response: Json, offset: number): MonitorEvents {
       checks.length === PAGE_SIZE ? String(offset + checks.length) : undefined,
     raw: response,
   });
-}
+};
 
-export function usageResult(response: Json): AccountUsage {
+export const usageResult = (response: Json): AccountUsage => {
   const data = record(response.data);
   return compact({
     limit: num(data.planCredits),
@@ -466,4 +446,4 @@ export function usageResult(response: Json): AccountUsage {
     raw: response,
     remaining: num(data.remainingCredits),
   });
-}
+};

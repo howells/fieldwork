@@ -14,22 +14,21 @@ import type { Json } from "../../util.js";
 
 export const provider = "serpapi";
 
-export function invalid(message: string): FieldworkError {
-  return new FieldworkError("InvalidRequest", `${provider} ${message}`, {
+export const invalid = (message: string): FieldworkError =>
+  new FieldworkError("InvalidRequest", `${provider} ${message}`, {
     provider,
   });
-}
 
-export function priceOf(item: Json): Price | undefined {
+export const priceOf = (item: Json): Price | undefined => {
   const price = compact({
     amount: scalar(item.extracted_price),
     formatted: text(item.price),
   });
   return Object.keys(price).length > 0 ? price : undefined;
-}
+};
 
-export function webResults(response: Json): SearchResult[] {
-  return list(response.organic_results).flatMap((entry) => {
+export const webResults = (response: Json): SearchResult[] =>
+  list(response.organic_results).flatMap((entry) => {
     const item = record(entry);
     const url = text(item.link);
     return url
@@ -47,9 +46,8 @@ export function webResults(response: Json): SearchResult[] {
         ]
       : [];
   });
-}
 
-export function newsItem(entry: unknown): SearchResult[] {
+export const newsItem = (entry: unknown): SearchResult[] => {
   const item = record(entry);
   const url = text(item.link);
   if (!url) {
@@ -68,11 +66,11 @@ export function newsItem(entry: unknown): SearchResult[] {
       url,
     }),
   ];
-}
+};
 
-export function newsResults(response: Json): SearchResult[] {
+export const newsResults = (response: Json): SearchResult[] =>
   // A story group has a `highlight` and `stories` instead of one link.
-  return list(response.news_results).flatMap((entry) => {
+  list(response.news_results).flatMap((entry) => {
     const item = record(entry);
     return [
       ...newsItem(item),
@@ -80,9 +78,8 @@ export function newsResults(response: Json): SearchResult[] {
       ...list(item.stories).flatMap((story) => newsItem(story)),
     ];
   });
-}
 
-export function shoppingResults(response: Json): SearchResult[] {
+export const shoppingResults = (response: Json): SearchResult[] => {
   const categorized = list(response.categorized_shopping_results).flatMap(
     (group) => list(record(group).shopping_results)
   );
@@ -109,9 +106,9 @@ export function shoppingResults(response: Json): SearchResult[] {
         ]
       : [];
   });
-}
+};
 
-export function mapsUrl(item: Json): string | undefined {
+export const mapsUrl = (item: Json): string | undefined => {
   const website = text(item.website);
   if (website) {
     return website;
@@ -122,9 +119,9 @@ export function mapsUrl(item: Json): string | undefined {
   return id && title
     ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(title)}&query_place_id=${encodeURIComponent(id)}`
     : undefined;
-}
+};
 
-export function placeResults(response: Json): SearchResult[] {
+export const placeResults = (response: Json): SearchResult[] => {
   // A query that names one place returns a single `place_results` object instead.
   const single = record(response.place_results);
   const places = list(response.local_results);
@@ -155,10 +152,10 @@ export function placeResults(response: Json): SearchResult[] {
       }),
     ];
   });
-}
+};
 
-export function scholarResults(response: Json): SearchResult[] {
-  return list(response.organic_results).flatMap((entry) => {
+export const scholarResults = (response: Json): SearchResult[] =>
+  list(response.organic_results).flatMap((entry) => {
     const item = record(entry);
     // Some citations have no page; a linked full text stands in for it.
     const url = text(item.link) ?? text(record(list(item.resources)[0]).link);
@@ -173,10 +170,9 @@ export function scholarResults(response: Json): SearchResult[] {
         ]
       : [];
   });
-}
 
-export function patentResults(response: Json): SearchResult[] {
-  return list(response.organic_results).flatMap((entry) => {
+export const patentResults = (response: Json): SearchResult[] =>
+  list(response.organic_results).flatMap((entry) => {
     const item = record(entry);
     const url = text(item.patent_link);
     return url
@@ -193,24 +189,20 @@ export function patentResults(response: Json): SearchResult[] {
         ]
       : [];
   });
-}
 
-/** The answer box's own answer, when Google showed one. */
-export function answerText(response: Json): string | undefined {
+export const answerText = (response: Json): string | undefined => {
   const box = record(response.answer_box ?? list(response.answer_box_list)[0]);
   return text(box.answer) ?? text(scalar(box.result)) ?? text(box.snippet);
-}
+};
 
-export function searchMeta(response: Json) {
-  return meta({
+export const searchMeta = (response: Json) =>
+  meta({
     requestId: record(response.search_metadata).id,
     // A search that found nothing is a success that carries an `error` note.
     warnings: response.error,
   });
-}
 
-/** SerpApi reports a failed search in the body, with status "Error". */
-export function failIfError(response: Json) {
+export const failIfError = (response: Json) => {
   if (record(response.search_metadata).status === "Error") {
     throw new FieldworkError(
       "ProviderError",
@@ -218,4 +210,4 @@ export function failIfError(response: Json) {
       { cause: response, provider, retryable: true }
     );
   }
-}
+};

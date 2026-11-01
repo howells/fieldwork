@@ -37,7 +37,7 @@ export type {
   SerpApiShoppingOptions,
 } from "./serpapi/options.js";
 
-export function serpapi(config: SerpApiConfig = {}) {
+export const serpapi = (config: SerpApiConfig = {}) => {
   const key = requireKey(provider, config.apiKey, "SERPAPI_API_KEY");
   // SerpApi authenticates with an `api_key` query parameter, so the key is
   // added at the fetch layer. That covers `raw` too.
@@ -160,4 +160,4 @@ export function serpapi(config: SerpApiConfig = {}) {
   };
 
   return defineAdapter({ name: provider, operations, raw });
-}
+};

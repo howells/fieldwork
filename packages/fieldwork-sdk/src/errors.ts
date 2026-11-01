@@ -77,18 +77,14 @@ export class FieldworkError extends Error {
   }
 }
 
-function isRetryable(code: FieldworkErrorCode, status: number | undefined) {
+const isRetryable = (code: FieldworkErrorCode, status: number | undefined) => {
   if (code === "RateLimited" || code === "Timeout") {
     return true;
   }
   return status !== undefined && status >= 500;
-}
+};
 
-/**
- * Attaches a job id to an error raised while following that job, so the
- * caller can resume it. Errors that are not Fieldwork's pass through.
- */
-export function withJob<E>(error: E, jobId: string): E | FieldworkError {
+export const withJob = <E>(error: E, jobId: string): E | FieldworkError => {
   if (!(error instanceof FieldworkError) || error.jobId !== undefined) {
     return error;
   }
@@ -99,9 +95,9 @@ export function withJob<E>(error: E, jobId: string): E | FieldworkError {
     retryAfter: error.retryAfter,
     status: error.status,
   });
-}
+};
 
-export function codeForStatus(status: number): FieldworkErrorCode {
+export const codeForStatus = (status: number): FieldworkErrorCode => {
   if (status === 401 || status === 403) {
     return "Unauthorized";
   }
@@ -119,4 +115,4 @@ export function codeForStatus(status: number): FieldworkErrorCode {
     return "InvalidRequest";
   }
   return "ProviderError";
-}
+};

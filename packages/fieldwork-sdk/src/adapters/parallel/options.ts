@@ -305,16 +305,16 @@ export const MIN_MAX_AGE_SECONDS = 600;
 export const MAX_EXTRACT_URLS = 20;
 export const QUESTION_NAME = /^[A-Za-z0-9_-]+$/u;
 
-export function sourcePolicy(o: ParallelSources) {
+export const sourcePolicy = (o: ParallelSources) => {
   refuseTogether(provider, o as Json, "includeDomains", "excludeDomains");
   return nonEmpty({
     after_date: o.publishedAfter,
     exclude_domains: o.excludeDomains,
     include_domains: o.includeDomains,
   });
-}
+};
 
-export function fetchPolicy(maxAge: number | undefined) {
+export const fetchPolicy = (maxAge: number | undefined) => {
   if (maxAge !== undefined && maxAge < MIN_MAX_AGE_SECONDS) {
     throw invalid(
       `parallel cannot use a cached copy younger than ${MIN_MAX_AGE_SECONDS} seconds (maxAge was ${maxAge}); it has no setting that always fetches fresh`
@@ -323,16 +323,17 @@ export function fetchPolicy(maxAge: number | undefined) {
   return maxAge === undefined
     ? undefined
     : { max_age_seconds: Math.ceil(maxAge) };
-}
+};
 
-export function jsonOutput(schema: JsonSchema) {
-  return { json_schema: schema, type: "json" };
-}
+export const jsonOutput = (schema: JsonSchema) => ({
+  json_schema: schema,
+  type: "json",
+});
 
-export function decisionQuestion(
+export const decisionQuestion = (
   name: string,
   question: DecisionQuestion
-): Json {
+): Json => {
   if (question.type === "yesno") {
     return { instructions: question.question, type: "noul" };
   }
@@ -366,11 +367,11 @@ export function decisionQuestion(
   throw invalid(
     `parallel does not know the question type "${String((question as { type?: unknown }).type)}" for "${name}"`
   );
-}
+};
 
 export const NAMED_FREQUENCY = { day: "1d", hour: "1h", week: "1w" } as const;
 
-export function frequency(schedule: MonitorSchedule): string {
+export const frequency = (schedule: MonitorSchedule): string => {
   if ("cron" in schedule) {
     throw invalid(
       "parallel monitors run at a fixed interval from 1 hour to 30 days and cannot follow a cron expression; pass { every: ... }"
@@ -389,10 +390,10 @@ export function frequency(schedule: MonitorSchedule): string {
     );
   }
   return schedule.every;
-}
+};
 
-export function extractBody(urls: string[], o: ParallelReadOptions) {
-  return compact({
+export const extractBody = (urls: string[], o: ParallelReadOptions) =>
+  compact({
     advanced_settings: compact({
       excerpt_settings: nonEmpty({
         max_chars_per_result: o.maxCharsPerResult,
@@ -408,4 +409,3 @@ export function extractBody(urls: string[], o: ParallelReadOptions) {
     session_id: o.sessionId,
     urls,
   });
-}

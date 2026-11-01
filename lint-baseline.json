@@ -10,7 +10,6 @@
       "anti-slop(no-unsafe-dictionary-type)": 27,
       "anti-slop(require-safety-comment-for-type-assertion)": 72,
       "eslint(complexity)": 1,
-      "eslint(func-style)": 254,
       "eslint(max-lines-per-function)": 6,
       "eslint(max-lines)": 7,
       "eslint(no-await-in-loop)": 14,

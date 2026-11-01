@@ -36,34 +36,30 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/u;
 const DEEP_TYPES = new Set(["deep-lite", "deep", "deep-reasoning"]);
 export const MAX_READ_URLS = 100;
 
-export function invalid(message: string): never {
+export const invalid: (message: string) => never = (message) => {
   throw new FieldworkError("InvalidRequest", `exa ${message}`, { provider });
-}
+};
 
-/** `YYYY-MM-DD` to an ISO date-time at the start or end of that day; other values pass through. */
-export function dateTime(value: string | undefined, endOfDay: boolean) {
+export const dateTime = (value: string | undefined, endOfDay: boolean) => {
   if (value === undefined || !DATE_ONLY.test(value)) {
     return value;
   }
   return endOfDay ? `${value}T23:59:59.999Z` : `${value}T00:00:00.000Z`;
-}
+};
 
-function costOf(response: Json) {
-  return num(record(response.costDollars).total);
-}
+const costOf = (response: Json) => num(record(response.costDollars).total);
 
-export function responseMeta(response: Json, warnings?: unknown) {
-  return meta({
+export const responseMeta = (response: Json, warnings?: unknown) =>
+  meta({
     costUsd: costOf(response),
     requestId: response.requestId,
     warnings,
   });
-}
 
-function summaryOption(
+const summaryOption = (
   summary: boolean | { query?: string } | undefined,
   schema?: JsonSchema
-) {
+) => {
   if (summary === undefined || summary === false) {
     return schema ? compact({ schema }) : undefined;
   }
@@ -71,11 +67,11 @@ function summaryOption(
     query: typeof summary === "object" ? summary.query : undefined,
     schema,
   });
-}
+};
 
 // --- search --------------------------------------------------------------
 
-export function checkSearch(o: ExaSearchOptions) {
+export const checkSearch = (o: ExaSearchOptions) => {
   if (o.type === "lite") {
     const unsupported = (
       [
@@ -105,18 +101,19 @@ export function checkSearch(o: ExaSearchOptions) {
   if (o.category === "people" && o.excludeDomains !== undefined) {
     invalid('category "people" does not accept excludeDomains');
   }
-}
+};
 
-function highlightsOption(highlights: true | ExaHighlightOptions | undefined) {
-  return typeof highlights === "object"
+const highlightsOption = (
+  highlights: true | ExaHighlightOptions | undefined
+) =>
+  typeof highlights === "object"
     ? compact({
         maxCharacters: highlights.maxCharacters,
         query: highlights.query,
       })
     : true;
-}
 
-export function searchContents(o: ExaSearchOptions) {
+export const searchContents = (o: ExaSearchOptions) => {
   const contents = compact({
     highlights:
       o.highlights === false ? undefined : highlightsOption(o.highlights),
@@ -125,9 +122,9 @@ export function searchContents(o: ExaSearchOptions) {
     text: o.content ? true : undefined,
   });
   return Object.keys(contents).length > 0 ? contents : undefined;
-}
+};
 
-export function searchResult(item: unknown): SearchResult {
+export const searchResult = (item: unknown): SearchResult => {
   const result = record(item);
   return compact({
     author: text(result.author),
@@ -140,9 +137,9 @@ export function searchResult(item: unknown): SearchResult {
     title: text(result.title),
     url: text(result.url) ?? "",
   });
-}
+};
 
-export function generatedAnswer(output: Json): string | undefined {
+export const generatedAnswer = (output: Json): string | undefined => {
   const { content } = output;
   if (typeof content === "string") {
     return text(content);
@@ -150,11 +147,11 @@ export function generatedAnswer(output: Json): string | undefined {
   return content === undefined || content === null
     ? undefined
     : JSON.stringify(content);
-}
+};
 
 // --- contents ------------------------------------------------------------
 
-export function readBody(o: ExaReadOptions) {
+export const readBody = (o: ExaReadOptions) => {
   const links = o.linkLimit ?? 100;
   const images = o.imageLimit ?? 100;
   const extras = compact({
@@ -170,12 +167,12 @@ export function readBody(o: ExaReadOptions) {
     text:
       o.maxCharacters === undefined ? true : { maxCharacters: o.maxCharacters },
   });
-}
+};
 
-export function failureCode(
+export const failureCode = (
   tag: string | undefined,
   httpStatus: number | undefined
-): FieldworkErrorCode {
+): FieldworkErrorCode => {
   if (tag === "CRAWL_NOT_FOUND" || tag === "CONTENT_NOT_CACHED") {
     return "NotFound";
   }
@@ -186,9 +183,9 @@ export function failureCode(
     return "NotFound";
   }
   return httpStatus === 408 || httpStatus === 504 ? "Timeout" : "ProviderError";
-}
+};
 
-export function statusReason(status: Json): string {
+export const statusReason = (status: Json): string => {
   const error = record(status.error);
   const httpStatus = num(error.httpStatusCode);
   return (
@@ -197,17 +194,20 @@ export function statusReason(status: Json): string {
     text(status.status) ??
     "unknown"
   );
-}
+};
 
-export function failedStatuses(response: Json): Json[] {
-  return list(response.statuses)
+export const failedStatuses = (response: Json): Json[] =>
+  list(response.statuses)
     .map((item) => record(item))
     .filter(
       (status) => status.status !== undefined && status.status !== "success"
     );
-}
 
-export function pageFrom(url: string, item: unknown, rawValue: unknown): Page {
+export const pageFrom = (
+  url: string,
+  item: unknown,
+  rawValue: unknown
+): Page => {
   const result = record(item);
   const extras = record(result.extras);
   return compact({
@@ -224,18 +224,18 @@ export function pageFrom(url: string, item: unknown, rawValue: unknown): Page {
     title: text(result.title),
     url: text(result.url) ?? url,
   });
-}
+};
 
 // --- research ------------------------------------------------------------
 
-function hasOutput(run: Json, structured: boolean): boolean {
+const hasOutput = (run: Json, structured: boolean): boolean => {
   const output = record(run.output);
   return structured
     ? output.structured !== undefined && output.structured !== null
     : text(output.text) !== undefined;
-}
+};
 
-function runMeta(run: Json) {
+const runMeta = (run: Json) => {
   const usage = record(run.usage);
   return meta({
     costUsd: costOf(run),
@@ -246,9 +246,9 @@ function runMeta(run: Json) {
       searches: usage.searches,
     },
   });
-}
+};
 
-export function checkResearch(o: ExaResearchOptions) {
+export const checkResearch = (o: ExaResearchOptions) => {
   const effort = o.effort ?? "auto";
   if (
     o.maxCostDollars !== undefined &&
@@ -260,9 +260,9 @@ export function checkResearch(o: ExaResearchOptions) {
   if (o.maxDurationSeconds !== undefined && effort !== "ultra") {
     invalid(`maxDurationSeconds needs effort "ultra", not "${effort}"`);
   }
-}
+};
 
-export function researchBody(question: string, o: ExaResearchOptions) {
+export const researchBody = (question: string, o: ExaResearchOptions) => {
   const budget = compact({
     maxCostDollars: o.maxCostDollars,
     maxDurationSeconds: o.maxDurationSeconds,
@@ -277,18 +277,13 @@ export function researchBody(question: string, o: ExaResearchOptions) {
     query: question,
     systemPrompt: o.systemPrompt,
   });
-}
+};
 
-/**
- * A finished run is `completed` only when the agent met its goal. A run that
- * stopped on a limit, was stopped, or failed but still produced output is
- * `partial`; one with no output is a failure.
- */
-export function researchResult<T>(
+export const researchResult = <T>(
   id: string,
   run: Json,
   structured: boolean
-): Research<T> {
+): Research<T> => {
   const stopReason = text(run.stopReason);
   const status = text(run.status) ?? "unknown";
   if (status !== "completed" && !hasOutput(run, structured)) {
@@ -326,11 +321,11 @@ export function researchResult<T>(
     status: finished ? ("completed" as const) : ("partial" as const),
     stopReason: finished ? undefined : (stopReason ?? status),
   });
-}
+};
 
 // --- monitors ------------------------------------------------------------
 
-function intervalPeriod(schedule: unknown) {
+const intervalPeriod = (schedule: unknown) => {
   const { every } = schedule as { every?: unknown };
   if (typeof every !== "string") {
     return invalid(
@@ -351,13 +346,12 @@ function intervalPeriod(schedule: unknown) {
     );
   }
   return value;
-}
+};
 
-export function period(schedule: ExaMonitorCreateOptions["schedule"]) {
-  return schedule === undefined ? undefined : intervalPeriod(schedule);
-}
+export const period = (schedule: ExaMonitorCreateOptions["schedule"]) =>
+  schedule === undefined ? undefined : intervalPeriod(schedule);
 
-export function monitorInfo(value: unknown): MonitorInfo {
+export const monitorInfo = (value: unknown): MonitorInfo => {
   const found = record(value);
   return compact({
     createdAt: text(found.createdAt),
@@ -368,9 +362,9 @@ export function monitorInfo(value: unknown): MonitorInfo {
     watch: text(record(found.search).query),
     webhookUrl: text(record(found.webhook).url),
   });
-}
+};
 
-function eventSummary(run: Json, content: unknown): string | undefined {
+const eventSummary = (run: Json, content: unknown): string | undefined => {
   if (typeof content === "string") {
     return text(content);
   }
@@ -379,9 +373,9 @@ function eventSummary(run: Json, content: unknown): string | undefined {
     return `Run failed${reason ? `: ${reason}` : ""}`;
   }
   return undefined;
-}
+};
 
-export function monitorEvent(item: unknown): MonitorEvent {
+export const monitorEvent = (item: unknown): MonitorEvent => {
   const run = record(item);
   const output = record(run.output);
   const { content } = output;
@@ -400,4 +394,4 @@ export function monitorEvent(item: unknown): MonitorEvent {
     raw: item,
     summary: eventSummary(run, content),
   });
-}
+};

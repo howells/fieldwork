@@ -243,22 +243,18 @@ export const RECENCY_CODE: Record<Recency, string> = {
   year: "y",
 };
 
-export function str(value: unknown): string | undefined {
-  return typeof value === "string" ? value : undefined;
-}
+export const str = (value: unknown): string | undefined =>
+  typeof value === "string" ? value : undefined;
 
-export function count(value: unknown): number | undefined {
-  return typeof value === "number" ? value : undefined;
-}
+export const count = (value: unknown): number | undefined =>
+  typeof value === "number" ? value : undefined;
 
-/** Google's `gl` wants lower case, and "uk" for the United Kingdom. */
-export function googleCountry(value: unknown): string | undefined {
+export const googleCountry = (value: unknown): string | undefined => {
   const code = str(value)?.toLowerCase();
   return code === "gb" ? "uk" : code;
-}
+};
 
-/** A YYYY-MM-DD date, refused when it is anything else. */
-export function isoDate(name: string, value: unknown): string | undefined {
+export const isoDate = (name: string, value: unknown): string | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -266,26 +262,24 @@ export function isoDate(name: string, value: unknown): string | undefined {
     throw invalid(`${name} must be YYYY-MM-DD`);
   }
   return value;
-}
+};
 
-export function compactDate(name: string, value: unknown): string | undefined {
-  return isoDate(name, value)?.replaceAll("-", "");
-}
+export const compactDate = (name: string, value: unknown): string | undefined =>
+  isoDate(name, value)?.replaceAll("-", "");
 
-/** Google's custom range wants month/day/year without padding. */
-export function usDate(name: string, value: unknown): string | undefined {
+export const usDate = (name: string, value: unknown): string | undefined => {
   const [year, month, day] = isoDate(name, value)?.split("-") ?? [];
   return year === undefined
     ? undefined
     : `${Number(month)}/${Number(day)}/${year}`;
-}
+};
 
-export function bounded(
+export const bounded = (
   engine: string,
   value: unknown,
   min: number,
   max: number
-): number | undefined {
+): number | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -300,9 +294,9 @@ export function bounded(
     );
   }
   return value;
-}
+};
 
-export function googleTbs(o: Json): string | undefined {
+export const googleTbs = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
   if (o.recency !== undefined) {
@@ -320,9 +314,9 @@ export function googleTbs(o: Json): string | undefined {
   ]
     .filter((part) => part !== undefined)
     .join(",");
-}
+};
 
-export function duckDuckGoFilter(o: Json): string | undefined {
+export const duckDuckGoFilter = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
   if (o.recency === "hour") {
@@ -342,14 +336,14 @@ export function duckDuckGoFilter(o: Json): string | undefined {
     );
   }
   return `${isoDate("publishedAfter", o.publishedAfter)}..${isoDate("publishedBefore", o.publishedBefore)}`;
-}
+};
 
-export function patentDate(name: string, value: unknown) {
+export const patentDate = (name: string, value: unknown) => {
   const date = compactDate(name, value);
   return date === undefined ? undefined : `publication:${date}`;
-}
+};
 
-export function mapsOrigin(o: Json) {
+export const mapsOrigin = (o: Json) => {
   refuseTogether(provider, o, "location", "latitude");
   refuseTogether(provider, o, "location", "longitude");
   const coordinates = o.latitude !== undefined || o.longitude !== undefined;
@@ -371,4 +365,4 @@ export function mapsOrigin(o: Json) {
     lon: count(o.longitude),
     z: count(o.zoom),
   };
-}
+};

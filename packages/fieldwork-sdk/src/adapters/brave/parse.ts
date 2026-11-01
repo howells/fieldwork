@@ -78,11 +78,10 @@ const ALLOWED = {
 
 type Mode = keyof typeof ALLOWED;
 
-function invalid(message: string): FieldworkError {
-  return new FieldworkError("InvalidRequest", `brave ${message}`, { provider });
-}
+const invalid = (message: string): FieldworkError =>
+  new FieldworkError("InvalidRequest", `brave ${message}`, { provider });
 
-export function modeOf(o: SearchInput): Mode {
+export const modeOf = (o: SearchInput): Mode => {
   if (o.content === true) {
     return "context";
   }
@@ -93,9 +92,9 @@ export function modeOf(o: SearchInput): Mode {
     return o.vertical;
   }
   throw invalid(`has no "${o.vertical}" search; use web, news or videos`);
-}
+};
 
-export function refuseUnsupported(mode: Mode, o: Json) {
+export const refuseUnsupported = (mode: Mode, o: Json) => {
   const refused = Object.keys(o).filter(
     (name) =>
       o[name] !== undefined &&
@@ -104,13 +103,11 @@ export function refuseUnsupported(mode: Mode, o: Json) {
   if (refused.length > 0) {
     throw invalid(`${mode} search does not accept ${refused.join(", ")}`);
   }
-}
+};
 
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
+const today = () => new Date().toISOString().slice(0, 10);
 
-export function freshness(o: SearchInput): string | undefined {
+export const freshness = (o: SearchInput): string | undefined => {
   refuseTogether(provider, o as Json, "recency", "publishedAfter");
   refuseTogether(provider, o as Json, "recency", "publishedBefore");
   if (o.recency !== undefined) {
@@ -138,11 +135,11 @@ export function freshness(o: SearchInput): string | undefined {
     }
   }
   return `${after}to${before}`;
-}
+};
 
-export function gogglesOf(
+export const gogglesOf = (
   value: string | string[] | undefined
-): string[] | undefined {
+): string[] | undefined => {
   if (value === undefined) {
     return undefined;
   }
@@ -151,12 +148,14 @@ export function gogglesOf(
     throw invalid("accepts at most 3 goggles per search");
   }
   return all;
-}
+};
 
 type Param = string | number | boolean | string[] | undefined;
 
-/** A path with its query string; repeated keys are kept, which `goggles` needs. */
-export function withQuery(path: string, params: Record<string, Param>): string {
+export const withQuery = (
+  path: string,
+  params: Record<string, Param>
+): string => {
   const search = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
     if (value === undefined) {
@@ -168,17 +167,13 @@ export function withQuery(path: string, params: Record<string, Param>): string {
   }
   const query = search.toString();
   return query === "" ? path : `${path}?${query}`;
-}
+};
 
-export function upper(value: string | undefined) {
-  return value?.toUpperCase();
-}
+export const upper = (value: string | undefined) => value?.toUpperCase();
 
-export function lower(value: string | undefined) {
-  return value?.toLowerCase();
-}
+export const lower = (value: string | undefined) => value?.toLowerCase();
 
-export function warningsOf(query: unknown) {
+export const warningsOf = (query: unknown) => {
   const q = record(query);
   const warnings: string[] = [];
   const altered = text(q.altered);
@@ -189,9 +184,12 @@ export function warningsOf(query: unknown) {
     warnings.push("strict safe search hid some results");
   }
   return warnings;
-}
+};
 
-export function result(item: unknown, kind: string): SearchResult | undefined {
+export const result = (
+  item: unknown,
+  kind: string
+): SearchResult | undefined => {
   const r = record(item);
   const url = text(r.url);
   if (url === undefined) {
@@ -213,9 +211,9 @@ export function result(item: unknown, kind: string): SearchResult | undefined {
     title: text(r.title),
     url,
   });
-}
+};
 
-export function placeResult(item: unknown): SearchResult | undefined {
+export const placeResult = (item: unknown): SearchResult | undefined => {
   const base = result(item, "place");
   if (!base) {
     return undefined;
@@ -234,23 +232,22 @@ export function placeResult(item: unknown): SearchResult | undefined {
     rating: num(rating.ratingValue),
     reviewCount: num(rating.reviewCount),
   });
-}
+};
 
-export function section(
+export const section = (
   response: Json,
   name: string,
   map: (item: unknown) => SearchResult | undefined
-): SearchResult[] {
-  return list(record(response[name]).results)
+): SearchResult[] =>
+  list(record(response[name]).results)
     .map((item) => map(item))
     .filter((item): item is SearchResult => item !== undefined);
-}
 
-function contextResult(
+const contextResult = (
   item: unknown,
   kind: string,
   sources: Json
-): SearchResult | undefined {
+): SearchResult | undefined => {
   const r = record(item);
   const url = text(r.url);
   if (url === undefined) {
@@ -269,9 +266,9 @@ function contextResult(
     title: text(r.title) ?? text(r.name) ?? text(source.title),
     url,
   });
-}
+};
 
-export function parseContext(response: Json): SearchResult[] {
+export const parseContext = (response: Json): SearchResult[] => {
   const grounding = record(response.grounding);
   const sources = record(response.sources);
   const poi = record(grounding.poi);
@@ -284,10 +281,9 @@ export function parseContext(response: Json): SearchResult[] {
       : []),
     ...list(grounding.map).map((item) => contextResult(item, "place", sources)),
   ].filter((item): item is SearchResult => item !== undefined);
-}
+};
 
-/** The text of a chat completion, whether it came as a stream or as one body. */
-export function completionText(response: unknown): string {
+export const completionText = (response: unknown): string => {
   if (typeof response === "string") {
     let content = "";
     for (const line of response.split(/\r?\n/u)) {
@@ -315,13 +311,12 @@ export function completionText(response: unknown): string {
     text(record(choice.delta).content) ??
     ""
   );
-}
+};
 
 export const CITATION_TAG = /<citation>(?<body>[\s\S]*?)<\/citation>/gu;
 export const USAGE_TAG = /<usage>(?<body>[\s\S]*?)<\/usage>/gu;
 
-/** A tag's JSON body; Brave describes it as stringified, so decode twice if needed. */
-function tagJson(body: string): Json | undefined {
+const tagJson = (body: string): Json | undefined => {
   try {
     let value: unknown = JSON.parse(body);
     if (typeof value === "string") {
@@ -331,15 +326,14 @@ function tagJson(body: string): Json | undefined {
   } catch {
     return undefined;
   }
-}
+};
 
-export function tagBodies(content: string, tag: RegExp): Json[] {
-  return [...content.matchAll(tag)]
+export const tagBodies = (content: string, tag: RegExp): Json[] =>
+  [...content.matchAll(tag)]
     .map((match) => tagJson(match.groups?.body ?? ""))
     .filter((item): item is Json => item !== undefined);
-}
 
-export function answerCitations(content: string): Citation[] {
+export const answerCitations = (content: string): Citation[] => {
   const byUrl = new Map<string, string[]>();
   for (const item of tagBodies(content, CITATION_TAG)) {
     const url = text(item.url);
@@ -356,4 +350,4 @@ export function answerCitations(content: string): Citation[] {
   return [...byUrl].map(([url, excerpts]) =>
     compact({ excerpts: excerpts.length > 0 ? excerpts : undefined, url })
   );
-}
+};

@@ -32,15 +32,10 @@ type Bound =
   | ((...args: unknown[]) => Promise<unknown>)
   | Record<string, unknown>;
 
-/**
- * The operation an adapter offers for a capability, bound to its adapter: a
- * method, or for `monitor` and `browser` an object of methods. Undefined when
- * the adapter does not offer the capability.
- */
-export function bindOperation(
+export const bindOperation = (
   operations: unknown,
   capability: Capability
-): Bound | undefined {
+): Bound | undefined => {
   const all = operations as Record<string, unknown>;
   const operation = all[capability];
   if (typeof operation === "function") {
@@ -60,9 +55,9 @@ export function bindOperation(
     );
   }
   return undefined;
-}
+};
 
-function unsupported(provider: string, capability: Capability): Bound {
+const unsupported = (provider: string, capability: Capability): Bound => {
   const refuse = async () => {
     throw new FieldworkError(
       "Unsupported",
@@ -75,7 +70,7 @@ function unsupported(provider: string, capability: Capability): Bound {
   }
   // Every method of a group the provider lacks refuses the same way.
   return new Proxy({}, { get: () => refuse });
-}
+};
 
 class FieldworkClient {
   readonly provider: string;

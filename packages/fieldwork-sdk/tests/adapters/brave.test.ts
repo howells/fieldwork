@@ -4,11 +4,11 @@ import { brave } from "../../src/adapters/brave.js";
 import { Fieldwork } from "../../src/index.js";
 import { fakeFetch } from "../helpers.js";
 
-function setup(...replies: Parameters<typeof fakeFetch>) {
+const setup = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
   const web = new Fieldwork({ adapter: brave({ apiKey: "k", fetch }) });
   return { calls, web };
-}
+};
 
 const webBody = {
   discussions: {
