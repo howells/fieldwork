@@ -1,3 +1,5 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, requireKey } from "../http.js";
@@ -11,15 +13,19 @@ import type {
 import {
   callSettings,
   compact,
-  list,
   meta,
-  num,
   presentPage,
-  record,
   refuseTogether,
-  requireId,
-  text,
+  requireJobId,
 } from "../util.js";
+import {
+  DebugResponse,
+  FetchResponse,
+  ProjectsResponse,
+  SearchResponse as SearchBodySchema,
+  SessionResponse,
+  UsageResponse,
+} from "./browserbase/response.js";
 
 export interface BrowserbaseConfig {
   /** Defaults to the BROWSERBASE_API_KEY environment variable. */
@@ -198,16 +204,15 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
 
   const liveView = async (id: string, call: CallOptions) => {
     try {
-      const urls = record(
+      const urls = z.parse(
+        DebugResponse,
         await raw.request(
           "GET",
           `/v1/sessions/${encodeURIComponent(id)}/debug`,
           call
         )
       );
-      return {
-        url: text(urls.debuggerFullscreenUrl) ?? text(urls.debuggerUrl),
-      };
+      return { url: urls.debuggerFullscreenUrl ?? urls.debuggerUrl };
     } catch (error) {
       // The session already exists and bills, so a missing watch link must
       // not hide it from the caller.
@@ -247,33 +252,32 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
           verified: o.verified,
           viewport: o.viewport,
         });
-        const session = record(
-          await raw.request("POST", "/v1/sessions", {
-            creates: true,
-            ...call,
-            body: compact({
-              browserSettings:
-                Object.keys(browserSettings).length > 0
-                  ? browserSettings
-                  : undefined,
-              keepAlive: o.keepAlive,
-              projectId,
-              proxies: o.proxies,
-              region: o.region,
-              timeout: o.ttl,
-              userMetadata: o.userMetadata,
-            }),
-          })
-        );
-        const id = requireId(provider, session.id);
+        const response = await raw.request("POST", "/v1/sessions", {
+          creates: true,
+          ...call,
+          body: compact({
+            browserSettings:
+              Object.keys(browserSettings).length > 0
+                ? browserSettings
+                : undefined,
+            keepAlive: o.keepAlive,
+            projectId,
+            proxies: o.proxies,
+            region: o.region,
+            timeout: o.ttl,
+            userMetadata: o.userMetadata,
+          }),
+        });
+        const session = z.parse(SessionResponse, response);
+        const id = requireJobId(provider, session.id);
         const view = await liveView(id, call);
         return compact({
-          cdpUrl: text(session.connectUrl),
-          expiresAt: text(session.expiresAt),
+          cdpUrl: session.connectUrl,
+          expiresAt: session.expiresAt,
           id,
           liveViewUrl: view.url,
           meta: meta({ warnings: view.warning }),
-          raw: session,
+          raw: response,
         });
       },
     },
@@ -281,29 +285,27 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
       const format = o.format ?? "markdown";
-      const response = record(
-        await raw.request("POST", "/v1/fetch", {
-          ...call,
-          body: compact({
-            allowInsecureSsl: o.allowInsecureSsl,
-            allowRedirects: o.allowRedirects,
-            contextId: o.contextId,
-            format,
-            proxies: fetchProxies(o),
-            url,
-          }),
-        })
-      );
-      const content =
-        typeof response.content === "string" ? response.content : undefined;
-      const binary = response.encoding === "base64";
-      const contentType = text(response.contentType) ?? "";
+      const response = await raw.request("POST", "/v1/fetch", {
+        ...call,
+        body: compact({
+          allowInsecureSsl: o.allowInsecureSsl,
+          allowRedirects: o.allowRedirects,
+          contextId: o.contextId,
+          format,
+          proxies: fetchProxies(o),
+          url,
+        }),
+      });
+      const body = z.parse(FetchResponse, response);
+      const { content } = body;
+      const binary = body.encoding === "base64";
+      const contentType = body.contentType ?? "";
       return presentPage(
         provider,
         compact({
           markdown: format === "markdown" && !binary ? content : undefined,
           meta: meta({
-            requestId: response.id,
+            requestId: body.id,
             warnings: binary
               ? ["the response is binary; its Base64 content is in raw"]
               : undefined,
@@ -313,7 +315,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
             format === "raw" && !binary && contentType.includes("html")
               ? content
               : undefined,
-          statusCode: num(response.statusCode),
+          statusCode: body.statusCode,
           url,
         })
       );
@@ -332,49 +334,46 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
           );
         }
       }
-      const response = record(
-        await raw.request("POST", "/v1/search", {
-          ...call,
-          body: compact({
-            mode: o.mode,
-            numResults: o.limit,
-            provider: o.provider,
-            query,
-          }),
-        })
-      );
-      return compact({
-        meta: meta({ requestId: response.requestId }),
-        raw: response,
-        results: list(response.results).map((item) => {
-          const result = record(item);
-          return compact({
-            author: text(result.author),
-            favicon: text(result.favicon),
-            image: text(result.image),
-            publishedAt: text(result.publishedDate),
-            title: text(result.title),
-            url: text(result.url) ?? "",
-          });
+      const response = await raw.request("POST", "/v1/search", {
+        ...call,
+        body: compact({
+          mode: o.mode,
+          numResults: o.limit,
+          provider: o.provider,
+          query,
         }),
+      });
+      const body = z.parse(SearchBodySchema, response);
+      return compact({
+        meta: meta({ requestId: body.requestId }),
+        raw: response,
+        results: body.results.map((result) =>
+          compact({
+            author: result.author,
+            favicon: result.favicon,
+            image: result.image,
+            publishedAt: result.publishedDate,
+            title: result.title,
+            url: result.url ?? "",
+          })
+        ),
       });
     },
 
     async usage(options) {
       const { call } = callSettings(options);
       const id = projectId ?? (await onlyProject(call));
-      const response = record(
-        await raw.request(
-          "GET",
-          `/v1/projects/${encodeURIComponent(id)}/usage`,
-          call
-        )
+      const response = await raw.request(
+        "GET",
+        `/v1/projects/${encodeURIComponent(id)}/usage`,
+        call
       );
+      const body = z.parse(UsageResponse, response);
       return compact({
         breakdown: Object.fromEntries(
           Object.entries({
-            browserMinutes: num(response.browserMinutes),
-            proxyBytes: num(response.proxyBytes),
+            browserMinutes: body.browserMinutes,
+            proxyBytes: body.proxyBytes,
           }).filter(
             (entry): entry is [string, number] => entry[1] !== undefined
           )
@@ -385,13 +384,19 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
   };
 
   const onlyProject = async (call: CallOptions): Promise<string> => {
-    const projects = list(await raw.request("GET", "/v1/projects", call));
+    const projects = z.parse(
+      ProjectsResponse,
+      await raw.request("GET", "/v1/projects", call)
+    );
     if (projects.length !== 1) {
       invalid(
         `usage needs a project: pass projectId or set BROWSERBASE_PROJECT_ID (this key has ${projects.length} projects)`
       );
     }
-    return requireId(provider, record(projects[0]).id);
+    return requireJobId(
+      provider,
+      projects[0]?.id ?? { original: undefined, value: undefined }
+    );
   };
 
   return defineAdapter({ name: provider, operations, raw });

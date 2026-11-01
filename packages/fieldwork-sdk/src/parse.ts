@@ -22,6 +22,9 @@ export const nonEmptyString = z.string().check(z.minLength(1));
 /** The string, or undefined when the value is absent, empty or not a string. */
 export const optionalString = z.optional(z.union([nonEmptyString, absent]));
 
+/** The string, an empty one too, or undefined when the value is absent or not a string. */
+export const optionalAnyString = z.optional(z.union([z.string(), absent]));
+
 /** The number, or undefined when the value is absent, not a number, NaN or infinite. */
 export const optionalNumber = z.optional(z.union([z.number(), absent]));
 
