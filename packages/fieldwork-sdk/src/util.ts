@@ -1,12 +1,6 @@
 import { FieldworkError } from "./errors.js";
 import type { Original, SourceBlock } from "./parse.js";
-import type {
-  Citation,
-  CallOptions,
-  Meta,
-  Page,
-  ProductImage,
-} from "./types.js";
+import type { Citation, CallOptions, Meta, Page } from "./types.js";
 
 export type Json = Record<string, unknown>;
 
@@ -14,22 +8,6 @@ const isJson = <V>(value: V): value is V & Json =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const record = (value: unknown): Json => (isJson(value) ? value : {});
-
-export const list = (value: unknown): unknown[] =>
-  Array.isArray(value) ? value : [];
-
-export const text = (value: unknown): string | undefined =>
-  typeof value === "string" && value !== "" ? value : undefined;
-
-export const num = (value: unknown): number | undefined =>
-  typeof value === "number" && Number.isFinite(value) ? value : undefined;
-
-export const strings = (value: unknown): string[] | undefined => {
-  const items = list(value).filter(
-    (item): item is string => typeof item === "string"
-  );
-  return items.length > 0 ? items : undefined;
-};
 
 // SAFETY: only keys whose value is undefined are dropped, so every other key
 // keeps the type T gives it; callers read the dropped ones as absent.
@@ -73,19 +51,6 @@ export const uniqueCitations = (all: Citation[]): Citation[] => {
   return [...seen.values()];
 };
 
-export const citation = (value: unknown): Citation | undefined => {
-  const item = record(value);
-  const url = text(item.url);
-  if (url === undefined) {
-    return undefined;
-  }
-  const excerpts =
-    typeof item.excerpts === "string"
-      ? [item.excerpts]
-      : strings(item.excerpts);
-  return compact({ excerpts, title: text(item.title), url });
-};
-
 /** The citation a parsed source amounts to, or undefined when it has no URL. */
 export const citationOf = (source: SourceBlock): Citation | undefined =>
   source.url === undefined
@@ -102,23 +67,6 @@ export const citationsOf = (sources: readonly SourceBlock[]): Citation[] =>
     .map((source) => citationOf(source))
     .filter((item): item is Citation => item !== undefined);
 
-export const citations = (value: unknown): Citation[] =>
-  list(value)
-    .map((item) => citation(item))
-    .filter((item): item is Citation => item !== undefined);
-
-export const requireId = (provider: string, value: unknown): string => {
-  const id = typeof value === "number" ? String(value) : text(value);
-  if (id === undefined) {
-    throw new FieldworkError(
-      "ProviderError",
-      `${provider} did not return a job id`,
-      { cause: value, provider }
-    );
-  }
-  return id;
-};
-
 /** The job id a start call returned, or a ProviderError carrying the value as it arrived. */
 export const requireJobId = (
   provider: string,
@@ -134,65 +82,30 @@ export const requireJobId = (
   return id.value;
 };
 
-export const scalar = (value: unknown): string | undefined => {
-  if (typeof value === "string") {
-    return value;
-  }
-  return typeof value === "number" || typeof value === "boolean"
-    ? String(value)
-    : undefined;
-};
-
 export const meta = (parts: {
-  requestId?: unknown;
-  credits?: unknown;
-  costUsd?: unknown;
-  units?: Record<string, unknown>;
-  warnings?: unknown;
+  requestId?: string;
+  credits?: number;
+  costUsd?: number;
+  units?: Record<string, number | undefined>;
+  warnings?: string | readonly string[];
 }): Meta | undefined => {
   const units = Object.fromEntries(
     Object.entries(parts.units ?? {}).filter(
-      (entry): entry is [string, number] =>
-        typeof entry[1] === "number" && Number.isFinite(entry[1])
+      (entry): entry is [string, number] => entry[1] !== undefined
     )
   );
   const usage = compact({
-    costUsd: num(parts.costUsd),
-    credits: num(parts.credits),
+    costUsd: parts.costUsd,
+    credits: parts.credits,
     units: Object.keys(units).length > 0 ? units : undefined,
   });
-  const warnings =
-    typeof parts.warnings === "string"
-      ? [parts.warnings]
-      : list(parts.warnings)
-          .map((item) =>
-            typeof item === "string"
-              ? item
-              : (text(record(item).message) ?? text(record(item).detail))
-          )
-          .filter((item): item is string => item !== undefined);
+  const warnings = [parts.warnings ?? []].flat();
   const result = compact({
-    requestId: scalar(parts.requestId),
+    requestId: parts.requestId,
     usage: Object.keys(usage).length > 0 ? usage : undefined,
     warnings: warnings.length > 0 ? warnings : undefined,
   });
   return Object.keys(result).length > 0 ? result : undefined;
-};
-
-export const productImages = (value: unknown): ProductImage[] | undefined => {
-  const items = list(value)
-    .map((item) => {
-      if (typeof item === "string") {
-        return item === "" ? undefined : { url: item };
-      }
-      const image = record(item);
-      const url = text(image.url) ?? text(image.src);
-      return url === undefined
-        ? undefined
-        : compact({ alt: text(image.alt), url });
-    })
-    .filter((item): item is ProductImage => item !== undefined);
-  return items.length > 0 ? items : undefined;
 };
 
 export const refuseTogether = <T>(

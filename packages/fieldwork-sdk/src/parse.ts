@@ -129,11 +129,11 @@ export const warnings = z.pipe(
   z.union([
     z.pipe(
       z.string(),
-      z.transform((message) => [message])
+      z.transform((message): (string | undefined)[] => [message])
     ),
     arrayOf(warningEntry),
   ]),
-  z.transform((entries) =>
+  z.transform((entries): string[] =>
     entries.filter((entry): entry is string => entry !== undefined)
   )
 );

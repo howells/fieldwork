@@ -3,10 +3,10 @@
   "units": {
     "packages/fieldwork-mcp": {},
     "packages/fieldwork-sdk": {
-      "anti-slop(no-runtime-typeof)": 32,
-      "anti-slop(no-unknown-parameters)": 28,
+      "anti-slop(no-runtime-typeof)": 22,
+      "anti-slop(no-unknown-parameters)": 19,
       "anti-slop(no-unknown-returns)": 6,
-      "anti-slop(no-unsafe-dictionary-type)": 23,
+      "anti-slop(no-unsafe-dictionary-type)": 22,
       "eslint(complexity)": 1,
       "eslint(max-lines-per-function)": 6,
       "eslint(max-lines)": 7,
