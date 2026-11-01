@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { exa } from "../../src/adapters/exa.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const schema = {
   properties: { sku: { type: "string" } },
@@ -57,10 +57,10 @@ describe("exa search", () => {
       publishedBefore: "2026-02-01",
       type: "deep",
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/search");
-    expect(calls[0]!.headers["x-api-key"]).toBe("k");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/search");
+    expect(nth(calls, 0).headers["x-api-key"]).toBe("k");
+    expect(nth(calls, 0).body).toStrictEqual({
       additionalQueries: ["glazed ceramic"],
       category: "publication",
       contents: { highlights: true, maxAgeHours: 2, text: true },
@@ -82,7 +82,7 @@ describe("exa search", () => {
       crawledAfter: "2026-01-01",
       includeText: ["x"],
     } as never);
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       contents: { highlights: true },
       query: "tile",
     });
@@ -94,7 +94,7 @@ describe("exa search", () => {
       highlights: { maxCharacters: 500, query: "glaze" },
       summary: { query: "who makes it" },
     });
-    expect(steered.calls[0]!.body).toMatchObject({
+    expect(nth(steered.calls, 0).body).toMatchObject({
       contents: {
         highlights: { maxCharacters: 500, query: "glaze" },
         summary: { query: "who makes it" },
@@ -102,13 +102,13 @@ describe("exa search", () => {
     });
     const plain = client({ body: { results: [] } });
     await plain.web.search("tile", { highlights: false });
-    expect(plain.calls[0]!.body).toStrictEqual({ query: "tile" });
+    expect(nth(plain.calls, 0).body).toStrictEqual({ query: "tile" });
   });
 
   it("accepts a legacy type Exa still serves", async () => {
     const { web, calls } = client({ body: { results: [] } });
     await web.search("tile", { type: "fast" });
-    expect(calls[0]!.body).toMatchObject({ type: "fast" });
+    expect(nth(calls, 0).body).toMatchObject({ type: "fast" });
   });
 
   it("normalizes results, meta, warnings and notices", async () => {
@@ -157,7 +157,7 @@ describe("exa search", () => {
     });
     expect(response.answer).toBeUndefined();
     expect(
-      (response.raw as { results: { entities: unknown[] }[] }).results[0]!
+      nth((response.raw as { results: { entities: unknown[] }[] }).results, 0)
         .entities
     ).toHaveLength(1);
   });
@@ -173,7 +173,7 @@ describe("exa search", () => {
       outputSchema: { description: "one sentence", type: "text" },
       systemPrompt: "Be brief",
     });
-    expect(text.calls[0]!.body).toMatchObject({
+    expect(nth(text.calls, 0).body).toMatchObject({
       outputSchema: { description: "one sentence", type: "text" },
       systemPrompt: "Be brief",
     });
@@ -235,9 +235,9 @@ describe("exa read", () => {
       snapshotAsOf: "2026-01-15",
       summary: { query: "what is it" },
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/contents");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/contents");
+    expect(nth(calls, 0).body).toStrictEqual({
       extras: { links: 10 },
       highlights: { query: "size" },
       maxAgeHours: 0,
@@ -253,7 +253,7 @@ describe("exa read", () => {
       body: { results: [{ url }], statuses: [{ id: url, status: "success" }] },
     });
     await web.read(url, { maxAge: 90_000 });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       extras: { imageLinks: 100, links: 100 },
       maxAgeHours: 25,
       text: true,
@@ -338,8 +338,8 @@ describe("exa readMany", () => {
     const { web, calls } = client({ body: { results: [], statuses: [] } });
     await web.readMany([url, second], { maxAge: 3600 });
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.url.pathname).toBe("/contents");
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).url.pathname).toBe("/contents");
+    expect(nth(calls, 0).body).toMatchObject({
       maxAgeHours: 1,
       urls: [url, second],
     });
@@ -409,8 +409,8 @@ describe("exa extract", () => {
       requestId: "req_4",
       usage: { costUsd: 0.001 },
     });
-    expect(calls[0]!.url.pathname).toBe("/contents");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/contents");
+    expect(nth(calls, 0).body).toStrictEqual({
       maxAgeHours: 0,
       summary: { query: "the selected tile", schema },
       urls: [url],
@@ -445,9 +445,9 @@ describe("exa answer", () => {
       model: "exa-pro",
       systemPrompt: "Be brief",
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/answer");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/answer");
+    expect(nth(calls, 0).body).toStrictEqual({
       model: "exa-pro",
       query: "What is Portmore?",
       systemPrompt: "Be brief",
@@ -466,7 +466,7 @@ describe("exa answer", () => {
       body: { answer: { sku: "T1" }, citations: [] },
     });
     const result = await web.answer<{ sku: string }>("SKU?", { schema });
-    expect(calls[0]!.body).toMatchObject({ outputSchema: schema });
+    expect(nth(calls, 0).body).toMatchObject({ outputSchema: schema });
     expect(result.output).toStrictEqual({ sku: "T1" });
     expect(result.answer).toBe('{"sku":"T1"}');
   });
@@ -513,7 +513,7 @@ describe("exa research", () => {
       schema,
       systemPrompt: "Be exact",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       budget: { maxCostDollars: 10, maxDurationSeconds: 600 },
       effort: "ultra",
       input: { data: [{ name: "Portmore" }], exclusion: [{ name: "Other" }] },
@@ -729,9 +729,9 @@ describe("exa monitor", () => {
       webhookEvents: ["monitor.run.completed"],
       webhookUrl: "https://hooks.test/exa",
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/monitors");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/monitors");
+    expect(nth(calls, 0).body).toStrictEqual({
       metadata: { team: "tiles" },
       name: "Tile news",
       outputSchema: { type: "text" },
@@ -772,7 +772,7 @@ describe("exa monitor", () => {
       schedule,
       webhookUrl: "https://hooks.test/exa",
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       trigger: { period, type: "interval" },
     });
   });
@@ -783,7 +783,7 @@ describe("exa monitor", () => {
       query: "q",
       webhookUrl: "https://hooks.test/exa",
     });
-    expect(calls[0]!.body).not.toHaveProperty("trigger");
+    expect(nth(calls, 0).body).not.toHaveProperty("trigger");
   });
 
   it("refuses a schedule Exa cannot express", async () => {
@@ -823,9 +823,9 @@ describe("exa monitor", () => {
     );
     const monitors = await web.monitor.list();
     expect(monitors.map((item) => item.id)).toStrictEqual(["mon_1", "mon_2"]);
-    expect(calls[0]!.url.searchParams.get("limit")).toBe("100");
-    expect(calls[0]!.url.searchParams.has("cursor")).toBe(false);
-    expect(calls[1]!.url.searchParams.get("cursor")).toBe("c1");
+    expect(nth(calls, 0).url.searchParams.get("limit")).toBe("100");
+    expect(nth(calls, 0).url.searchParams.has("cursor")).toBe(false);
+    expect(nth(calls, 1).url.searchParams.get("cursor")).toBe("c1");
   });
 
   it("returns a monitor's runs as events with a cursor", async () => {
@@ -869,9 +869,9 @@ describe("exa monitor", () => {
       cursor: "c1",
       limit: 3,
     });
-    expect(calls[0]!.url.pathname).toBe("/monitors/mon_1/runs");
-    expect(calls[0]!.url.searchParams.get("cursor")).toBe("c1");
-    expect(calls[0]!.url.searchParams.get("limit")).toBe("3");
+    expect(nth(calls, 0).url.pathname).toBe("/monitors/mon_1/runs");
+    expect(nth(calls, 0).url.searchParams.get("cursor")).toBe("c1");
+    expect(nth(calls, 0).url.searchParams.get("limit")).toBe("3");
     expect(events.next).toBe("c2");
     expect(events.events).toMatchObject([
       {

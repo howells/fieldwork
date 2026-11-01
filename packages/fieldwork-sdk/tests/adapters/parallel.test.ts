@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { parallel } from "../../src/adapters/parallel.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const schema = {
   properties: { sku: { type: "string" } },
@@ -63,8 +63,8 @@ describe("parallel search", () => {
       headers: { "content-type": "application/json", "x-api-key": "k" },
       method: "POST",
     });
-    expect(calls[0]!.url.pathname).toBe("/v1/search");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/search");
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: {
         excerpt_settings: { max_chars_per_result: 800 },
         fetch_policy: { max_age_seconds: 3600 },
@@ -86,7 +86,7 @@ describe("parallel search", () => {
   it("sends only the query when no option is set", async () => {
     const { web, calls } = connect({ body: { results: [], search_id: "s" } });
     await web.search("porcelain tile");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       objective: "porcelain tile",
       search_queries: ["porcelain tile"],
     });
@@ -185,8 +185,8 @@ describe("parallel images", () => {
       mode: "advanced",
       sessionId: "s",
     });
-    expect(calls[0]!.url.pathname).toBe("/v1/images/search");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/images/search");
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { location: "GB", max_results: 5 },
       mode: "advanced",
       objective: "aqua glazed tile",
@@ -224,8 +224,8 @@ describe("parallel read", () => {
       },
     });
     const page = await web.read(url);
-    expect(calls[0]!.url.pathname).toBe("/v1/extract");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/extract");
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { full_content: true },
       urls: [url],
     });
@@ -245,7 +245,7 @@ describe("parallel read", () => {
       query: "What is the finish?",
       sessionId: "s",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: {
         excerpt_settings: { max_chars_per_result: 700 },
         fetch_policy: { max_age_seconds: 600 },
@@ -343,8 +343,8 @@ describe("parallel readMany", () => {
       },
     });
     const batch = await web.readMany([url, other], { query: "finish" });
-    expect(calls[0]!.url.pathname).toBe("/v1/extract");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/extract");
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { full_content: true },
       objective: "finish",
       urls: [url, other],
@@ -413,7 +413,7 @@ describe("parallel extract", () => {
       "/v1/tasks/runs/trun_1",
       "/v1/tasks/runs/trun_1/result",
     ]);
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { location: "GB" },
       input: {
         instructions:
@@ -463,7 +463,7 @@ describe("parallel extract", () => {
       interval: 1,
       processor: "pro",
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       processor: "pro",
       task_spec: { output_schema: { type: "auto" } },
     });
@@ -551,8 +551,8 @@ describe("parallel answer", () => {
       instructions: "Be brief.",
       metadata: { case: "1" },
     });
-    expect(calls[0]!.url.pathname).toBe("/v1/responses");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/responses");
+    expect(nth(calls, 0).body).toStrictEqual({
       input: "What is Portmore?",
       instructions: "Be brief.",
       metadata: { case: "1" },
@@ -602,7 +602,7 @@ describe("parallel answer", () => {
     };
     const { web, calls } = connect({ body: structured });
     const answer = await web.answer<{ sku: string }>("SKU?", { schema });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       text: { format: { name: "answer", schema, type: "json_schema" } },
     });
     expect(answer.output).toStrictEqual({ sku: "TLPRSRNAQU3X8" });
@@ -682,7 +682,7 @@ describe("parallel research", () => {
       metadata: { case: "1" },
       publishedAfter: "2026-01-01",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { location: "GB" },
       input: "What colorway?",
       metadata: { case: "1" },
@@ -723,7 +723,7 @@ describe("parallel research", () => {
       processor: "pro-fast",
       schema,
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       processor: "pro-fast",
       task_spec: { output_schema: { json_schema: schema, type: "json" } },
     });
@@ -945,7 +945,7 @@ describe("parallel discover", () => {
       "GET /v1beta/findall/runs/findall_1",
       "GET /v1beta/findall/runs/findall_1/result",
     ]);
-    expect([calls[0]!.body, calls[1]!.body]).toStrictEqual([
+    expect([nth(calls, 0).body, nth(calls, 1).body]).toStrictEqual([
       {
         entity_type: "companies",
         exclude_list: [{ name: "Acme", url: "https://acme.test" }],
@@ -1014,7 +1014,7 @@ describe("parallel discover", () => {
       entityType: "companies",
       interval: 1,
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       generator: "base",
       match_limit: 10,
     });
@@ -1152,8 +1152,8 @@ describe("parallel decide", () => {
       },
       { country: "GB", includeExcerpts: false }
     );
-    expect(calls[0]!.url.pathname).toBe("/v1/decisions");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/decisions");
+    expect(nth(calls, 0).body).toStrictEqual({
       advanced_settings: { include_excerpts: false, location: "GB" },
       questions: {
         durability: {
@@ -1293,8 +1293,8 @@ describe("parallel monitor", () => {
       webhookUrl: "https://hooks.test/p",
     });
     expect(calls[0]).toMatchObject({ method: "POST" });
-    expect(calls[0]!.url.pathname).toBe("/v1/monitors");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/monitors");
+    expect(nth(calls, 0).body).toStrictEqual({
       frequency: "1d",
       metadata: { case: "1" },
       processor: "base",
@@ -1340,7 +1340,7 @@ describe("parallel monitor", () => {
       schedule: { every: "12h" },
       taskRunId: "trun_1",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       frequency: "12h",
       settings: { task_run_id: "trun_1" },
       type: "snapshot",
@@ -1420,7 +1420,7 @@ describe("parallel monitor", () => {
     const { web, calls } = connect({ body: monitor });
     const info = await web.monitor.get("monitor_1");
     expect(calls[0]).toMatchObject({ method: "GET" });
-    expect(calls[0]!.url.pathname).toBe("/v1/monitors/monitor_1");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/monitors/monitor_1");
     expect(info.id).toBe("monitor_1");
   });
 
@@ -1430,9 +1430,9 @@ describe("parallel monitor", () => {
       { body: { monitors: [{ ...monitor, monitor_id: "monitor_2" }] } }
     );
     const monitors = await web.monitor.list();
-    expect(calls[0]!.url.pathname).toBe("/v1/monitors");
-    expect(calls[0]!.url.searchParams.get("limit")).toBe("100");
-    expect(calls[1]!.url.searchParams.get("cursor")).toBe("cursor_2");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/monitors");
+    expect(nth(calls, 0).url.searchParams.get("limit")).toBe("100");
+    expect(nth(calls, 1).url.searchParams.get("cursor")).toBe("cursor_2");
     expect(monitors.map((item) => item.id)).toStrictEqual([
       "monitor_1",
       "monitor_2",
@@ -1445,7 +1445,7 @@ describe("parallel monitor", () => {
     });
     await expect(web.monitor.delete("monitor_1")).resolves.toBeUndefined();
     expect(calls[0]).toMatchObject({ method: "POST" });
-    expect(calls[0]!.url.pathname).toBe("/v1/monitors/monitor_1/cancel");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/monitors/monitor_1/cancel");
   });
 
   it("lists events of every kind and the next cursor", async () => {
@@ -1508,8 +1508,8 @@ describe("parallel monitor", () => {
       includeCompletions: true,
       limit: 20,
     });
-    expect(calls[0]!.url.pathname).toBe("/v1/monitors/monitor_1/events");
-    expect(Object.fromEntries(calls[0]!.url.searchParams)).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v1/monitors/monitor_1/events");
+    expect(Object.fromEntries(nth(calls, 0).url.searchParams)).toStrictEqual({
       cursor: "cursor_1",
       event_group_id: "grp_1",
       include_completions: "true",

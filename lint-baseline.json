@@ -23,7 +23,6 @@
       "oxc(no-barrel-file)": 1,
       "promise(avoid-new)": 1,
       "typescript(method-signature-style)": 74,
-      "typescript(no-non-null-assertion)": 194,
       "typescript(no-unnecessary-type-parameters)": 7,
       "typescript(no-unsafe-type-assertion)": 68,
       "typescript(strict-boolean-expressions)": 74,

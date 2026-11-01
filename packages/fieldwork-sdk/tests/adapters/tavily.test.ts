@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { tavily } from "../../src/adapters/tavily.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const schema = {
   properties: { sku: { description: "The SKU", type: "string" } },
@@ -25,7 +25,7 @@ describe("tavily config", () => {
       adapter: tavily({ apiKey: "k", fetch, projectId: "proj_1" }),
     });
     await web.search("tile");
-    expect(calls[0]!.headers).toMatchObject({
+    expect(nth(calls, 0).headers).toMatchObject({
       authorization: "Bearer k",
       "x-project-id": "proj_1",
     });
@@ -34,7 +34,7 @@ describe("tavily config", () => {
   it("leaves the project header out when no project is set", async () => {
     const { web, calls } = make({ body: { results: [] } });
     await web.search("tile");
-    expect(calls[0]!.headers["x-project-id"]).toBeUndefined();
+    expect(nth(calls, 0).headers["x-project-id"]).toBeUndefined();
   });
 });
 
@@ -80,7 +80,7 @@ describe("tavily search", () => {
       searchDepth: "advanced",
       topic: "general",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       auto_parameters: true,
       chunks_per_source: 2,
       country: "united kingdom",
@@ -117,17 +117,21 @@ describe("tavily search", () => {
     ]) {
       const { web, calls } = make({ body: { results: [] } });
       await web.search("tile", options);
-      expect(calls[0]!.body).toMatchObject({ include_published_date: true });
+      expect(nth(calls, 0).body).toMatchObject({
+        include_published_date: true,
+      });
     }
     const { web, calls } = make({ body: { results: [] } });
     await web.search("tile");
-    expect(calls[0]!.body).not.toHaveProperty("include_published_date");
+    expect(nth(calls, 0).body).not.toHaveProperty("include_published_date");
   });
 
   it("sends content: true as Markdown", async () => {
     const { web, calls } = make({ body: { results: [] } });
     await web.search("tile", { content: true });
-    expect(calls[0]!.body).toMatchObject({ include_raw_content: "markdown" });
+    expect(nth(calls, 0).body).toMatchObject({
+      include_raw_content: "markdown",
+    });
   });
 
   it("converts maxAge from seconds to hours", async () => {
@@ -141,7 +145,7 @@ describe("tavily search", () => {
     for (const [seconds, hours] of cases) {
       const { web, calls } = make({ body: { results: [] } });
       await web.search("tile", { maxAge: seconds });
-      expect(calls[0]!.body).toMatchObject({ max_age_hours: hours });
+      expect(nth(calls, 0).body).toMatchObject({ max_age_hours: hours });
     }
   });
 
@@ -236,7 +240,7 @@ describe("tavily search", () => {
   it("maps an ISO code to the country name", async () => {
     const { web, calls } = make({ body: { results: [] } });
     await web.search("tile", { country: "US" });
-    expect(calls[0]!.body).toMatchObject({ country: "united states" });
+    expect(nth(calls, 0).body).toMatchObject({ country: "united states" });
   });
 
   it("maps a rate limit to RateLimited with the wait", async () => {
@@ -274,7 +278,9 @@ describe("tavily images", () => {
   it("can leave descriptions off", async () => {
     const { web, calls } = make({ body: { images: [], results: [] } });
     await web.images("blue tile", { descriptions: false });
-    expect(calls[0]!.body).toMatchObject({ include_image_descriptions: false });
+    expect(nth(calls, 0).body).toMatchObject({
+      include_image_descriptions: false,
+    });
   });
 
   it("returns the image results with meta", async () => {
@@ -311,7 +317,7 @@ describe("tavily read", () => {
       method: "POST",
       url: { pathname: "/extract" },
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       chunks_per_source: 2,
       extract_depth: "advanced",
       format: "text",
@@ -401,7 +407,7 @@ describe("tavily readMany", () => {
     };
     const { web, calls } = make({ body });
     const batch = await web.readMany([url, other], { extractDepth: "basic" });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       extract_depth: "basic",
       include_usage: true,
       urls: [url, other],
@@ -458,7 +464,7 @@ describe("tavily map", () => {
       serverTimeout: 60,
     });
     expect(calls[0]).toMatchObject({ url: { pathname: "/map" } });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       allow_external: false,
       exclude_domains: ["^private\\.tavily\\.com$"],
       exclude_paths: ["/admin/.*"],
@@ -510,7 +516,7 @@ describe("tavily crawl", () => {
       serverTimeout: 30,
     });
     expect(calls[0]).toMatchObject({ url: { pathname: "/crawl" } });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       chunks_per_source: 2,
       exclude_domains: ["^x\\.test$"],
       extract_depth: "advanced",
@@ -561,7 +567,7 @@ describe("tavily crawl", () => {
       },
     });
     const crawl = await web.crawl("https://a.test/", { instructions: "x" });
-    expect(crawl.pages[0]!.excerpts).toStrictEqual(["One", "Two"]);
+    expect(nth(crawl.pages, 0).excerpts).toStrictEqual(["One", "Two"]);
   });
 
   it("refuses chunksPerSource without instructions", async () => {
@@ -598,7 +604,7 @@ describe("tavily answer", () => {
       recency: "year",
       searchDepth: "advanced",
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       include_answer: "advanced",
       include_published_date: true,
       max_results: 3,
@@ -669,7 +675,7 @@ describe("tavily research", () => {
       method: "POST",
       url: { pathname: "/research" },
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       citation_format: "apa",
       exclude_domains: ["spam.test"],
       files: [

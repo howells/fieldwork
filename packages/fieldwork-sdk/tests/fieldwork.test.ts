@@ -11,7 +11,7 @@ import {
   router,
   runtimeRouter,
 } from "../src/index.js";
-import { fakeFetch } from "./helpers.js";
+import { fakeFetch, nth } from "./helpers.js";
 
 describe("a Fieldwork instance", () => {
   it("exposes only the capabilities its provider offers", () => {
@@ -120,10 +120,10 @@ describe("routing by capability", () => {
       }),
     });
     const found = await web.search("a");
-    const page = await web.read(found.results[0]!.url);
+    const page = await web.read(nth(found.results, 0).url);
     expect(page.markdown).toBe("# A");
-    expect(searchFetch.calls[0]!.url.hostname).toBe("api.parallel.ai");
-    expect(readFetch.calls[0]!.url.hostname).toBe("api.firecrawl.dev");
+    expect(nth(searchFetch.calls, 0).url.hostname).toBe("api.parallel.ai");
+    expect(nth(readFetch.calls, 0).url.hostname).toBe("api.firecrawl.dev");
     expect(web.capabilities.research).toBe(false);
     expect(Object.keys(web.raw).toSorted()).toStrictEqual([
       "firecrawl",

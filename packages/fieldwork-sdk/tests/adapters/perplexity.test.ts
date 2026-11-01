@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { perplexity } from "../../src/adapters/perplexity.js";
 import { Fieldwork } from "../../src/index.js";
 import type { DecisionQuestion } from "../../src/types.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const schema = {
   properties: { sku: { type: "string" } },
@@ -44,10 +44,10 @@ describe("perplexity search", () => {
       recency: "month",
       searchType: "fast",
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/search");
-    expect(calls[0]!.headers.authorization).toBe("Bearer k");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/search");
+    expect(nth(calls, 0).headers.authorization).toBe("Bearer k");
+    expect(nth(calls, 0).body).toStrictEqual({
       country: "GB",
       last_updated_after_filter: "02/01/2026",
       last_updated_before_filter: "02/28/2026",
@@ -67,7 +67,7 @@ describe("perplexity search", () => {
   it("sends a single query as a string and one language as a list", async () => {
     const { web, calls } = client({ body: { id: "s1", results: [] } });
     await web.search("tile", { language: "de" });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       query: "tile",
       search_language_filter: ["de"],
     });
@@ -78,7 +78,7 @@ describe("perplexity search", () => {
     await web.search("tile", {
       excludeDomains: ["pinterest.com", "reddit.com"],
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       search_domain_filter: ["-pinterest.com", "-reddit.com"],
     });
   });
@@ -141,7 +141,7 @@ describe("perplexity search", () => {
     });
     await web.search("head of design", { limit: 30, searchType: "people" });
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       max_results: 30,
       search_type: "people",
     });
@@ -192,9 +192,9 @@ describe("perplexity answer", () => {
   it("asks the Agent API synchronously at the fast effort", async () => {
     const { web, calls } = client({ body: reply });
     await web.answer("Is porcelain denser than ceramic?");
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/v1/agent");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/agent");
+    expect(nth(calls, 0).body).toStrictEqual({
       effort: "fast",
       input: "Is porcelain denser than ceramic?",
     });
@@ -210,7 +210,7 @@ describe("perplexity answer", () => {
       instructions: "Be brief.",
       schema,
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       effort: "low@2026-10-24.0",
       input: "SKU?",
       instructions: "Be brief.",
@@ -307,9 +307,9 @@ describe("perplexity research", () => {
       effort: "high",
       ...wait,
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/v1/agent");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/agent");
+    expect(nth(calls, 0).body).toStrictEqual({
       background: true,
       effort: "high",
       input: "Which tiles are frost resistant?",
@@ -328,7 +328,10 @@ describe("perplexity research", () => {
       { body: done }
     );
     await web.research("q", wait);
-    expect(calls[0]!.body).toMatchObject({ background: true, effort: "high" });
+    expect(nth(calls, 0).body).toMatchObject({
+      background: true,
+      effort: "high",
+    });
   });
 
   it("passes ultra-preview and version pins through", async () => {
@@ -340,8 +343,8 @@ describe("perplexity research", () => {
     );
     await web.research("q", { effort: "ultra-preview", ...wait });
     await web.research("q", { effort: "xhigh@2026-10-29.0", ...wait });
-    expect(calls[0]!.body).toMatchObject({ effort: "ultra-preview" });
-    expect(calls[2]!.body).toMatchObject({ effort: "xhigh@2026-10-29.0" });
+    expect(nth(calls, 0).body).toMatchObject({ effort: "ultra-preview" });
+    expect(nth(calls, 2).body).toMatchObject({ effort: "xhigh@2026-10-29.0" });
   });
 
   it("returns cited sources, retrieved pages, cost and a continuation id", async () => {
@@ -400,7 +403,7 @@ describe("perplexity research", () => {
     );
     const run = await web.research<{ sku: string }>("SKU", { schema, ...wait });
     expect(run.output.sku).toBe("TLPRSRNAQU3X8");
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       response_format: {
         json_schema: { name: "output", schema },
         type: "json_schema",
@@ -420,7 +423,7 @@ describe("perplexity research", () => {
       models: ["openai/gpt-6-luna", "openai/gpt-6.1-terra"],
       ...wait,
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       background: true,
       input: "q",
       instructions: "Cite everything.",
@@ -442,11 +445,11 @@ describe("perplexity research", () => {
       model: "openai/gpt-6-luna",
       ...wait,
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       max_steps: 3,
       model: "openai/gpt-6-luna",
     });
-    expect(calls[0]!.body).not.toHaveProperty("effort");
+    expect(nth(calls, 0).body).not.toHaveProperty("effort");
   });
 
   it("refuses more than five models before sending", async () => {
@@ -472,7 +475,7 @@ describe("perplexity research", () => {
       recency: "year",
       ...wait,
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       effort: "medium",
       tools: [
         {
@@ -500,7 +503,7 @@ describe("perplexity research", () => {
       model: "openai/gpt-6-luna",
       ...wait,
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       tools: [
         {
           filters: { search_domain_filter: ["nature.com"] },
@@ -528,7 +531,9 @@ describe("perplexity research", () => {
       { body: done }
     );
     await web.research("and the grout?", { continueFrom: "resp_8", ...wait });
-    expect(calls[0]!.body).toMatchObject({ previous_response_id: "resp_8" });
+    expect(nth(calls, 0).body).toMatchObject({
+      previous_response_id: "resp_8",
+    });
   });
 
   it("returns incomplete output as partial with the stop reason", async () => {
@@ -602,8 +607,8 @@ describe("perplexity research", () => {
     const { web, calls } = client({ body: done });
     const run = await web.research("q", { resume: "resp_9", ...wait });
     expect(calls).toHaveLength(1);
-    expect(calls[0]!.method).toBe("GET");
-    expect(calls[0]!.url.pathname).toBe("/v1/agent/resp_9");
+    expect(nth(calls, 0).method).toBe("GET");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/agent/resp_9");
     expect(run.id).toBe("resp_9");
   });
 
@@ -661,10 +666,10 @@ describe("perplexity decide", () => {
   it("maps yesno, choice and score to noul, choice and score", async () => {
     const { web, calls } = client({ body: reply });
     await web.decide({ review: "The battery died." }, questions);
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/v1/decisions");
-    expect(calls[0]!.headers.authorization).toBe("Bearer k");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/v1/decisions");
+    expect(nth(calls, 0).headers.authorization).toBe("Bearer k");
+    expect(nth(calls, 0).body).toStrictEqual({
       model: "pplx-decider-latest",
       questions: {
         defect: {
@@ -691,7 +696,7 @@ describe("perplexity decide", () => {
     await web.decide("The battery died.", questions, {
       model: "pplx-decider-flash-v1.2",
     });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       model: "pplx-decider-flash-v1.2",
       state: "The battery died.",
     });

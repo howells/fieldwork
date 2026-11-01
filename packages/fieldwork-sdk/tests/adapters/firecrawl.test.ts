@@ -6,7 +6,7 @@ import type {
   FirecrawlSearchOptions,
 } from "../../src/adapters/firecrawl.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const url =
   "https://www.tilebar.com/product/portmore-aqua-3x8-glazed-ceramic-tile.html";
@@ -85,8 +85,8 @@ describe("firecrawl search", () => {
       headers: { authorization: "Bearer k" },
       method: "POST",
     });
-    expect(calls[0]!.url.pathname).toBe("/v2/search");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v2/search");
+    expect(nth(calls, 0).body).toStrictEqual({
       categories: [{ type: "developer" }, { type: "pdf" }],
       country: "GB",
       includeDomains: ["tilebar.com"],
@@ -234,7 +234,7 @@ describe("firecrawl search", () => {
       },
     });
     const response = await web.search("tile", { sources: ["web", "images"] });
-    expect(calls[0]!.body).toMatchObject({
+    expect(nth(calls, 0).body).toMatchObject({
       sources: [{ type: "web" }, { type: "images" }],
     });
     expect(response.images).toStrictEqual([
@@ -258,10 +258,10 @@ describe("firecrawl search", () => {
       publishedBefore: "2026-03-31",
     });
     await web.search("tile", { publishedAfter: "2026-01-05" });
-    expect((calls[0]!.body as { tbs: string }).tbs).toBe(
+    expect((nth(calls, 0).body as { tbs: string }).tbs).toBe(
       "cdr:1,cd_min:01/05/2026,cd_max:03/31/2026"
     );
-    expect((calls[1]!.body as { tbs: string }).tbs).toBe(
+    expect((nth(calls, 1).body as { tbs: string }).tbs).toBe(
       "cdr:1,cd_min:01/05/2026"
     );
   });
@@ -323,8 +323,8 @@ describe("firecrawl images", () => {
       limit: 3,
       safe: true,
     });
-    expect(calls[0]!.url.pathname).toBe("/v2/search");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v2/search");
+    expect(nth(calls, 0).body).toStrictEqual({
       country: "US",
       limit: 3,
       query: "terrazzo",
@@ -364,8 +364,8 @@ describe("firecrawl read", () => {
       include: ["rawHtml", "links"],
       maxAge: 0,
     });
-    expect(calls[0]!.headers.authorization).toBe("Bearer k");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).headers.authorization).toBe("Bearer k");
+    expect(nth(calls, 0).body).toStrictEqual({
       formats: ["markdown", "rawHtml", "links"],
       maxAge: 0,
       url,
@@ -397,7 +397,7 @@ describe("firecrawl read", () => {
       proxy: "enhanced",
       waitFor: 1500,
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       actions: [
         { selector: "#more", type: "click" },
         { milliseconds: 500, type: "wait" },
@@ -482,14 +482,12 @@ describe("firecrawl read", () => {
       query: "What size?",
       queryFormat: "question",
     });
-    expect((calls[0]!.body as { formats: unknown[] }).formats).toStrictEqual([
-      "markdown",
-      { query: "What size?", type: "highlights" },
-    ]);
-    expect((calls[1]!.body as { formats: unknown[] }).formats).toStrictEqual([
-      "markdown",
-      { question: "What size?", type: "question" },
-    ]);
+    expect(
+      (nth(calls, 0).body as { formats: unknown[] }).formats
+    ).toStrictEqual(["markdown", { query: "What size?", type: "highlights" }]);
+    expect(
+      (nth(calls, 1).body as { formats: unknown[] }).formats
+    ).toStrictEqual(["markdown", { question: "What size?", type: "question" }]);
     expect(highlighted.excerpts).toStrictEqual(["The tile is 3x8."]);
     expect(answered.excerpts).toStrictEqual(["3x8 inches"]);
   });
@@ -646,7 +644,7 @@ describe("firecrawl extract", () => {
       prompt: "the sku",
       schema,
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       formats: [{ prompt: "the sku", schema, type: "json" }],
       onlyMainContent: true,
       url,
@@ -691,7 +689,7 @@ describe("firecrawl product", () => {
       },
     });
     const product = await web.product(url);
-    expect(calls[0]!.body).toMatchObject({ formats: ["product"] });
+    expect(nth(calls, 0).body).toMatchObject({ formats: ["product"] });
     expect(product.variants).toStrictEqual([
       {
         inStock: true,
@@ -759,7 +757,7 @@ describe("firecrawl product", () => {
       price: { amount: "199.99", currency: "USD", formatted: "$199.99" },
       title: "Black",
     });
-    expect(product.variants[1]!.gtin).toBe("00012345678905");
+    expect(nth(product.variants, 1).gtin).toBe("00012345678905");
     expect(product.images).toStrictEqual([
       { alt: "Front", url: "https://shop.test/b1.jpg" },
       { url: "https://shop.test/b2.jpg" },
@@ -802,8 +800,8 @@ describe("firecrawl map", () => {
       search: "tile",
       sitemap: "only",
     });
-    expect(calls[0]!.url.pathname).toBe("/v2/map");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v2/map");
+    expect(nth(calls, 0).body).toStrictEqual({
       ignoreCache: true,
       ignoreQueryParameters: false,
       includeSubdomains: false,
@@ -847,10 +845,10 @@ describe("firecrawl crawl", () => {
       "https://s.test/a",
       "https://s.test/b",
     ]);
-    expect(calls[3]!.url.pathname + calls[3]!.url.search).toBe(
+    expect(nth(calls, 3).url.pathname + nth(calls, 3).url.search).toBe(
       "/v2/crawl/c1?skip=1"
     );
-    expect(calls[4]!.url.pathname).toBe("/v2/crawl/c1/errors");
+    expect(nth(calls, 4).url.pathname).toBe("/v2/crawl/c1/errors");
   });
 
   it("sends the crawl options by Firecrawl's names", async () => {
@@ -871,7 +869,7 @@ describe("firecrawl crawl", () => {
       scrapeOptions: { include: ["links"], maxAge: 10, onlyMainContent: true },
       sitemap: "include",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       allowSubdomains: true,
       crawlEntireDomain: true,
       excludePaths: ["^/blog/.*"],
@@ -967,8 +965,8 @@ describe("firecrawl research", () => {
       strictConstrainToURLs: true,
       urls: [url],
     });
-    expect(calls[0]!.url.pathname).toBe("/v2/agent");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).url.pathname).toBe("/v2/agent");
+    expect(nth(calls, 0).body).toStrictEqual({
       effort: "low",
       location: { country: "GB" },
       maxCredits: 500,
@@ -1073,8 +1071,8 @@ describe("firecrawl act", () => {
       "POST /v2/interact/s1/execute",
       "DELETE /v2/interact/s1",
     ]);
-    expect(calls[0]!.body).toStrictEqual({ activityTtl: 60, ttl: 60 });
-    expect(calls[1]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({ activityTtl: 60, ttl: 60 });
+    expect(nth(calls, 1).body).toStrictEqual({
       code: "console.log('4x4')",
       language: "node",
     });
@@ -1115,7 +1113,7 @@ describe("firecrawl act", () => {
       { body: { success: true } }
     );
     await web.act("1", { language: "python", timeout: 2500 });
-    expect(calls[1]!.body).toStrictEqual({
+    expect(nth(calls, 1).body).toStrictEqual({
       code: "1",
       language: "python",
       timeout: 3,
@@ -1141,7 +1139,7 @@ describe("firecrawl act", () => {
       "POST /v2/interact",
       "POST /v2/interact/s5/execute",
     ]);
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       location: { country: "DE" },
       profile: { name: "p" },
     });
@@ -1192,9 +1190,9 @@ describe("firecrawl browser", () => {
       profile: { name: "shop", saveChanges: false },
       ttl: 120,
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/v2/interact");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/v2/interact");
+    expect(nth(calls, 0).body).toStrictEqual({
       activityTtl: 120,
       location: { country: "GB" },
       profile: { name: "shop", saveChanges: false },
@@ -1344,9 +1342,9 @@ describe("firecrawl monitor", () => {
       urls: [url],
       webhookUrl: "https://hooks.test/fw",
     });
-    expect(calls[0]!.method).toBe("POST");
-    expect(calls[0]!.url.pathname).toBe("/v2/monitor");
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("POST");
+    expect(nth(calls, 0).url.pathname).toBe("/v2/monitor");
+    expect(nth(calls, 0).body).toStrictEqual({
       goal: "the price changes",
       name: "Price watch",
       retentionDays: 14,
@@ -1373,7 +1371,7 @@ describe("firecrawl monitor", () => {
       schedule: { cron: "*/5 * * * *" },
       searchWindow: "24h",
     });
-    expect(calls[0]!.body).toStrictEqual({
+    expect(nth(calls, 0).body).toStrictEqual({
       goal: "new terrazzo collections",
       name: "new terrazzo collections",
       schedule: { cron: "*/5 * * * *" },
@@ -1400,7 +1398,7 @@ describe("firecrawl monitor", () => {
     for (const every of ["hour", "day", "week", "1h"] as const) {
       await web.monitor.create({ schedule: { every }, urls: [url] });
       crons.push(
-        (calls.at(-1)!.body as { schedule: { cron: string } }).schedule.cron
+        (nth(calls, -1).body as { schedule: { cron: string } }).schedule.cron
       );
     }
     expect(crons).toStrictEqual([
@@ -1451,8 +1449,8 @@ describe("firecrawl monitor", () => {
       "GET /v2/monitor",
       "DELETE /v2/monitor/m1",
     ]);
-    expect(calls[1]!.url.searchParams.get("limit")).toBe("100");
-    expect(calls[1]!.url.searchParams.get("offset")).toBe("0");
+    expect(nth(calls, 1).url.searchParams.get("limit")).toBe("100");
+    expect(nth(calls, 1).url.searchParams.get("offset")).toBe("0");
   });
 
   it("reads the monitor's checks as events", async () => {
@@ -1483,8 +1481,8 @@ describe("firecrawl monitor", () => {
       },
     });
     const events = await web.monitor.events("m1", { cursor: "100" });
-    expect(calls[0]!.url.pathname).toBe("/v2/monitor/m1/checks");
-    expect(calls[0]!.url.searchParams.get("offset")).toBe("100");
+    expect(nth(calls, 0).url.pathname).toBe("/v2/monitor/m1/checks");
+    expect(nth(calls, 0).url.searchParams.get("offset")).toBe("100");
     expect(events.events).toMatchObject([
       {
         at: "2026-11-01T06:00:05.000Z",
@@ -1515,8 +1513,8 @@ describe("firecrawl usage", () => {
       },
     });
     const usage = await web.usage();
-    expect(calls[0]!.method).toBe("GET");
-    expect(calls[0]!.url.pathname).toBe("/v2/team/credit-usage");
+    expect(nth(calls, 0).method).toBe("GET");
+    expect(nth(calls, 0).url.pathname).toBe("/v2/team/credit-usage");
     expect(usage).toMatchObject({
       limit: 1000,
       periodEnd: "2026-11-30T23:59:59Z",

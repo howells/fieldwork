@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { serpapi } from "../../src/adapters/serpapi.js";
 import { FieldworkError } from "../../src/errors.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const client = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
@@ -13,8 +13,8 @@ const client = (...replies: Parameters<typeof fakeFetch>) => {
   };
 };
 
-const params = (call: { url: URL } | undefined) =>
-  Object.fromEntries(call!.url.searchParams);
+const params = (calls: readonly { url: URL }[], index = 0) =>
+  Object.fromEntries(nth(calls, index).url.searchParams);
 
 const metadata = { id: "abc123", status: "Success" };
 
@@ -31,12 +31,12 @@ describe("serpapi adapter: google web search", () => {
       safe: "active",
       start: 10,
     });
-    expect(calls[0]!.method).toBe("GET");
-    expect(calls[0]!.url.origin + calls[0]!.url.pathname).toBe(
+    expect(nth(calls, 0).method).toBe("GET");
+    expect(nth(calls, 0).url.origin + nth(calls, 0).url.pathname).toBe(
       "https://serpapi.com/search"
     );
-    expect(calls[0]!.body).toBeUndefined();
-    expect(params(calls[0])).toStrictEqual({
+    expect(nth(calls, 0).body).toBeUndefined();
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       device: "mobile",
       engine: "google",
@@ -57,13 +57,13 @@ describe("serpapi adapter: google web search", () => {
       publishedAfter: "2026-01-05",
       publishedBefore: "2026-03-31",
     });
-    expect(params(calls[0]).tbs).toBe("cdr:1,cd_min:1/5/2026,cd_max:3/31/2026");
+    expect(params(calls).tbs).toBe("cdr:1,cd_min:1/5/2026,cd_max:3/31/2026");
   });
 
   it("sends one open end of a range on its own", async () => {
     const { web, calls } = client({ body: { search_metadata: metadata } });
     await web.search("tile", { publishedAfter: "2026-01-05" });
-    expect(params(calls[0]).tbs).toBe("cdr:1,cd_min:1/5/2026");
+    expect(params(calls).tbs).toBe("cdr:1,cd_min:1/5/2026");
   });
 
   it("normalizes organic results, the answer box and meta", async () => {
@@ -225,7 +225,7 @@ describe("serpapi adapter: other engines", () => {
       engine: "google_news",
       language: "en",
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       engine: "google_news",
       gl: "us",
@@ -307,7 +307,7 @@ describe("serpapi adapter: other engines", () => {
       smallBusiness: true,
       sortBy: 1,
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       engine: "google_shopping",
       free_shipping: "true",
@@ -397,7 +397,7 @@ describe("serpapi adapter: other engines", () => {
       start: 20,
       zoom: 14,
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       engine: "google_maps",
       hl: "en",
@@ -462,7 +462,7 @@ describe("serpapi adapter: other engines", () => {
       location: "Austin, Texas",
       zoom: 12,
     });
-    expect(params(calls[0])).toMatchObject({
+    expect(params(calls)).toMatchObject({
       location: "Austin, Texas",
       z: "12",
     });
@@ -527,7 +527,7 @@ describe("serpapi adapter: other engines", () => {
       yearFrom: 2018,
       yearTo: 2024,
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       as_yhi: "2024",
       as_ylo: "2018",
@@ -597,7 +597,7 @@ describe("serpapi adapter: other engines", () => {
       sort: "new",
       status: "GRANT",
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       after: "publication:20240105",
       api_key: "k",
       assignee: "Kraft",
@@ -646,7 +646,7 @@ describe("serpapi adapter: other engines", () => {
       location: "Leeds, England",
       safeSearch: "Strict",
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       cc: "gb",
       device: "tablet",
@@ -699,7 +699,7 @@ describe("serpapi adapter: other engines", () => {
       safe: -2,
       start: 50,
     });
-    expect(params(calls[0])).toStrictEqual({
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       df: "2021-06-15..2024-06-16",
       engine: "duckduckgo",
@@ -723,7 +723,7 @@ describe("serpapi adapter: other engines", () => {
   it("sends a DuckDuckGo recency window", async () => {
     const { web, calls } = client({ body: { search_metadata: metadata } });
     await web.search("apple", { engine: "duckduckgo", recency: "month" });
-    expect(params(calls[0]).df).toBe("m");
+    expect(params(calls).df).toBe("m");
   });
 
   it("refuses DuckDuckGo date filters it cannot express", async () => {
@@ -782,9 +782,9 @@ describe("serpapi adapter: images", () => {
       safe: "active",
       size: "2mp",
     });
-    expect(calls[0]!.method).toBe("GET");
-    expect(calls[0]!.url.pathname).toBe("/search");
-    expect(params(calls[0])).toStrictEqual({
+    expect(nth(calls, 0).method).toBe("GET");
+    expect(nth(calls, 0).url.pathname).toBe("/search");
+    expect(params(calls)).toStrictEqual({
       api_key: "k",
       device: "desktop",
       engine: "google_images",
@@ -821,7 +821,7 @@ describe("serpapi adapter: images", () => {
       publishedAfter: "2024-12-01",
       publishedBefore: "2024-12-31",
     });
-    expect(params(calls[0])).toMatchObject({
+    expect(params(calls)).toMatchObject({
       end_date: "20241231",
       start_date: "20241201",
     });
@@ -865,9 +865,9 @@ describe("serpapi adapter: usage", () => {
       },
     });
     const usage = await web.usage();
-    expect(calls[0]!.method).toBe("GET");
-    expect(calls[0]!.url.pathname).toBe("/account");
-    expect(params(calls[0])).toStrictEqual({ api_key: "k" });
+    expect(nth(calls, 0).method).toBe("GET");
+    expect(nth(calls, 0).url.pathname).toBe("/account");
+    expect(params(calls)).toStrictEqual({ api_key: "k" });
     expect(usage).toMatchObject({
       breakdown: { last_hour_searches: 42, this_hour_searches: 87 },
       limit: 30_000,
@@ -960,7 +960,7 @@ describe("serpapi adapter: errors and setup", () => {
   it("applies the key to raw requests", async () => {
     const { web, calls } = client({ body: [{ id: "1" }] });
     await web.raw.request("GET", "/locations.json", { query: { q: "Austin" } });
-    expect(params(calls[0])).toStrictEqual({ api_key: "k", q: "Austin" });
+    expect(params(calls)).toStrictEqual({ api_key: "k", q: "Austin" });
   });
 
   it("offers search, images and usage, and nothing else", () => {
@@ -987,7 +987,7 @@ describe("serpapi adapter: errors and setup", () => {
     const { fetch, calls } = fakeFetch({ body: { search_metadata: metadata } });
     const web = new Fieldwork({ adapter: serpapi({ fetch }) });
     await web.search("x");
-    expect(params(calls[0]).api_key).toBe("from-env");
+    expect(params(calls).api_key).toBe("from-env");
     vi.unstubAllEnvs();
   });
 });

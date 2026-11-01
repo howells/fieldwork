@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { brave } from "../../src/adapters/brave.js";
 import { Fieldwork } from "../../src/index.js";
-import { fakeFetch } from "../helpers.js";
+import { fakeFetch, nth } from "../helpers.js";
 
 const setup = (...replies: Parameters<typeof fakeFetch>) => {
   const { fetch, calls } = fakeFetch(...replies);
@@ -128,12 +128,12 @@ describe("brave adapter", () => {
         uiLanguage: "en-GB",
         units: "metric",
       });
-      const [call] = calls;
-      expect(call!.method).toBe("GET");
-      expect(call!.url.pathname).toBe("/res/v1/web/search");
-      expect(call!.headers["x-subscription-token"]).toBe("k");
-      expect(call!.body).toBeUndefined();
-      expect(Object.fromEntries(call!.url.searchParams)).toStrictEqual({
+      const call = nth(calls, 0);
+      expect(call.method).toBe("GET");
+      expect(call.url.pathname).toBe("/res/v1/web/search");
+      expect(call.headers["x-subscription-token"]).toBe("k");
+      expect(call.body).toBeUndefined();
+      expect(Object.fromEntries(call.url.searchParams)).toStrictEqual({
         count: "5",
         country: "GB",
         extra_snippets: "true",
@@ -155,8 +155,12 @@ describe("brave adapter", () => {
       const { web, calls } = setup({ body: webBody }, { body: webBody });
       await web.search("oak");
       await web.search("oak", { textDecorations: true });
-      expect(calls[0]!.url.searchParams.get("text_decorations")).toBe("false");
-      expect(calls[1]!.url.searchParams.get("text_decorations")).toBe("true");
+      expect(nth(calls, 0).url.searchParams.get("text_decorations")).toBe(
+        "false"
+      );
+      expect(nth(calls, 1).url.searchParams.get("text_decorations")).toBe(
+        "true"
+      );
     });
 
     it("normalizes web, news, discussion, video and place results", async () => {
@@ -229,7 +233,7 @@ describe("brave adapter", () => {
         publishedAfter: "2026-01-01",
         publishedBefore: "2026-03-31",
       });
-      expect(calls[0]!.url.searchParams.get("freshness")).toBe(
+      expect(nth(calls, 0).url.searchParams.get("freshness")).toBe(
         "2026-01-01to2026-03-31"
       );
     });
@@ -239,7 +243,7 @@ describe("brave adapter", () => {
       vi.setSystemTime(new Date("2026-11-01T12:00:00Z"));
       const { web, calls } = setup({ body: webBody });
       await web.search("oak", { publishedAfter: "2026-10-01" });
-      expect(calls[0]!.url.searchParams.get("freshness")).toBe(
+      expect(nth(calls, 0).url.searchParams.get("freshness")).toBe(
         "2026-10-01to2026-11-01"
       );
     });
@@ -283,7 +287,7 @@ describe("brave adapter", () => {
       await web.search("oak", {
         goggles: ["https://gist.github.com/x/1", "$boost=3,site=dev.to"],
       });
-      expect(calls[0]!.url.searchParams.getAll("goggles")).toStrictEqual([
+      expect(nth(calls, 0).url.searchParams.getAll("goggles")).toStrictEqual([
         "https://gist.github.com/x/1",
         "$boost=3,site=dev.to",
       ]);
@@ -318,8 +322,8 @@ describe("brave adapter", () => {
         recency: "day",
         vertical: "news",
       });
-      expect(calls[0]!.url.pathname).toBe("/res/v1/news/search");
-      expect(Object.fromEntries(calls[0]!.url.searchParams)).toStrictEqual({
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/news/search");
+      expect(Object.fromEntries(nth(calls, 0).url.searchParams)).toStrictEqual({
         count: "30",
         extra_snippets: "true",
         freshness: "pd",
@@ -358,9 +362,9 @@ describe("brave adapter", () => {
         offset: 2,
         vertical: "videos",
       });
-      expect(calls[0]!.url.pathname).toBe("/res/v1/videos/search");
-      expect(calls[0]!.url.searchParams.get("offset")).toBe("2");
-      expect(calls[0]!.url.searchParams.get("country")).toBe("US");
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/videos/search");
+      expect(nth(calls, 0).url.searchParams.get("offset")).toBe("2");
+      expect(nth(calls, 0).url.searchParams.get("country")).toBe("US");
       expect(response.results).toStrictEqual([
         {
           kind: "video",
@@ -434,10 +438,10 @@ describe("brave adapter", () => {
         safesearch: "off",
         sourceMetadata: true,
       });
-      expect(calls[0]!.method).toBe("GET");
-      expect(calls[0]!.url.pathname).toBe("/res/v1/llm/context");
-      expect(calls[0]!.headers["x-subscription-token"]).toBe("k");
-      expect(Object.fromEntries(calls[0]!.url.searchParams)).toStrictEqual({
+      expect(nth(calls, 0).method).toBe("GET");
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/llm/context");
+      expect(nth(calls, 0).headers["x-subscription-token"]).toBe("k");
+      expect(Object.fromEntries(nth(calls, 0).url.searchParams)).toStrictEqual({
         context_threshold_mode: "strict",
         count: "10",
         country: "GB",
@@ -545,10 +549,10 @@ describe("brave adapter", () => {
         safesearch: "off",
         spellcheck: false,
       });
-      expect(calls[0]!.method).toBe("GET");
-      expect(calls[0]!.url.pathname).toBe("/res/v1/images/search");
-      expect(calls[0]!.headers["x-subscription-token"]).toBe("k");
-      expect(Object.fromEntries(calls[0]!.url.searchParams)).toStrictEqual({
+      expect(nth(calls, 0).method).toBe("GET");
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/images/search");
+      expect(nth(calls, 0).headers["x-subscription-token"]).toBe("k");
+      expect(Object.fromEntries(nth(calls, 0).url.searchParams)).toStrictEqual({
         count: "100",
         country: "GB",
         q: "oak",
@@ -619,10 +623,10 @@ describe("brave adapter", () => {
           timezone: "Europe/London",
         },
       });
-      expect(calls[0]!.method).toBe("POST");
-      expect(calls[0]!.url.pathname).toBe("/res/v1/chat/completions");
-      expect(calls[0]!.headers["x-subscription-token"]).toBe("k");
-      expect(calls[0]!.body).toStrictEqual({
+      expect(nth(calls, 0).method).toBe("POST");
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/chat/completions");
+      expect(nth(calls, 0).headers["x-subscription-token"]).toBe("k");
+      expect(nth(calls, 0).body).toStrictEqual({
         country: "GB",
         enable_citations: true,
         language: "en",
@@ -648,7 +652,7 @@ describe("brave adapter", () => {
     it("sends only the required fields by default", async () => {
       const { web, calls } = setup({ body: stream });
       await web.answer("Is oak hard?");
-      expect(calls[0]!.body).toStrictEqual({
+      expect(nth(calls, 0).body).toStrictEqual({
         enable_citations: true,
         messages: [{ content: "Is oak hard?", role: "user" }],
         stream: true,

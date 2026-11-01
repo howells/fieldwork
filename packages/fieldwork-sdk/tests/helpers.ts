@@ -34,3 +34,12 @@ export const fakeFetch = (...replies: Reply[]) => {
   };
   return { calls, fetch: fetchImpl as typeof fetch };
 };
+
+/** The item at `index`, or a thrown error naming what is missing. */
+export const nth = <T>(items: readonly T[], index: number): T => {
+  const item = index < 0 ? items.at(index) : items[index];
+  if (item === undefined) {
+    throw new Error(`no item at index ${index} of ${items.length}`);
+  }
+  return item;
+};
