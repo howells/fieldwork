@@ -271,6 +271,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         );
       }
       return compact({
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         data: data.json as T,
         meta: pageMeta(response, data),
         raw: response,

@@ -1,5 +1,6 @@
 import { codeForStatus, FieldworkError, withJob } from "./errors.js";
 import type { CallOptions } from "./types.js";
+import { record } from "./util.js";
 
 export interface RequestOptions extends CallOptions {
   /** A JSON body. */
@@ -93,6 +94,7 @@ export const createRawClient = (config: ClientConfig): RawClient => {
           }
         );
       }
+      // SAFETY: the caller names T, the shape it expects of this endpoint's JSON; the client does not validate the body against it.
       return parsed as T;
     },
   };
@@ -208,16 +210,14 @@ const parseBody = (text: string): unknown => {
 };
 
 const describe = (parsed: unknown, text: string): string => {
-  if (typeof parsed === "object" && parsed !== null) {
-    const record = parsed as Record<string, unknown>;
-    for (const key of ["error", "message", "detail"]) {
-      const value = record[key];
-      if (typeof value === "string") {
-        return value;
-      }
-      if (typeof value === "object" && value !== null) {
-        return JSON.stringify(value).slice(0, 300);
-      }
+  const body = record(parsed);
+  for (const key of ["error", "message", "detail"]) {
+    const value = body[key];
+    if (typeof value === "string") {
+      return value;
+    }
+    if (typeof value === "object" && value !== null) {
+      return JSON.stringify(value).slice(0, 300);
     }
   }
   return text.slice(0, 300);

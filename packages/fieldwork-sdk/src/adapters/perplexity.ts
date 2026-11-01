@@ -411,9 +411,10 @@ const answer = async <T>(
         ? "perplexity stopped before finishing the answer"
         : undefined
     ),
-    output: o.schema ? parseJson(provider, read.text) : undefined,
+    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
+    output: o.schema ? (parseJson(provider, read.text) as T) : undefined,
     raw: response,
-  }) as Answer<T>;
+  });
 };
 
 const researchSetup = (o: PerplexityResearchOptions) => {
@@ -522,13 +523,15 @@ const research = async <T>(
     continuationId: id,
     id,
     meta: responseMeta(response),
+    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
     output: researchOutput(response, read.text, o.schema, id) as T,
     raw: response,
     retrieved: read.retrieved.length > 0 ? read.retrieved : undefined,
     sources: read.cited,
-    status: status === "completed" ? "completed" : "partial",
+    status:
+      status === "completed" ? ("completed" as const) : ("partial" as const),
     stopReason: status === "completed" ? undefined : status,
-  }) as Research<T>;
+  });
 };
 
 const decisionQuestion = (question: DecisionQuestion) => {

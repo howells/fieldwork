@@ -317,6 +317,7 @@ export const researchResult = <T>(
     fields: fields.length > 0 ? fields : undefined,
     id,
     meta: runMeta(run),
+    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
     output: (structured ? output.structured : output.text) as T,
     raw: run,
     sources: uniqueCitations(fields.flatMap((field) => field.citations)),
@@ -327,8 +328,10 @@ export const researchResult = <T>(
 
 // --- monitors ------------------------------------------------------------
 
-const intervalPeriod = (schedule: unknown) => {
-  const { every } = schedule as { every?: unknown };
+const intervalPeriod = (
+  schedule: NonNullable<ExaMonitorCreateOptions["schedule"]>
+) => {
+  const { every } = record(schedule);
   if (typeof every !== "string") {
     return invalid(
       "monitors run on an interval of whole hours or days; Exa has no cron"

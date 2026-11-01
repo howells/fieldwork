@@ -299,11 +299,15 @@ export const bounded = (
   return value;
 };
 
+/** The code for the recency window the caller set; undefined when it names none. */
+const recencyCode = (o: Json): string | undefined =>
+  Object.entries(RECENCY_CODE).find(([name]) => name === o.recency)?.[1];
+
 export const googleTbs = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
   if (o.recency !== undefined) {
-    return `qdr:${RECENCY_CODE[o.recency as Recency]}`;
+    return `qdr:${recencyCode(o)}`;
   }
   const after = usDate("publishedAfter", o.publishedAfter);
   const before = usDate("publishedBefore", o.publishedBefore);
@@ -328,7 +332,7 @@ export const duckDuckGoFilter = (o: Json): string | undefined => {
     );
   }
   if (o.recency !== undefined) {
-    return RECENCY_CODE[o.recency as Recency];
+    return recencyCode(o);
   }
   if (o.publishedAfter === undefined && o.publishedBefore === undefined) {
     return undefined;

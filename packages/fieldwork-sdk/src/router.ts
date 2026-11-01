@@ -2,6 +2,7 @@ import { defineAdapter } from "./adapter.js";
 import type { Adapter, AnyAdapter, Operations } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
 import { bindOperation } from "./fieldwork.js";
+import { CAPABILITIES } from "./types.js";
 import type { Capability } from "./types.js";
 
 export type Routes = Partial<Record<Capability, AnyAdapter>>;
@@ -37,10 +38,7 @@ const build = (routes: Routes) => {
     if (adapter === undefined) {
       continue;
     }
-    const operation = bindOperation(
-      adapter.operations,
-      capability as Capability
-    );
+    const operation = bindOperation(adapter.operations, capability);
     if (operation === undefined) {
       throw new FieldworkError(
         "Unsupported",
@@ -51,7 +49,10 @@ const build = (routes: Routes) => {
       );
     }
     operations[capability] = operation;
-    providers[capability as Capability] = adapter.name;
+    const known = CAPABILITIES.find((name) => name === capability);
+    if (known !== undefined) {
+      providers[known] = adapter.name;
+    }
     raw[adapter.name] = adapter.raw;
   }
   return { operations, providers, raw };

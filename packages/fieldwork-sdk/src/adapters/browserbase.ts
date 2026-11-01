@@ -174,12 +174,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
   };
 
   const fetchProxies = (o: BrowserbaseReadOptions) => {
-    refuseTogether(
-      provider,
-      o as Record<string, unknown>,
-      "proxies",
-      "country"
-    );
+    refuseTogether(provider, o, "proxies", "country");
     const geolocation: BrowserbaseGeolocation | undefined =
       o.country === undefined
         ? undefined
@@ -372,10 +367,14 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
         )
       );
       return compact({
-        breakdown: compact({
-          browserMinutes: num(response.browserMinutes),
-          proxyBytes: num(response.proxyBytes),
-        }) as Record<string, number>,
+        breakdown: Object.fromEntries(
+          Object.entries({
+            browserMinutes: num(response.browserMinutes),
+            proxyBytes: num(response.proxyBytes),
+          }).filter(
+            (entry): entry is [string, number] => entry[1] !== undefined
+          )
+        ),
         raw: response,
       });
     },

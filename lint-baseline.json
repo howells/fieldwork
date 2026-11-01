@@ -3,12 +3,10 @@
   "units": {
     "packages/fieldwork-mcp": {},
     "packages/fieldwork-sdk": {
-      "anti-slop(no-chained-type-assertions)": 2,
-      "anti-slop(no-runtime-typeof)": 50,
-      "anti-slop(no-unknown-parameters)": 64,
+      "anti-slop(no-runtime-typeof)": 48,
+      "anti-slop(no-unknown-parameters)": 63,
       "anti-slop(no-unknown-returns)": 6,
-      "anti-slop(no-unsafe-dictionary-type)": 27,
-      "anti-slop(require-safety-comment-for-type-assertion)": 45,
+      "anti-slop(no-unsafe-dictionary-type)": 23,
       "eslint(complexity)": 1,
       "eslint(max-lines-per-function)": 6,
       "eslint(max-lines)": 7,
@@ -18,12 +16,12 @@
       "eslint(no-restricted-properties)": 7,
       "eslint(no-use-before-define)": 10,
       "eslint(sort-keys)": 9,
-      "gdp-ts(no-type-assertion)": 47,
+      "gdp-ts(no-type-assertion)": 22,
       "import(no-duplicates)": 1,
       "oxc(no-barrel-file)": 1,
       "promise(avoid-new)": 1,
       "typescript(no-unnecessary-type-parameters)": 7,
-      "typescript(no-unsafe-type-assertion)": 42,
+      "typescript(no-unsafe-type-assertion)": 21,
       "unicorn(no-await-expression-member)": 5,
       "vitest(max-expects)": 1
     }

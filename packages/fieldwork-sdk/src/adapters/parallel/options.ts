@@ -309,7 +309,7 @@ export const MAX_EXTRACT_URLS = 20;
 export const QUESTION_NAME = /^[A-Za-z0-9_-]+$/u;
 
 export const sourcePolicy = (o: ParallelSources) => {
-  refuseTogether(provider, o as Json, "includeDomains", "excludeDomains");
+  refuseTogether(provider, o, "includeDomains", "excludeDomains");
   return nonEmpty({
     after_date: o.publishedAfter,
     exclude_domains: o.excludeDomains,
@@ -367,6 +367,8 @@ export const decisionQuestion = (
       type: "score",
     };
   }
+  // SAFETY: the checks above leave `question` as never; an untyped caller can
+  // still pass another shape, and the message only reads its `type` to name it.
   throw invalid(
     `parallel does not know the question type "${String((question as { type?: unknown }).type)}" for "${name}"`
   );
@@ -380,7 +382,9 @@ export const frequency = (schedule: MonitorSchedule): string => {
       "parallel monitors run at a fixed interval from 1 hour to 30 days and cannot follow a cron expression; pass { every: ... }"
     );
   }
-  const named = NAMED_FREQUENCY[schedule.every as keyof typeof NAMED_FREQUENCY];
+  const named = Object.entries(NAMED_FREQUENCY).find(
+    ([name]) => name === schedule.every
+  )?.[1];
   if (named) {
     return named;
   }

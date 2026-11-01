@@ -11,7 +11,6 @@ import {
   record,
   text,
 } from "../util.js";
-import type { Json } from "../util.js";
 import type {
   BraveConfig,
   BraveOperations,
@@ -180,9 +179,9 @@ export const brave = (config: BraveConfig = {}) => {
 
     async search(query, options) {
       const { call, rest } = callSettings(options);
-      const o = rest as SearchInput;
+      const o: SearchInput = rest;
       const mode = modeOf(o);
-      refuseUnsupported(mode, o as Json);
+      refuseUnsupported(mode, o);
       const window = freshness(o);
       const goggles = gogglesOf(o.goggles);
       const shared = {

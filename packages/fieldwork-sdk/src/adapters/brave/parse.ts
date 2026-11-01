@@ -94,12 +94,14 @@ export const modeOf = (o: SearchInput): Mode => {
   throw invalid(`has no "${o.vertical}" search; use web, news or videos`);
 };
 
-export const refuseUnsupported = (mode: Mode, o: Json) => {
-  const refused = Object.keys(o).filter(
-    (name) =>
-      o[name] !== undefined &&
-      !(ALLOWED[mode] as readonly string[]).includes(name)
-  );
+export const refuseUnsupported = (mode: Mode, o: SearchInput) => {
+  const refused = Object.entries(o)
+    .filter(
+      ([name, value]) =>
+        value !== undefined &&
+        !ALLOWED[mode].some((allowed) => allowed === name)
+    )
+    .map(([name]) => name);
   if (refused.length > 0) {
     throw invalid(`${mode} search does not accept ${refused.join(", ")}`);
   }
@@ -108,8 +110,8 @@ export const refuseUnsupported = (mode: Mode, o: Json) => {
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const freshness = (o: SearchInput): string | undefined => {
-  refuseTogether(provider, o as Json, "recency", "publishedAfter");
-  refuseTogether(provider, o as Json, "recency", "publishedBefore");
+  refuseTogether(provider, o, "recency", "publishedAfter");
+  refuseTogether(provider, o, "recency", "publishedBefore");
   if (o.recency !== undefined) {
     const window = FRESHNESS[o.recency];
     if (!window) {

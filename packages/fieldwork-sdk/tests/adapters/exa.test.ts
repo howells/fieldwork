@@ -797,6 +797,9 @@ describe("exa monitor", () => {
     await expect(create({ every: "30m" })).rejects.toMatchObject({
       code: "InvalidRequest",
     });
+    await expect(create("daily")).rejects.toMatchObject({
+      code: "InvalidRequest",
+    });
     await expect(create({ every: "0h" })).rejects.toMatchObject({
       code: "InvalidRequest",
     });

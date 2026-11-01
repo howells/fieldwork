@@ -163,6 +163,7 @@ export const parallel = (config: ParallelConfig = {}) => {
               ? undefined
               : [`the answer is incomplete: ${incomplete}`],
         }),
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         output: o.schema ? (parseJson(provider, answer) as T) : undefined,
         raw: response,
       });
@@ -261,6 +262,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       );
       const output = record(result.output);
       return compact({
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         data: output.content as T,
         fields: basis(output.basis),
         meta: taskMeta(result),
@@ -308,8 +310,12 @@ export const parallel = (config: ParallelConfig = {}) => {
     monitor: {
       async create(options) {
         const { call, rest: o } = callSettings(options);
-        const { urls } = o as { urls?: unknown };
-        if (urls !== undefined) {
+        // Untyped callers can pass `urls`, which the options type leaves out.
+        if (
+          Object.entries(o).some(
+            ([name, value]) => name === "urls" && value !== undefined
+          )
+        ) {
           throw invalid(
             "parallel monitors search the web for a query and cannot watch a list of URLs; restrict a query with includeDomains, which accepts domain/path prefixes"
           );
@@ -326,7 +332,7 @@ export const parallel = (config: ParallelConfig = {}) => {
             "includeDomains",
             "excludeDomains",
             "publishedAfter",
-          ]) {
+          ] as const) {
             refuseTogether(provider, o, "taskRunId", name);
           }
         }
@@ -504,6 +510,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         fields,
         id,
         meta: taskMeta(result),
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         output: output.content as T,
         raw: result,
         sources: citedBy(fields),

@@ -34,18 +34,23 @@ type Bound =
 
 export const bindOperation = (
   operations: unknown,
-  capability: Capability
+  capability: string
 ): Bound | undefined => {
+  // SAFETY: every adapter's operations is an object of capability names to
+  // functions or groups of functions; it is read here by capability name.
   const all = operations as Record<string, unknown>;
   const operation = all[capability];
   if (typeof operation === "function") {
+    // SAFETY: typeof says this is a function; each operation takes its own
+    // arguments and returns a promise, and callers dispatch by capability name.
     return (operation as (...args: unknown[]) => Promise<unknown>).bind(all);
   }
   if (
-    GROUP_CAPABILITIES.includes(capability) &&
+    GROUP_CAPABILITIES.some((group) => group === capability) &&
     typeof operation === "object" &&
     operation !== null
   ) {
+    // SAFETY: a group capability's operation is an object of named methods.
     const group = operation as Record<string, unknown>;
     return Object.fromEntries(
       Object.entries(group).map(([name, method]) => [
@@ -83,16 +88,40 @@ class FieldworkClient {
     this.provider = adapter.name;
     this.raw = adapter.raw;
     this.#providers = adapter.providers ?? {};
-    const capabilities = {} as Record<Capability, boolean>;
-    const self = this as unknown as Record<string, unknown>;
-    for (const capability of CAPABILITIES) {
-      const operation = bindOperation(adapter.operations, capability);
-      capabilities[capability] = operation !== undefined;
-      // Untyped callers and dynamic dispatch reach every name; a capability the
-      // provider lacks refuses rather than falling back to another provider.
-      self[capability] = operation ?? unsupported(adapter.name, capability);
-    }
-    this.capabilities = Object.freeze(capabilities);
+    const has = (capability: Capability) =>
+      bindOperation(adapter.operations, capability) !== undefined;
+    // Listing every capability makes the compiler refuse a new one left out.
+    this.capabilities = Object.freeze({
+      act: has("act"),
+      answer: has("answer"),
+      browser: has("browser"),
+      crawl: has("crawl"),
+      decide: has("decide"),
+      discover: has("discover"),
+      extract: has("extract"),
+      images: has("images"),
+      map: has("map"),
+      monitor: has("monitor"),
+      parse: has("parse"),
+      product: has("product"),
+      read: has("read"),
+      readMany: has("readMany"),
+      research: has("research"),
+      search: has("search"),
+      usage: has("usage"),
+    });
+    // Untyped callers and dynamic dispatch reach every name; a capability the
+    // provider lacks refuses rather than falling back to another provider.
+    Object.assign(
+      this,
+      Object.fromEntries(
+        CAPABILITIES.map((capability) => [
+          capability,
+          bindOperation(adapter.operations, capability) ??
+            unsupported(adapter.name, capability),
+        ])
+      )
+    );
   }
 
   supports(capability: Capability): boolean {
@@ -110,8 +139,9 @@ class FieldworkClient {
 // The class above is untyped at the method level; this constructor signature
 // gives each instance the methods of the adapter it was built with. The value
 // and the type share the name `Fieldwork`, as a class would.
-export const Fieldwork = FieldworkClient as unknown as new <
-  A extends AnyAdapter,
->(
+// SAFETY: the constructor assigns every capability name to the adapter's bound
+// operation or a refusing stand-in, so an instance has the methods that
+// Fieldwork<A> declares for the adapter's operations.
+export const Fieldwork = FieldworkClient as new <A extends AnyAdapter>(
   options: FieldworkOptions<A>
 ) => Fieldwork<A>;

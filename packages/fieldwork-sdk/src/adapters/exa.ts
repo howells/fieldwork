@@ -208,6 +208,7 @@ export const exa = (config: ExaConfig = {}) => {
         answer: structured ? JSON.stringify(value) : (text(value) ?? ""),
         citations: uniqueCitations(citations(response.citations)),
         meta: responseMeta(response),
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         output: structured ? (value as T) : undefined,
         raw: response,
       });
@@ -232,6 +233,7 @@ export const exa = (config: ExaConfig = {}) => {
         );
       }
       return compact({
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         data: parseJson(provider, summary) as T,
         meta: responseMeta(response),
         raw: response,

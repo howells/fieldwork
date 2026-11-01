@@ -9,10 +9,10 @@ import type {
 
 export type Json = Record<string, unknown>;
 
-export const record = (value: unknown): Json =>
-  typeof value === "object" && value !== null && !Array.isArray(value)
-    ? (value as Json)
-    : {};
+const isJson = <V>(value: V): value is V & Json =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+export const record = (value: unknown): Json => (isJson(value) ? value : {});
 
 export const list = (value: unknown): unknown[] =>
   Array.isArray(value) ? value : [];
@@ -30,12 +30,16 @@ export const strings = (value: unknown): string[] | undefined => {
   return items.length > 0 ? items : undefined;
 };
 
+// SAFETY: only keys whose value is undefined are dropped, so every other key
+// keeps the type T gives it; callers read the dropped ones as absent.
 export const compact = <T extends Json>(value: T): T =>
   Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
   ) as T;
 
 export const callSettings = <T extends CallOptions>(options: T | undefined) => {
+  // SAFETY: every operation interface makes `options` required when its type has
+  // required keys, so absent options reach here only for a T with none, and {} is a T.
   const { signal, timeout, ...rest } = options ?? ({} as T);
   return { call: { signal, timeout }, rest };
 };
@@ -159,10 +163,10 @@ export const productImages = (value: unknown): ProductImage[] | undefined => {
   return items.length > 0 ? items : undefined;
 };
 
-export const refuseTogether = (
+export const refuseTogether = <T>(
   provider: string,
-  options: Record<string, unknown>,
-  ...names: string[]
+  options: T,
+  ...names: (keyof T & string)[]
 ): void => {
   const set = names.filter((name) => options[name] !== undefined);
   if (set.length > 1) {

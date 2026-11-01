@@ -237,7 +237,7 @@ export const checkAct = (
   o: Omit<FirecrawlActOptions, keyof CallOptions>,
   timeout: number | undefined
 ): number | undefined => {
-  for (const name of ["ttl", "activityTtl", "profile", "country"]) {
+  for (const name of ["ttl", "activityTtl", "profile", "country"] as const) {
     refuseTogether(provider, o, "session", name);
   }
   if (timeout === undefined) {
@@ -299,11 +299,13 @@ export const parseForm = (
     "options",
     JSON.stringify({ formats: ["markdown"], parsers: [parser] })
   );
-  form.set(
-    "file",
-    new Blob([document.data as ArrayBuffer], { type: mediaType }),
-    document.name
-  );
+  // A Uint8Array may sit on a SharedArrayBuffer, which a Blob part does not
+  // type; copying it puts the bytes on an ArrayBuffer.
+  const part =
+    document.data instanceof Uint8Array
+      ? new Uint8Array(document.data)
+      : document.data;
+  form.set("file", new Blob([part], { type: mediaType }), document.name);
   return form;
 };
 

@@ -302,6 +302,7 @@ export const researchResult = <T>(
           ]
         : undefined,
     }),
+    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
     output: (stopped ? run.partial : (run.data ?? run.message)) as T,
     raw: run,
     sources: [],

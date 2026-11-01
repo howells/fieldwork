@@ -52,10 +52,12 @@ export const tavily = (config: TavilyConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.tavily.com",
     fetch: config.fetch,
-    headers: compact({
-      authorization: `Bearer ${requireKey(provider, config.apiKey, "TAVILY_API_KEY")}`,
-      "x-project-id": config.projectId,
-    }) as Record<string, string>,
+    headers: Object.fromEntries(
+      Object.entries({
+        authorization: `Bearer ${requireKey(provider, config.apiKey, "TAVILY_API_KEY")}`,
+        "x-project-id": config.projectId,
+      }).filter((entry): entry is [string, string] => entry[1] !== undefined)
+    ),
     provider,
   });
 
@@ -288,6 +290,7 @@ export const tavily = (config: TavilyConfig = {}) => {
           requestId: run.request_id,
           units: { responseTimeSeconds: run.response_time },
         }),
+        // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
         output: content as T,
         raw: run,
         sources: list(run.sources).flatMap((item) => {

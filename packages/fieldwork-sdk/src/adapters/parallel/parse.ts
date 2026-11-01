@@ -156,6 +156,7 @@ export const candidate = <T>(value: unknown): Entity<T> | undefined => {
   }
   return compact({
     citations: sources.length > 0 ? sources : undefined,
+    // SAFETY: the caller's schema describes T; Fieldwork does not validate provider output against it.
     data: nonEmpty(data) as T | undefined,
     description: text(item.description),
     fields: fields.length > 0 ? fields : undefined,

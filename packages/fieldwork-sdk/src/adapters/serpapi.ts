@@ -41,11 +41,11 @@ export const serpapi = (config: SerpApiConfig = {}) => {
   const key = requireKey(provider, config.apiKey, "SERPAPI_API_KEY");
   // SerpApi authenticates with an `api_key` query parameter, so the key is
   // added at the fetch layer. That covers `raw` too.
-  const authenticated = (async (input: URL | string, init?: RequestInit) => {
-    const url = new URL(input);
+  const authenticated: typeof fetch = async (input, init) => {
+    const url = new URL(input instanceof Request ? input.url : input);
     url.searchParams.set("api_key", key);
     return await (config.fetch ?? globalThis.fetch)(url, init);
-  }) as typeof fetch;
+  };
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://serpapi.com",
     fetch: authenticated,
