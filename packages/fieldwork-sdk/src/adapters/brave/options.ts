@@ -184,12 +184,15 @@ export interface BraveAnswerOptions extends CallOptions {
 }
 
 export interface BraveOperations {
-  search(query: string, options?: BraveSearchOptions): Promise<SearchResponse>;
-  images(query: string, options?: BraveImageOptions): Promise<ImageSearch>;
-  answer(
+  search: (
+    query: string,
+    options?: BraveSearchOptions
+  ) => Promise<SearchResponse>;
+  images: (query: string, options?: BraveImageOptions) => Promise<ImageSearch>;
+  answer: (
     question: string,
     options?: BraveAnswerOptions
-  ): Promise<Answer<unknown>>;
+  ) => Promise<Answer<unknown>>;
 }
 
 /** Every search option in one shape; the public types split it by endpoint. */

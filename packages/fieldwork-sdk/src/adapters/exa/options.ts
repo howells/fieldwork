@@ -210,28 +210,37 @@ export interface ExaMonitorEventsOptions extends CallOptions {
 // A type alias, not an interface: an adapter's operation group must be assignable to a string-keyed record.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- an interface has no implicit index signature
 export type ExaMonitor = {
-  create(options: ExaMonitorCreateOptions): Promise<MonitorInfo>;
-  get(id: string, options?: CallOptions): Promise<MonitorInfo>;
-  list(options?: CallOptions): Promise<MonitorInfo[]>;
-  delete(id: string, options?: CallOptions): Promise<void>;
-  events(id: string, options?: ExaMonitorEventsOptions): Promise<MonitorEvents>;
+  create: (options: ExaMonitorCreateOptions) => Promise<MonitorInfo>;
+  get: (id: string, options?: CallOptions) => Promise<MonitorInfo>;
+  list: (options?: CallOptions) => Promise<MonitorInfo[]>;
+  delete: (id: string, options?: CallOptions) => Promise<void>;
+  events: (
+    id: string,
+    options?: ExaMonitorEventsOptions
+  ) => Promise<MonitorEvents>;
 };
 
 export interface ExaOperations {
-  search(query: string, options?: ExaSearchOptions): Promise<SearchResponse>;
-  read(url: string, options?: ExaReadOptions): Promise<Page>;
-  readMany(urls: string[], options?: ExaReadManyOptions): Promise<PageBatch>;
-  extract<T = unknown>(
+  search: (
+    query: string,
+    options?: ExaSearchOptions
+  ) => Promise<SearchResponse>;
+  read: (url: string, options?: ExaReadOptions) => Promise<Page>;
+  readMany: (
+    urls: string[],
+    options?: ExaReadManyOptions
+  ) => Promise<PageBatch>;
+  extract: <T = unknown>(
     url: string,
     options: ExaExtractOptions
-  ): Promise<Extraction<T>>;
-  answer<T = unknown>(
+  ) => Promise<Extraction<T>>;
+  answer: <T = unknown>(
     question: string,
     options?: ExaAnswerOptions
-  ): Promise<Answer<T>>;
-  research<T = unknown>(
+  ) => Promise<Answer<T>>;
+  research: <T = unknown>(
     question: string,
     options?: ExaResearchOptions
-  ): Promise<Research<T>>;
+  ) => Promise<Research<T>>;
   monitor: ExaMonitor;
 }

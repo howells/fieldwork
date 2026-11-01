@@ -14,9 +14,9 @@ interface FieldworkBase<A extends AnyAdapter> {
   readonly capabilities: Readonly<Record<Capability, boolean>>;
   /** The provider's HTTP API, for anything Fieldwork does not wrap. */
   readonly raw: A["raw"];
-  supports(capability: Capability): boolean;
+  supports: (capability: Capability) => boolean;
   /** The provider that serves a capability, or undefined when none does. */
-  providerFor(capability: Capability): string | undefined;
+  providerFor: (capability: Capability) => string | undefined;
 }
 
 /**

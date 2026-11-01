@@ -148,23 +148,23 @@ export interface PerplexityDecideOptions extends CallOptions {
 }
 
 export interface PerplexityOperations {
-  search(
+  search: (
     query: string,
     options?: PerplexitySearchOptions
-  ): Promise<SearchResponse>;
-  answer<T = unknown>(
+  ) => Promise<SearchResponse>;
+  answer: <T = unknown>(
     question: string,
     options?: PerplexityAnswerOptions
-  ): Promise<Answer<T>>;
-  research<T = unknown>(
+  ) => Promise<Answer<T>>;
+  research: <T = unknown>(
     question: string,
     options?: PerplexityResearchOptions
-  ): Promise<Research<T>>;
-  decide(
+  ) => Promise<Research<T>>;
+  decide: (
     context: unknown,
     questions: Record<string, DecisionQuestion>,
     options?: PerplexityDecideOptions
-  ): Promise<Decisions>;
+  ) => Promise<Decisions>;
 }
 
 const provider = "perplexity";

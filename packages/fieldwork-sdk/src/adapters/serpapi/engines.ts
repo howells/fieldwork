@@ -28,8 +28,8 @@ export type Query = Record<string, string | number | boolean | undefined>;
 export interface EngineSpec {
   /** The option names the engine documents; any other set option is refused. */
   allowed: readonly string[];
-  params(o: Json): Query;
-  results(response: Json): SearchResult[];
+  params: (o: Json) => Query;
+  results: (response: Json) => SearchResult[];
 }
 
 export const ENGINES: Record<SerpApiEngine, EngineSpec> = {

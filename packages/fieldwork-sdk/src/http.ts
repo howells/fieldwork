@@ -17,11 +17,11 @@ export interface RequestOptions extends CallOptions {
 export interface RawClient {
   readonly provider: string;
   readonly baseUrl: string;
-  request<T = unknown>(
+  request: <T = unknown>(
     method: string,
     path: string,
     options?: RequestOptions
-  ): Promise<T>;
+  ) => Promise<T>;
 }
 
 export interface ClientConfig {

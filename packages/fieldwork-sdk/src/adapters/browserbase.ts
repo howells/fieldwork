@@ -133,16 +133,16 @@ export interface BrowserbaseOpenOptions extends CallOptions {
 }
 
 export interface BrowserbaseOperations {
-  search(
+  search: (
     query: string,
     options?: BrowserbaseSearchOptions
-  ): Promise<SearchResponse>;
-  read(url: string, options?: BrowserbaseReadOptions): Promise<Page>;
+  ) => Promise<SearchResponse>;
+  read: (url: string, options?: BrowserbaseReadOptions) => Promise<Page>;
   browser: {
-    open(options?: BrowserbaseOpenOptions): Promise<BrowserSession>;
-    close(id: string, options?: CallOptions): Promise<void>;
+    open: (options?: BrowserbaseOpenOptions) => Promise<BrowserSession>;
+    close: (id: string, options?: CallOptions) => Promise<void>;
   };
-  usage(options?: CallOptions): Promise<AccountUsage>;
+  usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
 
 const SEARCH_MODES = {

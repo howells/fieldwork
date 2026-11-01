@@ -255,47 +255,50 @@ export interface ParallelMonitorEventsOptions extends CallOptions {
 export type ParallelDiscovery<T> = Discovery<T> & { stopReason?: string };
 
 export interface ParallelOperations {
-  search(
+  search: (
     query: string,
     options?: ParallelSearchOptions
-  ): Promise<SearchResponse>;
-  images(query: string, options?: ParallelImagesOptions): Promise<ImageSearch>;
-  read(url: string, options?: ParallelReadOptions): Promise<Page>;
-  readMany(
+  ) => Promise<SearchResponse>;
+  images: (
+    query: string,
+    options?: ParallelImagesOptions
+  ) => Promise<ImageSearch>;
+  read: (url: string, options?: ParallelReadOptions) => Promise<Page>;
+  readMany: (
     urls: string[],
     options?: ParallelReadManyOptions
-  ): Promise<PageBatch>;
-  extract<T = unknown>(
+  ) => Promise<PageBatch>;
+  extract: <T = unknown>(
     url: string,
     options?: ParallelExtractOptions
-  ): Promise<Extraction<T>>;
-  answer<T = unknown>(
+  ) => Promise<Extraction<T>>;
+  answer: <T = unknown>(
     question: string,
     options?: ParallelAnswerOptions
-  ): Promise<Answer<T>>;
-  research<T = unknown>(
+  ) => Promise<Answer<T>>;
+  research: <T = unknown>(
     question: string,
     options?: ParallelResearchOptions
-  ): Promise<Research<T>>;
-  discover<T = Record<string, unknown>>(
+  ) => Promise<Research<T>>;
+  discover: <T = Record<string, unknown>>(
     objective: string,
     options: ParallelDiscoverOptions
-  ): Promise<ParallelDiscovery<T>>;
-  decide(
+  ) => Promise<ParallelDiscovery<T>>;
+  decide: (
     context: unknown,
     questions: Record<string, DecisionQuestion>,
     options?: ParallelDecideOptions
-  ): Promise<Decisions>;
+  ) => Promise<Decisions>;
   monitor: {
-    create(options: ParallelMonitorCreateOptions): Promise<MonitorInfo>;
-    get(id: string, options?: CallOptions): Promise<MonitorInfo>;
-    list(options?: CallOptions): Promise<MonitorInfo[]>;
+    create: (options: ParallelMonitorCreateOptions) => Promise<MonitorInfo>;
+    get: (id: string, options?: CallOptions) => Promise<MonitorInfo>;
+    list: (options?: CallOptions) => Promise<MonitorInfo[]>;
     /** Parallel cancels a monitor for good; it has no delete. */
-    delete(id: string, options?: CallOptions): Promise<void>;
-    events(
+    delete: (id: string, options?: CallOptions) => Promise<void>;
+    events: (
       id: string,
       options?: ParallelMonitorEventsOptions
-    ): Promise<MonitorEvents>;
+    ) => Promise<MonitorEvents>;
   };
 }
 

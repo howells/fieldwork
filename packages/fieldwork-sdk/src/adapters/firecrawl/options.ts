@@ -324,50 +324,53 @@ export interface FirecrawlMonitorOptions extends CallOptions {
 }
 
 export interface FirecrawlOperations {
-  search(
+  search: (
     query: string,
     options?: FirecrawlSearchOptions
-  ): Promise<SearchResponse>;
-  images(query: string, options?: FirecrawlImagesOptions): Promise<ImageSearch>;
-  read(url: string, options?: FirecrawlReadOptions): Promise<Page>;
+  ) => Promise<SearchResponse>;
+  images: (
+    query: string,
+    options?: FirecrawlImagesOptions
+  ) => Promise<ImageSearch>;
+  read: (url: string, options?: FirecrawlReadOptions) => Promise<Page>;
   /** Reads many pages in one background job. */
-  readMany(
+  readMany: (
     urls: string[],
     options?: FirecrawlReadManyOptions
-  ): Promise<PageBatch>;
-  extract<T = unknown>(
+  ) => Promise<PageBatch>;
+  extract: <T = unknown>(
     url: string,
     options: FirecrawlExtractOptions
-  ): Promise<Extraction<T>>;
+  ) => Promise<Extraction<T>>;
   /** Reads product and variant data from the page's structured data, without a model. */
-  product(url: string, options?: FirecrawlPageOptions): Promise<Product>;
-  map(url: string, options?: FirecrawlMapOptions): Promise<SiteMap>;
-  crawl(url: string, options?: FirecrawlCrawlOptions): Promise<Crawl>;
-  research<T = unknown>(
+  product: (url: string, options?: FirecrawlPageOptions) => Promise<Product>;
+  map: (url: string, options?: FirecrawlMapOptions) => Promise<SiteMap>;
+  crawl: (url: string, options?: FirecrawlCrawlOptions) => Promise<Crawl>;
+  research: <T = unknown>(
     question: string,
     options?: FirecrawlResearchOptions
-  ): Promise<Research<T>>;
+  ) => Promise<Research<T>>;
   /** Runs a script in a browser session; closes the session unless `keepSession` is set. */
-  act(code: string, options?: FirecrawlActOptions): Promise<ActResult>;
+  act: (code: string, options?: FirecrawlActOptions) => Promise<ActResult>;
   browser: {
     /** Opens a remote browser you drive over CDP; it bills until it expires or you close it. */
-    open(options?: FirecrawlBrowserOptions): Promise<BrowserSession>;
-    close(id: string, options?: CallOptions): Promise<void>;
+    open: (options?: FirecrawlBrowserOptions) => Promise<BrowserSession>;
+    close: (id: string, options?: CallOptions) => Promise<void>;
   };
-  parse(
+  parse: (
     document: DocumentInput,
     options?: FirecrawlParseOptions
-  ): Promise<ParsedDocument>;
+  ) => Promise<ParsedDocument>;
   monitor: {
-    create(options: FirecrawlMonitorOptions): Promise<MonitorInfo>;
-    get(id: string, options?: CallOptions): Promise<MonitorInfo>;
-    list(options?: CallOptions): Promise<MonitorInfo[]>;
-    delete(id: string, options?: CallOptions): Promise<void>;
+    create: (options: FirecrawlMonitorOptions) => Promise<MonitorInfo>;
+    get: (id: string, options?: CallOptions) => Promise<MonitorInfo>;
+    list: (options?: CallOptions) => Promise<MonitorInfo[]>;
+    delete: (id: string, options?: CallOptions) => Promise<void>;
     /** One event per check the monitor ran, newest first. */
-    events(
+    events: (
       id: string,
       options?: CallOptions & { cursor?: string }
-    ): Promise<MonitorEvents>;
+    ) => Promise<MonitorEvents>;
   };
-  usage(options?: CallOptions): Promise<AccountUsage>;
+  usage: (options?: CallOptions) => Promise<AccountUsage>;
 }

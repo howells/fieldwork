@@ -105,7 +105,7 @@ describe("brave adapter", () => {
       usage: false,
     });
     await expect(
-      (web as unknown as { read(url: string): Promise<unknown> }).read(
+      (web as unknown as { read: (url: string) => Promise<unknown> }).read(
         "https://a.test"
       )
     ).rejects.toMatchObject({ code: "Unsupported" });

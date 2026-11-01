@@ -172,19 +172,28 @@ export interface TavilyResearchOptions extends CallOptions {
 }
 
 export interface TavilyOperations {
-  search(query: string, options?: TavilySearchOptions): Promise<SearchResponse>;
-  images(query: string, options?: TavilyImagesOptions): Promise<ImageSearch>;
-  read(url: string, options?: TavilyReadOptions): Promise<Page>;
-  readMany(urls: string[], options?: TavilyReadManyOptions): Promise<PageBatch>;
-  map(url: string, options?: TavilyMapOptions): Promise<SiteMap>;
-  crawl(url: string, options?: TavilyCrawlOptions): Promise<Crawl>;
-  answer(
+  search: (
+    query: string,
+    options?: TavilySearchOptions
+  ) => Promise<SearchResponse>;
+  images: (
+    query: string,
+    options?: TavilyImagesOptions
+  ) => Promise<ImageSearch>;
+  read: (url: string, options?: TavilyReadOptions) => Promise<Page>;
+  readMany: (
+    urls: string[],
+    options?: TavilyReadManyOptions
+  ) => Promise<PageBatch>;
+  map: (url: string, options?: TavilyMapOptions) => Promise<SiteMap>;
+  crawl: (url: string, options?: TavilyCrawlOptions) => Promise<Crawl>;
+  answer: (
     question: string,
     options?: TavilyAnswerOptions
-  ): Promise<Answer<unknown>>;
-  research<T = unknown>(
+  ) => Promise<Answer<unknown>>;
+  research: <T = unknown>(
     question: string,
     options?: TavilyResearchOptions
-  ): Promise<Research<T>>;
-  usage(options?: CallOptions): Promise<AccountUsage>;
+  ) => Promise<Research<T>>;
+  usage: (options?: CallOptions) => Promise<AccountUsage>;
 }

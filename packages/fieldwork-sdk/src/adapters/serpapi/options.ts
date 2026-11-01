@@ -227,12 +227,15 @@ export interface SerpApiImagesOptions extends SerpApiBaseOptions {
 }
 
 export interface SerpApiOperations {
-  search(
+  search: (
     query: string,
     options?: SerpApiSearchOptions
-  ): Promise<SearchResponse>;
-  images(query: string, options?: SerpApiImagesOptions): Promise<ImageSearch>;
-  usage(options?: CallOptions): Promise<AccountUsage>;
+  ) => Promise<SearchResponse>;
+  images: (
+    query: string,
+    options?: SerpApiImagesOptions
+  ) => Promise<ImageSearch>;
+  usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
 
 export const RECENCY_CODE: Record<Recency, string> = {
