@@ -1,30 +1,25 @@
 import { FieldworkError } from "../../errors.js";
 import type { FailedUrl, ImageResult, Page } from "../../types.js";
-import {
-  compact,
-  hours,
-  list,
-  meta,
-  num,
-  record,
-  strings,
-  text,
-} from "../../util.js";
-import type { Json } from "../../util.js";
+import { compact, hours, meta } from "../../util.js";
 import { COUNTRIES } from "./countries.js";
 import type {
   TavilyExtractOptions,
   TavilySearchOptions,
   TavilyTraversal,
 } from "./options.js";
+import type {
+  FailedBlock,
+  MeteredBody,
+  PageEntry,
+  SearchBody,
+} from "./response.js";
 
 export const RESEARCH_FILE = /\.(?:txt|md|json)$/iu;
 
 export const invalid = (message: string): FieldworkError =>
   new FieldworkError("InvalidRequest", message, { provider: "tavily" });
 
-export const chunks = (value: unknown): string[] | undefined => {
-  const content = text(value);
+export const chunks = (content: string | undefined): string[] | undefined => {
   if (content === undefined) {
     return undefined;
   }
@@ -50,27 +45,18 @@ const countryName = (code: string, topic: string | undefined): string => {
   return name;
 };
 
-export const imageResults = (value: unknown): ImageResult[] | undefined => {
-  const items = list(value)
-    .map((item) => {
-      if (typeof item === "string") {
-        return item === "" ? undefined : { url: item };
-      }
-      const image = record(item);
-      const url = text(image.url);
-      return url === undefined
-        ? undefined
-        : compact({ description: text(image.description), url });
-    })
-    .filter((item): item is ImageResult => item !== undefined);
+export const imageResults = (
+  images: SearchBody["images"]
+): ImageResult[] | undefined => {
+  const items = images.filter((item) => item !== undefined);
   return items.length > 0 ? items : undefined;
 };
 
-export const responseMeta = (response: Json) =>
+export const responseMeta = (body: MeteredBody) =>
   meta({
-    credits: record(response.usage).credits,
-    requestId: response.request_id,
-    units: { responseTimeSeconds: response.response_time },
+    credits: body.usage.credits,
+    requestId: body.request_id,
+    units: { responseTimeSeconds: body.response_time },
   });
 
 const checkFilters = (o: TavilySearchOptions): void => {
@@ -155,39 +141,35 @@ export const searchBody = (query: string, o: TavilySearchOptions) => {
   });
 };
 
-export const searchResults = (response: Json) =>
-  list(response.results).map((item) => {
-    const result = record(item);
-    return compact({
-      content: text(result.raw_content),
-      favicon: text(result.favicon),
-      publishedAt: text(result.published_date),
-      score: num(result.score),
-      snippet: text(result.content),
-      title: text(result.title),
-      url: text(result.url) ?? "",
-    });
-  });
+export const searchResults = (body: SearchBody) =>
+  body.results.map((result) =>
+    compact({
+      content: result.raw_content,
+      favicon: result.favicon,
+      publishedAt: result.published_date,
+      score: result.score,
+      snippet: result.content,
+      title: result.title,
+      url: result.url ?? "",
+    })
+  );
 
-export const failures = (response: Json): FailedUrl[] =>
-  list(response.failed_results).flatMap((item) => {
-    const failure = record(item);
-    const url = text(failure.url);
-    return url === undefined
+export const failures = (failed: readonly FailedBlock[]): FailedUrl[] =>
+  failed.flatMap((failure) =>
+    failure.url === undefined
       ? []
-      : [{ error: text(failure.error) ?? "no content returned", url }];
-  });
+      : [{ error: failure.error ?? "no content returned", url: failure.url }]
+  );
 
-export const page = (item: unknown, query: boolean): Page => {
-  const result = record(item);
-  const passages = query ? chunks(result.raw_content) : undefined;
+export const page = (entry: PageEntry, query: boolean): Page => {
+  const result = entry.value;
   return compact({
-    excerpts: passages,
-    favicon: text(result.favicon),
-    images: strings(result.images),
-    markdown: query ? undefined : text(result.raw_content),
-    raw: item,
-    url: text(result.url) ?? "",
+    excerpts: query ? chunks(result.raw_content) : undefined,
+    favicon: result.favicon,
+    images: result.images.length > 0 ? result.images : undefined,
+    markdown: query ? undefined : result.raw_content,
+    raw: entry.original,
+    url: result.url ?? "",
   });
 };
 

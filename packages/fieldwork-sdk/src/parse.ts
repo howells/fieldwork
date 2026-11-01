@@ -134,3 +134,34 @@ export const warnings = z.pipe(
     entries.filter((entry): entry is string => entry !== undefined)
   )
 );
+
+/** Any value, as it arrived. Absent reads as undefined. */
+export const anything = z.optional(z.unknown());
+
+/** What `withOriginal` reads: the value through its schema, and as it arrived. */
+export interface Original<Value> {
+  original: unknown;
+  value: Value;
+}
+
+/**
+ * The item read through `item`, and the value as it arrived beside it, for a
+ * result that must keep its own `raw`. An absent value gives an `original` of
+ * undefined. `item` must never fail, so build it from the blocks above.
+ */
+export const withOriginal = <Item extends z.ZodMiniType>(item: Item) =>
+  z.prefault(
+    z.pipe(
+      z.unknown(),
+      z.transform((original) => ({ original, value: z.parse(item, original) }))
+    ),
+    nothing
+  );
+
+/**
+ * An id that is a finite number or a non-empty string, as a string: `7`
+ * is `"7"`. Any other value, or an absent one, reads as undefined.
+ */
+export const optionalId = z.optional(
+  z.union([z.pipe(z.number(), z.transform(String)), nonEmptyString, absent])
+);

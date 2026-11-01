@@ -1,4 +1,5 @@
 import { FieldworkError } from "./errors.js";
+import type { Original } from "./parse.js";
 import type {
   Citation,
   CallOptions,
@@ -100,6 +101,21 @@ export const requireId = (provider: string, value: unknown): string => {
     );
   }
   return id;
+};
+
+/** The job id a start call returned, or a ProviderError carrying the value as it arrived. */
+export const requireJobId = (
+  provider: string,
+  id: Original<string | undefined>
+): string => {
+  if (id.value === undefined) {
+    throw new FieldworkError(
+      "ProviderError",
+      `${provider} did not return a job id`,
+      { cause: id.original, provider }
+    );
+  }
+  return id.value;
 };
 
 export const scalar = (value: unknown): string | undefined => {

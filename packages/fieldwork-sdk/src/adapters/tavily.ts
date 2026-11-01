@@ -1,18 +1,11 @@
+import * as z from "zod/mini";
+
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, poll, requireKey } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
-import {
-  callSettings,
-  compact,
-  list,
-  meta,
-  num,
-  record,
-  requireId,
-  text,
-} from "../util.js";
+import { callSettings, compact, requireJobId } from "../util.js";
 import type {
   TavilyConfig,
   TavilyOperations,
@@ -32,6 +25,14 @@ import {
   searchResults,
   traversal,
 } from "./tavily/parse.js";
+import {
+  MapResponse,
+  PagesResponse,
+  ResearchRun,
+  ResearchStart,
+  SearchResponse,
+  UsageResponse,
+} from "./tavily/response.js";
 
 export type {
   TavilyAnswerOptions,
@@ -67,23 +68,22 @@ export const tavily = (config: TavilyConfig = {}) => {
     async answer(question, options) {
       const { call, rest } = callSettings(options);
       const { answerDepth, ...o } = rest;
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: {
-            ...searchBody(question, o),
-            include_answer: answerDepth ?? "basic",
-          },
-        })
-      );
-      const answer = text(response.answer);
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: {
+          ...searchBody(question, o),
+          include_answer: answerDepth ?? "basic",
+        },
+      });
+      const body = z.parse(SearchResponse, response);
+      const { answer } = body;
       if (answer === undefined) {
         throw new FieldworkError("ProviderError", "tavily returned no answer", {
           cause: response,
           provider,
         });
       }
-      const sources: Citation[] = searchResults(response)
+      const sources: Citation[] = searchResults(body)
         .filter((result) => result.url !== "")
         .map((result) =>
           compact({
@@ -95,7 +95,7 @@ export const tavily = (config: TavilyConfig = {}) => {
       return compact({
         answer,
         citations: sources,
-        meta: responseMeta(response),
+        meta: responseMeta(body),
         raw: response,
       });
     },
@@ -105,24 +105,23 @@ export const tavily = (config: TavilyConfig = {}) => {
       if (o.chunksPerSource !== undefined && o.instructions === undefined) {
         throw invalid("tavily chunksPerSource needs instructions");
       }
-      const response = record(
-        await raw.request("POST", "/crawl", {
-          ...call,
-          body: compact({
-            url,
-            ...traversal(o),
-            chunks_per_source: o.chunksPerSource,
-            extract_depth: o.extractDepth,
-            format: o.format,
-            include_images: o.includeImages,
-            include_favicon: o.favicon,
-          }),
-        })
-      );
+      const response = await raw.request("POST", "/crawl", {
+        ...call,
+        body: compact({
+          url,
+          ...traversal(o),
+          chunks_per_source: o.chunksPerSource,
+          extract_depth: o.extractDepth,
+          format: o.format,
+          include_images: o.includeImages,
+          include_favicon: o.favicon,
+        }),
+      });
+      const body = z.parse(PagesResponse, response);
       return compact({
-        meta: responseMeta(response),
-        pages: list(response.results).map((item) =>
-          page(item, o.instructions !== undefined)
+        meta: responseMeta(body),
+        pages: body.results.map((entry) =>
+          page(entry, o.instructions !== undefined)
         ),
         raw: response,
       });
@@ -130,55 +129,50 @@ export const tavily = (config: TavilyConfig = {}) => {
 
     async images(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: searchBody(query, {
-            excludeDomains: o.excludeDomains,
-            imageDescriptions: o.descriptions ?? true,
-            includeDomains: o.includeDomains,
-            includeImages: true,
-            safeSearch: o.safeSearch,
-            searchDepth: o.searchDepth,
-            topic: o.topic,
-          }),
-        })
-      );
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: searchBody(query, {
+          excludeDomains: o.excludeDomains,
+          imageDescriptions: o.descriptions ?? true,
+          includeDomains: o.includeDomains,
+          includeImages: true,
+          safeSearch: o.safeSearch,
+          searchDepth: o.searchDepth,
+          topic: o.topic,
+        }),
+      });
+      const body = z.parse(SearchResponse, response);
       return compact({
-        meta: responseMeta(response),
+        meta: responseMeta(body),
         raw: response,
-        results: imageResults(response.images) ?? [],
+        results: imageResults(body.images) ?? [],
       });
     },
 
     async map(url, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/map", {
-          ...call,
-          body: { url, ...traversal(o) },
-        })
-      );
+      const response = await raw.request("POST", "/map", {
+        ...call,
+        body: { url, ...traversal(o) },
+      });
+      const body = z.parse(MapResponse, response);
       return compact({
-        links: list(response.results).flatMap((item) =>
-          typeof item === "string" ? [{ url: item }] : []
-        ),
-        meta: responseMeta(response),
+        links: body.results.map((link) => ({ url: link })),
+        meta: responseMeta(body),
         raw: response,
       });
     },
 
     async read(url, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/extract", {
-          ...call,
-          body: extractBody([url], o),
-        })
-      );
-      const [result] = list(response.results);
-      if (text(record(result).url) === undefined) {
-        const [failure] = failures(response);
+      const response = await raw.request("POST", "/extract", {
+        ...call,
+        body: extractBody([url], o),
+      });
+      const body = z.parse(PagesResponse, response);
+      const [result] = body.results;
+      if (result?.value.url === undefined) {
+        const [failure] = failures(body.failed_results);
         const reason = failure?.error ?? "no content returned";
         throw new FieldworkError(
           /\b404\b|not found/iu.test(reason) ? "NotFound" : "ProviderError",
@@ -188,7 +182,7 @@ export const tavily = (config: TavilyConfig = {}) => {
       }
       return compact({
         ...page(result, o.query !== undefined),
-        meta: responseMeta(response),
+        meta: responseMeta(body),
         raw: response,
       });
     },
@@ -198,18 +192,15 @@ export const tavily = (config: TavilyConfig = {}) => {
       if (urls.length === 0 || urls.length > 20) {
         throw invalid("tavily reads 1 to 20 URLs in one call");
       }
-      const response = record(
-        await raw.request("POST", "/extract", {
-          ...call,
-          body: extractBody(urls, o),
-        })
-      );
+      const response = await raw.request("POST", "/extract", {
+        ...call,
+        body: extractBody(urls, o),
+      });
+      const body = z.parse(PagesResponse, response);
       return compact({
-        failed: failures(response),
-        meta: responseMeta(response),
-        pages: list(response.results).map((item) =>
-          page(item, o.query !== undefined)
-        ),
+        failed: failures(body.failed_results),
+        meta: responseMeta(body),
+        pages: body.results.map((entry) => page(entry, o.query !== undefined)),
         raw: response,
       });
     },
@@ -237,9 +228,10 @@ export const tavily = (config: TavilyConfig = {}) => {
       }
       const id =
         o.resume ??
-        requireId(
+        requireJobId(
           provider,
-          record(
+          z.parse(
+            ResearchStart,
             await raw.request("POST", "/research", {
               creates: true,
               ...call,
@@ -258,24 +250,25 @@ export const tavily = (config: TavilyConfig = {}) => {
             })
           ).request_id
         );
-      const run = await poll(
+      const { body: run, response } = await poll(
         provider,
         id,
         async () => {
-          const current = record(
-            await raw.request("GET", `/research/${id}`, {
-              query: { include_usage: true },
-              signal: call.signal,
-            })
-          );
-          if (current.status === "failed") {
+          const current = await raw.request("GET", `/research/${id}`, {
+            query: { include_usage: true },
+            signal: call.signal,
+          });
+          const parsed = z.parse(ResearchRun, current);
+          if (parsed.status === "failed") {
             throw new FieldworkError(
               "JobFailed",
               `tavily research ${id} failed`,
               { cause: current, provider }
             );
           }
-          return current.status === "completed" ? current : undefined;
+          return parsed.status === "completed"
+            ? { body: parsed, response: current }
+            : undefined;
         },
         { ...call, interval: o.interval }
       );
@@ -284,51 +277,43 @@ export const tavily = (config: TavilyConfig = {}) => {
         throw new FieldworkError(
           "JobFailed",
           `tavily research ${id} finished without output`,
-          { cause: run, jobId: id, provider }
+          { cause: response, jobId: id, provider }
         );
       }
       return compact({
         id,
-        meta: meta({
-          credits: record(run.usage).credits,
-          requestId: run.request_id,
-          units: { responseTimeSeconds: run.response_time },
-        }),
+        meta: responseMeta(run),
         output: await checkOutput(o.schema, content, { jobId: id, provider }),
-        raw: run,
-        sources: list(run.sources).flatMap((item) => {
-          const source = record(item);
-          const url = text(source.url);
-          return url === undefined
+        raw: response,
+        sources: run.sources.flatMap((source) =>
+          source.url === undefined
             ? []
-            : [compact({ title: text(source.title), url })];
-        }),
+            : [compact({ title: source.title, url: source.url })]
+        ),
         status: "completed" as const,
       });
     },
 
     async search(query, options) {
       const { call, rest: o } = callSettings(options);
-      const response = record(
-        await raw.request("POST", "/search", {
-          ...call,
-          body: searchBody(query, o),
-        })
-      );
+      const response = await raw.request("POST", "/search", {
+        ...call,
+        body: searchBody(query, o),
+      });
+      const body = z.parse(SearchResponse, response);
       return compact({
-        answer: text(response.answer),
-        images: imageResults(response.images),
-        meta: responseMeta(response),
+        answer: body.answer,
+        images: imageResults(body.images),
+        meta: responseMeta(body),
         raw: response,
-        results: searchResults(response),
+        results: searchResults(body),
       });
     },
 
     async usage(options) {
       const { call } = callSettings(options);
-      const response = record(await raw.request("GET", "/usage", call));
-      const key = record(response.key);
-      const account = record(response.account);
+      const response = await raw.request("GET", "/usage", call);
+      const { account, key } = z.parse(UsageResponse, response);
       const breakdown = Object.fromEntries(
         Object.entries({
           crawl: account.crawl_usage,
@@ -338,15 +323,13 @@ export const tavily = (config: TavilyConfig = {}) => {
           paygo: account.paygo_usage,
           research: account.research_usage,
           search: account.search_usage,
-        }).filter(
-          (entry): entry is [string, number] => num(entry[1]) !== undefined
-        )
+        }).filter((entry): entry is [string, number] => entry[1] !== undefined)
       );
       return compact({
         breakdown: Object.keys(breakdown).length > 0 ? breakdown : undefined,
-        limit: num(account.plan_limit),
+        limit: account.plan_limit,
         raw: response,
-        used: num(account.plan_usage),
+        used: account.plan_usage,
       });
     },
   };
