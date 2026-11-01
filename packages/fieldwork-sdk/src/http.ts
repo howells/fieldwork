@@ -163,6 +163,11 @@ export const createRawClient = (config: ClientConfig): RawClient => {
         );
       };
       const retries = options.retries ?? config.retries ?? DEFAULT_RETRIES;
+      // A wait that would outlast the call's timeout only delays the same error.
+      const deadline =
+        options.timeout === undefined
+          ? undefined
+          : Date.now() + options.timeout;
       const attempt = async (count: number): Promise<T> => {
         try {
           return await once();
@@ -176,7 +181,10 @@ export const createRawClient = (config: ClientConfig): RawClient => {
             retries,
             signal,
           });
-          if (wait === undefined) {
+          if (
+            wait === undefined ||
+            (deadline !== undefined && Date.now() + wait >= deadline)
+          ) {
             throw error;
           }
           await sleep(wait, signal);

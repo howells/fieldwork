@@ -200,7 +200,7 @@ An error with a `jobId` is never `retryable`, because repeating the call would s
 
 Fieldwork repeats a request that fails in a way that can succeed on repeat, twice by default, before throwing: a rate limit, a 5xx or a dropped connection. It waits as long as the provider's `retry-after` asks, up to 30 seconds, or backs off from half a second with jitter. A provider that asks for a longer wait gets the `RateLimited` error at once, with `retryAfter` set.
 
-A request that starts a job, session or monitor, or runs a browser script, is repeated only after a rate limit. After a 5xx the provider may already have started it, and a second attempt could charge twice. `timeout` bounds the whole call, retries included, and `signal` stops the wait between attempts.
+A request that starts a job, session or monitor, or runs a browser script, is repeated only after a rate limit. After a 5xx the provider may already have started it, and a second attempt could charge twice. `timeout` bounds the whole call, retries included: a wait that would outlast it throws the error at once. `signal` stops the wait between attempts.
 
 ```ts
 const web = new Fieldwork({ adapter: exa({ retries: 4 }) }); // every call

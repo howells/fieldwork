@@ -88,6 +88,17 @@ describe("retries", () => {
     expect(calls).toHaveLength(1);
   });
 
+  it("throws at once when the wait would outlast the call's timeout", async () => {
+    const { calls, web } = connect([
+      { headers: { "retry-after": "20" }, status: 429 },
+    ]);
+    await expect(web.search("tiles", { timeout: 5000 })).rejects.toMatchObject({
+      code: "RateLimited",
+      retryAfter: 20,
+    });
+    expect(calls).toHaveLength(1);
+  });
+
   it("backs off exponentially when the provider gives no wait", async () => {
     vi.useFakeTimers();
     vi.spyOn(Math, "random").mockReturnValue(1);
