@@ -1315,6 +1315,22 @@ describe("firecrawl parse", () => {
     );
   });
 
+  it("sends the call's timeout as Firecrawl's own limit, up to 300 seconds", async () => {
+    const { web, calls } = parsed();
+    await web.parse(care, { timeout: 120_000 });
+    const form = calls[0]?.body;
+    if (!(form instanceof FormData)) {
+      throw new TypeError("expected a multipart body");
+    }
+    await expect(
+      new Response(form.get("options")).json()
+    ).resolves.toMatchObject({ timeout: 120_000 });
+    await expect(web.parse(care, { timeout: 300_001 })).rejects.toMatchObject({
+      code: "InvalidRequest",
+    });
+    expect(calls).toHaveLength(1);
+  });
+
   it("refuses files over 50 MB and unknown types before uploading", async () => {
     const { web, calls } = client();
     await expect(

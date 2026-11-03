@@ -30,6 +30,7 @@ import {
   monitorBody,
   pageBody,
   parseForm,
+  REPORT_GRACE_MS,
   readBody,
   readFormats,
   researchBody,
@@ -406,8 +407,15 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
 
     async parse(document, options) {
       const { call, rest: o } = callSettings(options);
-      const form = parseForm(document, o);
-      const response = await raw.request("POST", "/parse", { ...call, form });
+      const form = parseForm(document, o, call.timeout);
+      const response = await raw.request("POST", "/parse", {
+        ...call,
+        form,
+        timeout:
+          call.timeout === undefined
+            ? undefined
+            : call.timeout + REPORT_GRACE_MS,
+      });
       return {
         ...parseResult(z.parse(ParseResponse, response)),
         raw: response,

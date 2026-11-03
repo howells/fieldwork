@@ -23,8 +23,10 @@ import { country, invalid, provider } from "./shared.js";
 const MAX_PARSE_BYTES = 50 * 1024 * 1024;
 /** Longest script `/interact/{id}/execute` runs, in seconds. */
 const MAX_SCRIPT_SECONDS = 300;
-/** Milliseconds the request outlives the script's own limit, so a killed script reports back. */
-const SCRIPT_GRACE_MS = 10_000;
+/** Longest `/parse` runs, in milliseconds. */
+const MAX_PARSE_MS = 300_000;
+/** Milliseconds a request outlives Firecrawl's own limit, so Firecrawl reports the timeout itself. */
+export const REPORT_GRACE_MS = 10_000;
 /** The most monitors or checks Firecrawl returns per request. */
 export const PAGE_SIZE = 100;
 /** The longest query a search monitor takes. */
@@ -262,13 +264,19 @@ export const scriptRequest = (
   body: compact({ code, language: language ?? "node", timeout: seconds }),
   signal: call.signal,
   timeout:
-    call.timeout === undefined ? undefined : call.timeout + SCRIPT_GRACE_MS,
+    call.timeout === undefined ? undefined : call.timeout + REPORT_GRACE_MS,
 });
 
 export const parseForm = (
   document: DocumentInput,
-  o: Omit<FirecrawlParseOptions, keyof CallOptions>
+  o: Omit<FirecrawlParseOptions, keyof CallOptions>,
+  timeout: number | undefined
 ): FormData => {
+  if (timeout !== undefined && timeout > MAX_PARSE_MS) {
+    throw invalid(
+      `firecrawl parses for at most ${MAX_PARSE_MS / 1000} seconds`
+    );
+  }
   const extension = document.name.split(".").pop()?.toLowerCase() ?? "";
   const mediaType = MEDIA_TYPES.get(extension);
   if (mediaType === undefined) {
@@ -298,7 +306,11 @@ export const parseForm = (
   const form = new FormData();
   form.set(
     "options",
-    JSON.stringify({ formats: ["markdown"], parsers: [parser] })
+    // Firecrawl stops a parse after 30 seconds unless told otherwise, so the
+    // call's own timeout becomes Firecrawl's.
+    JSON.stringify(
+      compact({ formats: ["markdown"], parsers: [parser], timeout })
+    )
   );
   // A Uint8Array may sit on a SharedArrayBuffer, which a Blob part does not
   // type; copying it puts the bytes on an ArrayBuffer.
