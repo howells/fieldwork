@@ -3,6 +3,7 @@ import PageLayout from "blume/components/layout/PageLayout.astro";
 import data from "blume:data";
 
 import CapabilityMatrix from "../components/home/capability-matrix.astro";
+import Documents from "../components/home/documents.astro";
 import FinalCall from "../components/home/final-call.astro";
 import Hero from "../components/home/hero.astro";
 import Honest from "../components/home/honest.astro";
@@ -40,6 +41,7 @@ const { config } = data;
     <Router />
     <Surfaces />
     <LongJobs />
+    <Documents />
     <FinalCall />
   </div>
   <SiteFooter slot="footer" />

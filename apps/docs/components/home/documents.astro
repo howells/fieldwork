@@ -1,0 +1,121 @@
+---
+import { CELLS, IMAGES, MARKED_CELL, PAGE_RATIO, PARSER_BOXES, TEXT } from "../../lib/parse-figure";
+import type { Box } from "../../lib/parse-figure";
+import Code from "./code.astro";
+import TabList from "./tab-list.astro";
+
+// The drawing's units: the page is 1000 wide, so a fraction f sits at f * 1000
+// across and f * HEIGHT down.
+const HEIGHT = 1000 / PAGE_RATIO;
+const x = (fraction: number) => fraction * 1000;
+const y = (fraction: number) => fraction * HEIGHT;
+
+/** A line of text drawn as a bar: the box split into lines, the last one shorter. */
+const bars = (box: Box) => {
+  const [left, top, width, height] = box;
+  const lines = Math.max(1, Math.round(height / 0.0105));
+  const step = height / lines;
+  return Array.from({ length: lines }, (_, line) => ({
+    height: y(step * 0.62),
+    width: x(lines > 1 && line === lines - 1 ? width * 0.62 : width),
+    x: x(left),
+    y: y(top + step * line + step * 0.19),
+  }));
+};
+
+// A rule between each row of the table, halfway between one row and the next.
+const rowTops = [...new Set(CELLS.filter((_, index) => index % 4 === 0).map((cell) => cell[1]))];
+const RULES = rowTops.slice(1).map((top, index) => {
+  const previous = CELLS[index * 4];
+  const bottom = previous === undefined ? top : previous[1] + previous[3];
+  return y((Math.max(bottom, ...CELLS.slice(index * 4, index * 4 + 4).map((cell) => cell[1] + cell[3])) + top) / 2);
+});
+const TABLE = { left: x(0.313), right: x(0.684) };
+
+const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+---
+
+<section class="border-t border-rule bg-wash">
+  <div class="home-wrap py-16 md:py-[120px]">
+    <div class="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between lg:gap-16">
+      <h2 class="type-heading md:max-w-[560px]">Boxes line up across parsers.</h2>
+      <p class="type-lead m-0 text-graphite lg:max-w-[460px]">
+        Every box is a fraction of the page from its top-left corner. LlamaParse and Reducto place each word and table cell.
+      </p>
+    </div>
+
+    <div class="hero-panel mt-10 min-w-0 overflow-clip rounded-[12px] border border-rule bg-paper md:mt-16" data-provider-tabs>
+      <TabList id="parse" label="Parser" tabs={PARSER_BOXES.map((parser) => parser.label)} />
+      {PARSER_BOXES.map((parser, index) => {
+        const [left, top, width, height] = parser.box;
+        return (
+          <div
+            aria-labelledby={`parse-tab-${index}`}
+            class="grid lg:grid-cols-[minmax(0,1fr)_480px]"
+            hidden={index !== 0}
+            id={`parse-panel-${index}`}
+            role="tabpanel"
+          >
+            <figure class="m-0 bg-wash p-4 sm:p-8 lg:p-12">
+              <div class="relative rounded-[2px] bg-paper shadow-[0_0_0_1px_var(--color-rule),0_12px_32px_-16px_rgb(18_20_23/18%)]" style={`aspect-ratio: ${PAGE_RATIO}`}>
+                <svg aria-hidden="true" class="absolute inset-0 size-full" viewBox={`0 0 1000 ${HEIGHT}`}>
+                  {IMAGES.map(([l, t, w, h]) => (
+                    <rect fill="#ECEDEA" height={y(h)} rx="2" width={x(w)} x={x(l)} y={y(t)} />
+                  ))}
+                  {TEXT.flatMap((box) => bars(box)).map((bar) => (
+                    <rect fill="#D6D8D3" height={bar.height} rx={bar.height / 2} width={bar.width} x={bar.x} y={bar.y} />
+                  ))}
+                  {RULES.map((ruleY) => (
+                    <line stroke="#E4E5E2" stroke-width="1" vector-effect="non-scaling-stroke" x1={TABLE.left} x2={TABLE.right} y1={ruleY} y2={ruleY} />
+                  ))}
+                  {CELLS.map((cell, cellIndex) => bars(cell).map((bar) => (
+                    <rect
+                      fill={cellIndex === MARKED_CELL ? "var(--color-ink)" : cellIndex % 2 === 0 ? "#C6C9C3" : "#DCDED9"}
+                      height={bar.height}
+                      rx={bar.height / 2}
+                      width={bar.width}
+                      x={bar.x}
+                      y={bar.y}
+                    />
+                  )))}
+                  <g stroke="var(--color-map-blue)" stroke-dasharray="3 4" stroke-width="1" vector-effect="non-scaling-stroke">
+                    <line vector-effect="non-scaling-stroke" x1="0" x2={x(left)} y1={y(top)} y2={y(top)} />
+                    <line vector-effect="non-scaling-stroke" x1={x(left)} x2={x(left)} y1="0" y2={y(top)} />
+                  </g>
+                  <rect
+                    fill="rgb(31 63 209 / 10%)"
+                    height={y(height)}
+                    stroke="var(--color-map-blue)"
+                    stroke-width="1.5"
+                    vector-effect="non-scaling-stroke"
+                    width={x(width)}
+                    x={x(left)}
+                    y={y(top)}
+                  />
+                </svg>
+                <span
+                  class="type-small absolute -translate-x-1/2 -translate-y-full pb-1 font-mono tabular-nums text-map-blue"
+                  style={`left: ${percent(left / 2)}; top: ${percent(top)}`}
+                >{left.toFixed(3)}</span>
+                <span
+                  class="type-small absolute -translate-y-1/2 pl-2 font-mono tabular-nums text-map-blue"
+                  style={`left: ${percent(left)}; top: ${percent(top / 2)}`}
+                >{top.toFixed(3)}</span>
+              </div>
+              <figcaption class="sr-only">
+                {parser.label} puts the box at {left.toFixed(3)} from the left and {top.toFixed(3)} from the top of the page.
+              </figcaption>
+            </figure>
+            <div class="flex min-w-0 flex-col justify-center border-t border-rule px-5 py-7 sm:px-8 lg:border-t-0 lg:border-l">
+              <Code code={parser.code} label={`${parser.label} parse`} size="sm" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+
+    <div class="mt-8 flex justify-end">
+      <a class="type-small inline-flex min-h-11 items-center gap-2 text-map-blue underline-offset-4 hover:underline" href="/docs/results">What parse returns <span aria-hidden="true">→</span></a>
+    </div>
+  </div>
+</section>

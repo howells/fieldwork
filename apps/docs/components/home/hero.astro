@@ -4,6 +4,7 @@ import { HERO_SAMPLES } from "../../lib/samples";
 import Code from "./code.astro";
 import Contours from "./contours.astro";
 import InstallCommand from "./install-command.astro";
+import TabList from "./tab-list.astro";
 
 const STATS = [
   { label: "Providers", value: PROVIDERS.length },
@@ -53,25 +54,13 @@ const initial = HERO_SAMPLES.findIndex((sample) => sample.label === "Firecrawl")
       </div>
 
       <div class="hero-panel min-w-0 overflow-clip rounded-[12px] border border-rule bg-paper lg:w-[672px] lg:shrink" data-provider-tabs>
-        <div class="flex h-[52px] items-center overflow-x-auto border-b border-rule bg-wash px-2" role="tablist" aria-label="Provider">
-          {HERO_SAMPLES.map((sample, index) => (
-            <button
-              aria-controls={`hero-sample-${index}`}
-              aria-selected={index === initial ? "true" : "false"}
-              class="type-small provider-tab h-9 shrink-0 rounded-[6px] px-2.5 text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
-              id={`hero-tab-${index}`}
-              role="tab"
-              tabindex={index === initial ? 0 : -1}
-              type="button"
-            >{sample.label}</button>
-          ))}
-        </div>
+        <TabList id="hero" initial={initial} label="Provider" tabs={HERO_SAMPLES.map((sample) => sample.label)} />
         {HERO_SAMPLES.map((sample, index) => (
           <div
             aria-labelledby={`hero-tab-${index}`}
             class="py-6 pr-7 pl-5"
             hidden={index !== initial}
-            id={`hero-sample-${index}`}
+            id={`hero-panel-${index}`}
             role="tabpanel"
           >
             <Code code={sample.code} numbered />
@@ -81,43 +70,3 @@ const initial = HERO_SAMPLES.findIndex((sample) => sample.label === "Firecrawl")
     </div>
   </div>
 </section>
-
-<script>
-  const bind = () => {
-    for (const root of document.querySelectorAll<HTMLElement>(
-      "[data-provider-tabs]:not([data-bound])"
-    )) {
-      root.dataset.bound = "";
-      const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-      const select = (next: HTMLButtonElement) => {
-        for (const tab of tabs) {
-          const selected = tab === next;
-          tab.setAttribute("aria-selected", String(selected));
-          tab.tabIndex = selected ? 0 : -1;
-          const panel = root.querySelector<HTMLElement>(`#${tab.getAttribute("aria-controls") ?? ""}`);
-          if (panel) {
-            panel.hidden = !selected;
-          }
-        }
-      };
-      for (const [index, tab] of tabs.entries()) {
-        tab.addEventListener("click", () => select(tab));
-        tab.addEventListener("keydown", (event) => {
-          const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
-          if (step === undefined) {
-            return;
-          }
-          event.preventDefault();
-          const next = tabs.at((index + step) % tabs.length);
-          if (next) {
-            select(next);
-            next.focus();
-          }
-        });
-      }
-    }
-  };
-
-  bind();
-  document.addEventListener("astro:page-load", bind);
-</script>

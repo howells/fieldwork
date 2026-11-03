@@ -153,6 +153,12 @@
   @apply type-small font-medium;
 }
 
+/* Docs tables are dense reference: tighter cells keep a provider matrix
+   inside the text column instead of scrolling. */
+.prose :is(th, td) {
+  padding-inline: 0.625rem;
+}
+
 .prose strong {
   @apply font-medium;
 }

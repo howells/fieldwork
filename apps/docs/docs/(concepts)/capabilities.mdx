@@ -7,25 +7,33 @@ Each instance has only the methods its provider offers, so a call the provider c
 
 Not sure which to use? See the [provider guide](/tools).
 
-| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | LlamaParse | Reducto |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `search(query)` | ● | ● | ● | ● | ● | ● | ● | ● |  |  |
-| `images(query)` |  | ● | ● | ● |  | ● | ● |  |  |  |
-| `read(url)` | ● | ● | ● | ● |  |  |  | ● |  |  |
-| `readMany(urls)` | ● | ● | ● | ● |  |  |  |  |  |  |
-| `extract(url, { schema })` | ● | ● |  | ● |  |  |  |  |  |  |
-| `product(url)` |  | ● |  |  |  |  |  |  |  |  |
-| `map(url)` |  | ● | ● |  |  |  |  |  |  |  |
-| `crawl(url)` |  | ● | ● |  |  |  |  |  |  |  |
-| `answer(question)` | ● |  | ● | ● | ● | ● |  |  |  |  |
-| `research(question)` | ● | ● | ● | ● | ● |  |  |  |  |  |
-| `discover(objective, { entityType, conditions })` |  |  |  | ● |  |  |  |  |  |  |
-| `decide(context, questions)` |  |  |  | ● | ● |  |  |  |  |  |
-| `act(code)` |  | ● |  |  |  |  |  |  |  |  |
-| `browser.open()`, `browser.close(id)` |  | ● |  |  |  |  |  | ● |  |  |
-| `parse(document)` |  | ● |  |  |  |  |  |  | ● | ● |
-| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | ● | ● |  | ● |  |  |  |  |  |  |
-| `usage()` |  | ● | ● |  |  |  | ● | ● |  |  |
+|  | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `search` | ● | ● | ● | ● | ● | ● | ● | ● |
+| `images` |  | ● | ● | ● |  | ● | ● |  |
+| `read` | ● | ● | ● | ● |  |  |  | ● |
+| `readMany` | ● | ● | ● | ● |  |  |  |  |
+| `extract` | ● | ● |  | ● |  |  |  |  |
+| `product` |  | ● |  |  |  |  |  |  |
+| `map` |  | ● | ● |  |  |  |  |  |
+| `crawl` |  | ● | ● |  |  |  |  |  |
+| `answer` | ● |  | ● | ● | ● | ● |  |  |
+| `research` | ● | ● | ● | ● | ● |  |  |  |
+| `discover` |  |  |  | ● |  |  |  |  |
+| `decide` |  |  |  | ● | ● |  |  |  |
+| `act` |  | ● |  |  |  |  |  |  |
+| `browser` |  | ● |  |  |  |  |  | ● |
+| `parse` |  | ● |  |  |  |  |  |  |
+| `monitor` | ● | ● |  | ● |  |  |  |  |
+| `usage` |  | ● | ● |  |  |  | ● | ● |
+
+LlamaParse and Reducto parse documents, and only that.
+
+| `parse`                                | Firecrawl | LlamaParse | Reducto |
+| -------------------------------------- | :-------: | :--------: | :-----: |
+| Markdown                               |     ●     |     ●      |    ●    |
+| Blocks with boxes, `blocks: true`      |     ●     |     ●      |    ●    |
+| Word and cell boxes, `wordBoxes: true` |           |     ●      |    ●    |
 
 <Accordion>
 <AccordionItem title="What each one does">

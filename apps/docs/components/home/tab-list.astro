@@ -1,0 +1,67 @@
+---
+// The provider tabs of a code panel: a strip of buttons that shows one
+// tabpanel at a time. Each panel's id is `${id}-panel-${index}`; put the
+// panels beside this strip inside an element with data-provider-tabs.
+interface Props {
+  id: string;
+  initial?: number;
+  label: string;
+  tabs: string[];
+}
+
+const { id, initial = 0, label, tabs } = Astro.props;
+---
+
+<div class="flex h-[52px] items-center overflow-x-auto border-b border-rule bg-wash px-2" role="tablist" aria-label={label}>
+  {tabs.map((tab, index) => (
+    <button
+      aria-controls={`${id}-panel-${index}`}
+      aria-selected={index === initial ? "true" : "false"}
+      class="type-small h-9 shrink-0 rounded-[6px] px-2.5 text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
+      id={`${id}-tab-${index}`}
+      role="tab"
+      tabindex={index === initial ? 0 : -1}
+      type="button"
+    >{tab}</button>
+  ))}
+</div>
+
+<script>
+  const bind = () => {
+    for (const root of document.querySelectorAll<HTMLElement>(
+      "[data-provider-tabs]:not([data-bound])"
+    )) {
+      root.dataset.bound = "";
+      const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      const select = (next: HTMLButtonElement) => {
+        for (const tab of tabs) {
+          const selected = tab === next;
+          tab.setAttribute("aria-selected", String(selected));
+          tab.tabIndex = selected ? 0 : -1;
+          const panel = root.querySelector<HTMLElement>(`#${tab.getAttribute("aria-controls") ?? ""}`);
+          if (panel) {
+            panel.hidden = !selected;
+          }
+        }
+      };
+      for (const [index, tab] of tabs.entries()) {
+        tab.addEventListener("click", () => select(tab));
+        tab.addEventListener("keydown", (event) => {
+          const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
+          if (step === undefined) {
+            return;
+          }
+          event.preventDefault();
+          const next = tabs.at((index + step) % tabs.length);
+          if (next) {
+            select(next);
+            next.focus();
+          }
+        });
+      }
+    }
+  };
+
+  bind();
+  document.addEventListener("astro:page-load", bind);
+</script>

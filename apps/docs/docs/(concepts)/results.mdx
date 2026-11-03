@@ -29,6 +29,7 @@ page.raw; // the provider's own response
 - `answer` returns `{ answer, output, citations, continuationId }`.
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
+- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order, each block with its `page`, `type`, `text` and `box`. With `wordBoxes: true`, LlamaParse and Reducto add `words` and table `cells`, each with its own box.
 
 </AccordionItem>
 <AccordionItem title="Pages that don't exist">
@@ -48,6 +49,21 @@ A job that stopped early but produced output, for example on a credit or step li
 `usage` is in the provider's own units:
 
 <AutoTypeTable path="../../packages/fieldwork-sdk/src/types.ts" name="Usage" />
+
+</AccordionItem>
+<AccordionItem title="Document blocks and boxes">
+
+Every box is `{ left, top, width, height }` in fractions of the page, measured from its top-left corner, whatever units the provider used. A box from LlamaParse lands where the same box from Reducto does.
+
+<AutoTypeTable
+  path="../../packages/fieldwork-sdk/src/types.ts"
+  name="DocumentBlock"
+/>
+
+<AutoTypeTable
+  path="../../packages/fieldwork-sdk/src/types.ts"
+  name="TableCell"
+/>
 
 </AccordionItem>
 <AccordionItem title="Page">
