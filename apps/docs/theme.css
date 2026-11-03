@@ -30,6 +30,39 @@
   --blume-radius: 0.375rem;
 }
 
+/*
+ * Touch. On a phone, a tap shows the site's own press state, not the
+ * browser's grey flash; taps fire at once instead of waiting to see whether
+ * they are a double-tap zoom; holding a control does not select its label;
+ * and focusing a field does not zoom the page, which iOS does to any field
+ * under 16px. Every :hover rule sits behind (hover: hover), so a tap never
+ * leaves one stuck on.
+ */
+html {
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+:is(a, button, summary, select, label, [role="button"], [role="tab"]) {
+  touch-action: manipulation;
+}
+
+:is(button, summary, [role="button"], [role="tab"]) {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+@media (pointer: coarse) {
+  /* Without the grey flash, a tapped link or control dims while the finger is down. */
+  :is(a, button, summary, [role="button"], [role="tab"]):active {
+    opacity: 0.6;
+  }
+
+  :is(input, select, textarea) {
+    font-size: 16px;
+  }
+}
+
 ::selection {
   background-color: var(--color-contour);
   color: var(--color-ink);
@@ -239,9 +272,11 @@
   display: none;
 }
 
-.disclosure > summary:hover .type-body {
-  text-decoration: underline;
-  text-underline-offset: 4px;
+@media (hover: hover) and (pointer: fine) {
+  .disclosure > summary:hover .type-body {
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
 }
 
 .disclosure-chevron {

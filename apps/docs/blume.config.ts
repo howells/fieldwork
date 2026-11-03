@@ -102,6 +102,11 @@ export default defineConfig({
     ],
     cta: { href: "/docs/installation", label: "Get started" },
   },
+  seo: {
+    // The site has one light scheme, so the phone's status bar and browser
+    // chrome take the header's paper white in every mode.
+    metatags: { "color-scheme": "light", "theme-color": "#ffffff" },
+  },
   theme: {
     accent: "#1F3FD1",
     fonts: {

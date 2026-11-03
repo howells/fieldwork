@@ -119,13 +119,16 @@ const searchText = (task: (typeof GUIDE_TASKS)[number]) =>
   .guide-input { min-height: 44px; width: 100%; border: 1px solid var(--color-rule); border-radius: 6px; background: var(--color-paper); padding: 10px 14px; color: var(--color-ink); }
   .guide-input::placeholder { color: var(--color-graphite); }
   .guide-filter { min-height: 44px; padding: 10px 14px; border-radius: 6px; background: transparent; color: var(--color-graphite); cursor: pointer; }
-  .guide-filter[aria-pressed="true"], .guide-filter:hover { background: var(--color-wash); color: var(--color-ink); }
+  .guide-filter[aria-pressed="true"] { background: var(--color-wash); color: var(--color-ink); }
   .guide-task-summary { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 4px 16px; min-height: 64px; padding-block: 16px; cursor: pointer; list-style: none; }
   .guide-task-summary::-webkit-details-marker { display: none; }
   .guide-task-summary > :nth-child(1) { grid-column: 1; }
   .guide-task-summary > :nth-child(2), .guide-task-summary > :nth-child(3) { grid-column: 1; }
   .guide-task-summary > .disclosure-chevron { grid-column: 2; grid-row: 1 / span 3; }
-  .guide-task-summary:hover > :first-child { text-decoration: underline; text-underline-offset: 4px; }
+  @media (hover: hover) and (pointer: fine) {
+    .guide-filter:hover { background: var(--color-wash); color: var(--color-ink); }
+    .guide-task-summary:hover > :first-child { text-decoration: underline; text-underline-offset: 4px; }
+  }
   .guide-task-detail { padding: 0 0 16px; }
   [data-task-row][hidden], [data-no-tasks][hidden] { display: none; }
   [data-task-row] { scroll-margin-top: 96px; }
