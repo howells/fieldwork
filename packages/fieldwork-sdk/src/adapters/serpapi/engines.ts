@@ -1,3 +1,4 @@
+import { invalidRequest } from "../../errors.js";
 import type { SearchResult } from "../../types.js";
 import { refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
@@ -20,7 +21,6 @@ import {
   scholarResults,
   shoppingResults,
   webResults,
-  invalid,
 } from "./parse.js";
 import type { SearchBody } from "./response.js";
 
@@ -230,6 +230,9 @@ export const onlyAllowed = (
     (name) => options[name] !== undefined && !allowed.includes(name)
   );
   if (refused.length > 0) {
-    throw invalid(`${engine} does not accept ${refused.join(", ")}`);
+    throw invalidRequest(
+      provider,
+      `${engine} does not accept ${refused.join(", ")}`
+    );
   }
 };

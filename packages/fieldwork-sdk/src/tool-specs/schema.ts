@@ -1,5 +1,3 @@
-import type { JsonSchema } from "../types.js";
-
 /**
  * The JSON Schema keywords the tools use. Tool inputs are checked against
  * this subset, and the same objects are advertised to clients.
@@ -19,11 +17,6 @@ export interface FieldSchema {
   required?: readonly string[];
   type?: "array" | "boolean" | "integer" | "number" | "object" | "string";
 }
-
-/** A schema as plain JSON Schema, for clients. */
-export const toJsonSchema = (schema: FieldSchema): JsonSchema => ({
-  ...schema,
-});
 
 const described = (
   schema: FieldSchema,

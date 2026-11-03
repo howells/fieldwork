@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type {
@@ -45,7 +45,6 @@ import {
   discovery,
   extractFailure,
   extractMeta,
-  invalid,
   monitorEvent,
   monitorInfo,
   nonEmpty,
@@ -188,14 +187,16 @@ export const parallel = (config: ParallelConfig = {}) => {
       const entries = Object.entries(questions);
       const names = entries.map(([name]) => name);
       if (names.length < 1 || names.length > 100) {
-        throw invalid(
-          `parallel decisions take 1 to 100 questions; got ${names.length}`
+        throw invalidRequest(
+          provider,
+          `decisions take 1 to 100 questions; got ${names.length}`
         );
       }
       const badName = names.find((name) => !QUESTION_NAME.test(name));
       if (badName !== undefined) {
-        throw invalid(
-          `parallel question names use only letters, numbers, underscores and hyphens; "${badName}" does not`
+        throw invalidRequest(
+          provider,
+          `question names use only letters, numbers, underscores and hyphens; "${badName}" does not`
         );
       }
       const response = await raw.request("POST", "/v1/decisions", {
@@ -341,12 +342,16 @@ export const parallel = (config: ParallelConfig = {}) => {
             ([name, value]) => name === "urls" && value !== undefined
           )
         ) {
-          throw invalid(
-            "parallel monitors search the web for a query and cannot watch a list of URLs; restrict a query with includeDomains, which accepts domain/path prefixes"
+          throw invalidRequest(
+            provider,
+            "monitors search the web for a query and cannot watch a list of URLs; restrict a query with includeDomains, which accepts domain/path prefixes"
           );
         }
         if (o.taskRunId === undefined && o.query === undefined) {
-          throw invalid("a parallel monitor needs a query or a taskRunId");
+          throw invalidRequest(
+            provider,
+            "a parallel monitor needs a query or a taskRunId"
+          );
         }
         if (o.taskRunId !== undefined) {
           for (const name of [
@@ -365,7 +370,7 @@ export const parallel = (config: ParallelConfig = {}) => {
           o.webhookEvents &&
           (o.webhookUrl === undefined || o.webhookUrl === "")
         ) {
-          throw invalid("webhookEvents needs a webhookUrl");
+          throw invalidRequest(provider, "webhookEvents needs a webhookUrl");
         }
         const response = await raw.request("POST", "/v1/monitors", {
           creates: true,
@@ -489,8 +494,9 @@ export const parallel = (config: ParallelConfig = {}) => {
     async readMany(urls, options) {
       const { call, rest: o } = callSettings(options);
       if (urls.length > MAX_EXTRACT_URLS) {
-        throw invalid(
-          `parallel reads up to ${MAX_EXTRACT_URLS} URLs in one call; got ${urls.length}`
+        throw invalidRequest(
+          provider,
+          `reads up to ${MAX_EXTRACT_URLS} URLs in one call; got ${urls.length}`
         );
       }
       const response = await raw.request("POST", "/v1/extract", {

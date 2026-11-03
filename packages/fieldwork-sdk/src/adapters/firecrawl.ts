@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError, withJob } from "../errors.js";
+import { FieldworkError, invalidRequest, withJob } from "../errors.js";
 import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, MonitorInfo } from "../types.js";
@@ -73,7 +73,7 @@ import {
   Session,
   UsageResponse,
 } from "./firecrawl/shapes.js";
-import { invalid, provider } from "./firecrawl/shared.js";
+import { provider } from "./firecrawl/shared.js";
 
 export type {
   FirecrawlAction,
@@ -394,7 +394,10 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         const { call, rest: o } = callSettings(options);
         const offset = Number(o.cursor ?? 0);
         if (!Number.isInteger(offset) || offset < 0) {
-          throw invalid(`firecrawl events cursor "${o.cursor}" is not valid`);
+          throw invalidRequest(
+            provider,
+            `events cursor "${o.cursor}" is not valid`
+          );
         }
         const response = await raw.request(
           "GET",

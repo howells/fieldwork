@@ -1,6 +1,6 @@
 import * as z from "zod/mini";
 
-import { FieldworkError } from "../../errors.js";
+import { invalidRequest } from "../../errors.js";
 import type { Citation, Place, SearchResult } from "../../types.js";
 import { compact, parseJson, refuseTogether } from "../../util.js";
 import type { BraveRecency, SearchInput } from "./options.js";
@@ -81,9 +81,6 @@ const ALLOWED = {
 
 type Mode = keyof typeof ALLOWED;
 
-const invalid = (message: string): FieldworkError =>
-  new FieldworkError("InvalidRequest", `brave ${message}`, { provider });
-
 export const modeOf = (o: SearchInput): Mode => {
   if (o.content === true) {
     return "context";
@@ -94,7 +91,10 @@ export const modeOf = (o: SearchInput): Mode => {
   if (o.vertical === "news" || o.vertical === "videos") {
     return o.vertical;
   }
-  throw invalid(`has no "${o.vertical}" search; use web, news or videos`);
+  throw invalidRequest(
+    provider,
+    `has no "${o.vertical}" search; use web, news or videos`
+  );
 };
 
 export const refuseUnsupported = (mode: Mode, o: SearchInput) => {
@@ -106,7 +106,10 @@ export const refuseUnsupported = (mode: Mode, o: SearchInput) => {
     )
     .map(([name]) => name);
   if (refused.length > 0) {
-    throw invalid(`${mode} search does not accept ${refused.join(", ")}`);
+    throw invalidRequest(
+      provider,
+      `${mode} search does not accept ${refused.join(", ")}`
+    );
   }
 };
 
@@ -118,14 +121,16 @@ export const freshness = (o: SearchInput): string | undefined => {
   if (o.recency !== undefined) {
     const window = FRESHNESS[o.recency];
     if (!window) {
-      throw invalid(
+      throw invalidRequest(
+        provider,
         `has no "${o.recency}" recency window; use day, week, month or year`
       );
     }
     return window;
   }
   if (o.publishedBefore !== undefined && o.publishedAfter === undefined) {
-    throw invalid(
+    throw invalidRequest(
+      provider,
       "needs publishedAfter with publishedBefore: its date range has two ends"
     );
   }
@@ -136,7 +141,7 @@ export const freshness = (o: SearchInput): string | undefined => {
   const before = o.publishedBefore ?? today();
   for (const date of [after, before]) {
     if (!/^\d{4}-\d{2}-\d{2}$/u.test(date)) {
-      throw invalid(`dates must be YYYY-MM-DD, got "${date}"`);
+      throw invalidRequest(provider, `dates must be YYYY-MM-DD, got "${date}"`);
     }
   }
   return `${after}to${before}`;
@@ -150,7 +155,7 @@ export const gogglesOf = (
   }
   const all = Array.isArray(value) ? value : [value];
   if (all.length > 3) {
-    throw invalid("accepts at most 3 goggles per search");
+    throw invalidRequest(provider, "accepts at most 3 goggles per search");
   }
   return all;
 };

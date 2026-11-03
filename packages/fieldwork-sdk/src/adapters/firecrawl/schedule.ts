@@ -1,5 +1,6 @@
+import { invalidRequest } from "../../errors.js";
 import type { MonitorSchedule } from "../../types.js";
-import { invalid } from "./shared.js";
+import { provider } from "./shared.js";
 
 /** The fewest minutes Firecrawl allows between two checks of a monitor. */
 const MIN_MINUTES = 5;
@@ -67,16 +68,18 @@ const runGaps = (minutes: number[], hours: number[] | undefined): number[] => {
 const checkCron = (cron: string): string => {
   const fields = cron.trim().split(/\s+/u);
   if (fields.length !== 5) {
-    throw invalid(
-      `firecrawl needs a five-field cron expression, got "${cron}"`
+    throw invalidRequest(
+      provider,
+      `needs a five-field cron expression, got "${cron}"`
     );
   }
   const [minuteField = "", hourField = ""] = fields;
   const minutes = cronValues(minuteField, 59);
   const hours = cronValues(hourField, 23);
   if (minutes && runGaps(minutes, hours).some((gap) => gap < MIN_MINUTES)) {
-    throw invalid(
-      `firecrawl monitors run at most every ${MIN_MINUTES} minutes, got "${cron}"`
+    throw invalidRequest(
+      provider,
+      `monitors run at most every ${MIN_MINUTES} minutes, got "${cron}"`
     );
   }
   return cron.trim();
@@ -107,7 +110,8 @@ export const cronFor = (schedule: MonitorSchedule): string => {
   if (cron !== undefined) {
     return cron;
   }
-  throw invalid(
-    `firecrawl cannot run a monitor every "${every}"; use hour, day, week, a number of hours that divides 24, 1d, 7d or a cron expression`
+  throw invalidRequest(
+    provider,
+    `cannot run a monitor every "${every}"; use hour, day, week, a number of hours that divides 24, 1d, 7d or a cron expression`
   );
 };

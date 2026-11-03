@@ -1,6 +1,19 @@
 import type { Capability } from "../types.js";
 import type { FieldSchema } from "./schema.js";
 
+/** Every provider with an adapter, so a misspelt name in a spec fails to compile. */
+export type ProviderName =
+  | "brave"
+  | "browserbase"
+  | "exa"
+  | "firecrawl"
+  | "llamaparse"
+  | "parallel"
+  | "perplexity"
+  | "reducto"
+  | "serpapi"
+  | "tavily";
+
 export interface Field {
   name: string;
   /**
@@ -9,11 +22,11 @@ export interface Field {
    * twice with different providers, when the providers differ in the values
    * they accept.
    */
-  providers?: readonly string[];
+  providers?: readonly ProviderName[];
   /** Required for every provider that is offered the field. */
   required?: boolean;
   /** Providers that need the field though other providers do not. */
-  requiredFor?: readonly string[];
+  requiredFor?: readonly ProviderName[];
   schema: FieldSchema;
 }
 

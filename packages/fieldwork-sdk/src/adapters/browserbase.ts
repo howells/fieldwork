@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
 import type {
   AccountUsage,
@@ -174,12 +174,6 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
   });
   const { projectId } = config;
 
-  const invalid: (message: string) => never = (message) => {
-    throw new FieldworkError("InvalidRequest", `${provider} ${message}`, {
-      provider,
-    });
-  };
-
   const fetchProxies = (o: BrowserbaseReadOptions) => {
     refuseTogether(provider, o, "proxies", "country");
     const geolocation: BrowserbaseGeolocation | undefined =
@@ -195,7 +189,10 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       place.state !== "" &&
       place.country.toUpperCase() !== "US"
     ) {
-      invalid("accepts a proxy state only with country US");
+      throw invalidRequest(
+        provider,
+        "accepts a proxy state only with country US"
+      );
     }
     return proxies;
   };
@@ -319,11 +316,15 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       const { call, rest: o } = callSettings(options);
       if (o.mode !== undefined) {
         if (o.provider === undefined) {
-          invalid("accepts a search mode only together with provider");
+          throw invalidRequest(
+            provider,
+            "accepts a search mode only together with provider"
+          );
         }
         const allowed: readonly string[] = SEARCH_MODES[o.provider];
         if (!allowed.includes(o.mode)) {
-          invalid(
+          throw invalidRequest(
+            provider,
             `search provider ${o.provider} has no mode ${o.mode}; use ${allowed.join(", ")}`
           );
         }
@@ -383,7 +384,8 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       await raw.request("GET", "/v1/projects", call)
     );
     if (projects.length !== 1) {
-      invalid(
+      throw invalidRequest(
+        provider,
         `usage needs a project: pass projectId (this key has ${projects.length} projects)`
       );
     }

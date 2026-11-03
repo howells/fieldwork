@@ -4,6 +4,7 @@ import {
   mediaTypeOf,
   refuseLarger,
 } from "../../document.js";
+import { invalidRequest } from "../../errors.js";
 import type { RequestOptions } from "../../http.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { CallOptions, DocumentInput, Recency } from "../../types.js";
@@ -23,7 +24,7 @@ import type {
   FirecrawlSessionSettings,
 } from "./options.js";
 import { cronFor } from "./schedule.js";
-import { country, invalid, provider } from "./shared.js";
+import { country, provider } from "./shared.js";
 
 /** The largest file `/parse` takes, in megabytes. */
 const MAX_PARSE_MB = 50;
@@ -82,7 +83,7 @@ export const readBody = (o: FirecrawlReadSettings) => ({
 const usDate = (value: string): string => {
   const groups = DATE.exec(value)?.groups;
   if (!groups) {
-    throw invalid(`firecrawl needs dates as YYYY-MM-DD, got "${value}"`);
+    throw invalidRequest(provider, `needs dates as YYYY-MM-DD, got "${value}"`);
   }
   return `${groups.month}/${groups.day}/${groups.year}`;
 };
@@ -117,8 +118,9 @@ const timeFilter = (o: SearchSettings): string | undefined => {
 export const searchBody = (query: string, o: SearchSettings) => {
   refuseTogether(provider, o, "includeDomains", "excludeDomains");
   if (o.categories?.includes("gov") === true && o.categories.length > 1) {
-    throw invalid(
-      "firecrawl searches the gov category on its own; do not combine it with another category"
+    throw invalidRequest(
+      provider,
+      "searches the gov category on its own; do not combine it with another category"
     );
   }
   return compact({
@@ -229,8 +231,9 @@ export const checkAct = (
   }
   const seconds = Math.max(1, Math.ceil(timeout / 1000));
   if (seconds > MAX_SCRIPT_SECONDS) {
-    throw invalid(
-      `firecrawl runs a script for at most ${MAX_SCRIPT_SECONDS} seconds`
+    throw invalidRequest(
+      provider,
+      `runs a script for at most ${MAX_SCRIPT_SECONDS} seconds`
     );
   }
   return seconds;
@@ -255,13 +258,15 @@ export const parseForm = (
   timeout: number | undefined
 ): FormData => {
   if (timeout !== undefined && timeout > MAX_PARSE_MS) {
-    throw invalid(
-      `firecrawl parses for at most ${MAX_PARSE_MS / 1000} seconds`
+    throw invalidRequest(
+      provider,
+      `parses for at most ${MAX_PARSE_MS / 1000} seconds`
     );
   }
   if (mediaTypeOf(document.name) === undefined) {
-    throw invalid(
-      `firecrawl parses ${[...MEDIA_TYPES.keys()].join(", ")} files, not "${document.name}"`
+    throw invalidRequest(
+      provider,
+      `parses ${[...MEDIA_TYPES.keys()].join(", ")} files, not "${document.name}"`
     );
   }
   refuseLarger(provider, document, MAX_PARSE_MB);
@@ -297,18 +302,20 @@ const monitorTarget = (o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) => {
   ].some((value) => value !== undefined);
   if (o.urls && o.urls.length > 0) {
     if (searchOnly) {
-      throw invalid(
-        "firecrawl applies searchWindow, maxResults and the domain lists to search monitors, which take a query and no urls"
+      throw invalidRequest(
+        provider,
+        "applies searchWindow, maxResults and the domain lists to search monitors, which take a query and no urls"
       );
     }
     return { type: "scrape", urls: o.urls };
   }
   if (o.query === undefined || o.query === "") {
-    throw invalid("firecrawl monitors need urls to watch or a query");
+    throw invalidRequest(provider, "monitors need urls to watch or a query");
   }
   if (o.query.length > MAX_MONITOR_QUERY) {
-    throw invalid(
-      `firecrawl searches queries of up to ${MAX_MONITOR_QUERY} characters; pass urls to watch pages with a longer query`
+    throw invalidRequest(
+      provider,
+      `searches queries of up to ${MAX_MONITOR_QUERY} characters; pass urls to watch pages with a longer query`
     );
   }
   return compact({

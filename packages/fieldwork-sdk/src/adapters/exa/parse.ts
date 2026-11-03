@@ -1,4 +1,4 @@
-import { FieldworkError } from "../../errors.js";
+import { FieldworkError, invalidRequest } from "../../errors.js";
 import type { FieldworkErrorCode } from "../../errors.js";
 import type { Original } from "../../parse.js";
 import { jsonSchemaOf } from "../../schema.js";
@@ -43,10 +43,6 @@ const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/u;
 const DEEP_TYPES = new Set(["deep-lite", "deep", "deep-reasoning"]);
 export const MAX_READ_URLS = 100;
 
-export const invalid: (message: string) => never = (message) => {
-  throw new FieldworkError("InvalidRequest", `exa ${message}`, { provider });
-};
-
 export const dateTime = (value: string | undefined, endOfDay: boolean) => {
   if (value === undefined || !DATE_ONLY.test(value)) {
     return value;
@@ -88,23 +84,31 @@ export const checkSearch = (o: ExaSearchOptions) => {
       ] as const
     ).filter((name) => o[name] !== undefined);
     if (unsupported.length > 0) {
-      invalid(`search type "lite" does not accept ${unsupported.join(", ")}`);
+      throw invalidRequest(
+        provider,
+        `search type "lite" does not accept ${unsupported.join(", ")}`
+      );
     }
   }
   if (o.additionalQueries !== undefined && !DEEP_TYPES.has(o.type ?? "")) {
-    invalid(
+    throw invalidRequest(
+      provider,
       'additionalQueries needs search type "deep-lite", "deep" or "deep-reasoning"'
     );
   }
   const dated =
     o.publishedAfter !== undefined || o.publishedBefore !== undefined;
   if ((o.category === "company" || o.category === "people") && dated) {
-    invalid(
+    throw invalidRequest(
+      provider,
       `category "${o.category}" does not accept publishedAfter or publishedBefore`
     );
   }
   if (o.category === "people" && o.excludeDomains !== undefined) {
-    invalid('category "people" does not accept excludeDomains');
+    throw invalidRequest(
+      provider,
+      'category "people" does not accept excludeDomains'
+    );
   }
 };
 
@@ -255,10 +259,16 @@ export const checkResearch = (o: ExaResearchOptions) => {
     effort !== "auto" &&
     effort !== "ultra"
   ) {
-    invalid(`maxCostDollars needs effort "auto" or "ultra", not "${effort}"`);
+    throw invalidRequest(
+      provider,
+      `maxCostDollars needs effort "auto" or "ultra", not "${effort}"`
+    );
   }
   if (o.maxDurationSeconds !== undefined && effort !== "ultra") {
-    invalid(`maxDurationSeconds needs effort "ultra", not "${effort}"`);
+    throw invalidRequest(
+      provider,
+      `maxDurationSeconds needs effort "ultra", not "${effort}"`
+    );
   }
 };
 
@@ -331,7 +341,8 @@ const intervalPeriod = (
 ) => {
   const { every } = record(schedule);
   if (typeof every !== "string") {
-    return invalid(
+    throw invalidRequest(
+      provider,
       "monitors run on an interval of whole hours or days; Exa has no cron"
     );
   }
@@ -344,7 +355,8 @@ const intervalPeriod = (
     value = "7d";
   }
   if (!/^[1-9]\d*[hd]$/u.test(value)) {
-    return invalid(
+    throw invalidRequest(
+      provider,
       `monitor schedule "${every}" is not whole hours or days, at least 1h`
     );
   }

@@ -17,9 +17,14 @@ import {
   PRODUCT_OUTPUT,
 } from "./outputs.js";
 import { list, text, url } from "./schema.js";
-import type { Field, Spec } from "./types.js";
+import type { Field, ProviderName, Spec } from "./types.js";
 
-const QUERY_READERS = ["exa", "firecrawl", "tavily", "parallel"];
+const QUERY_READERS: readonly ProviderName[] = [
+  "exa",
+  "firecrawl",
+  "tavily",
+  "parallel",
+];
 
 const query: Field = {
   name: "query",

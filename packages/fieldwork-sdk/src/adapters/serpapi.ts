@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey } from "../http.js";
 import { callSettings, compact, refuseTogether } from "../util.js";
 import type { Json } from "../util.js";
@@ -12,7 +12,6 @@ import { RECENCY_CODE, compactDate, googleCountry } from "./serpapi/options.js";
 import {
   answerText,
   imageResults,
-  invalid,
   provider,
   searchFailure,
   searchMeta,
@@ -112,7 +111,7 @@ export const serpapi = (config: SerpApiConfig = {}) => {
       const o: Json = { ...chosen };
       // The type limits `engine`, but callers without types can pass any name.
       if (!Object.hasOwn(ENGINES, engine)) {
-        throw invalid(`does not offer the engine "${engine}"`);
+        throw invalidRequest(provider, `does not offer the engine "${engine}"`);
       }
       const spec = ENGINES[engine];
       onlyAllowed(engine, o, spec.allowed);

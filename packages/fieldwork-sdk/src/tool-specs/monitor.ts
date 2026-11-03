@@ -16,7 +16,7 @@ import {
 } from "./outputs.js";
 import { flag, text, url } from "./schema.js";
 import type { FieldSchema } from "./schema.js";
-import type { Field, Spec } from "./types.js";
+import type { Field, ProviderName, Spec } from "./types.js";
 
 const EVERY = "^(hour|day|week|[1-9][0-9]*h|[1-9][0-9]*d)$";
 
@@ -73,7 +73,11 @@ const schedules: Field[] = [
 const DOMAIN_NOTE =
   "Firecrawl takes domain lists only for a monitor that searches: give a query and no urls.";
 
-const MONITOR_PROVIDERS = ["exa", "firecrawl", "parallel"];
+const MONITOR_PROVIDERS: readonly ProviderName[] = [
+  "exa",
+  "firecrawl",
+  "parallel",
+];
 
 const cursor: Field = {
   name: "cursor",

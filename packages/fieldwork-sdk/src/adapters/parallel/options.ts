@@ -1,3 +1,4 @@
+import { invalidRequest } from "../../errors.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { OutputSchema } from "../../schema.js";
 import type {
@@ -19,7 +20,7 @@ import type {
 } from "../../types.js";
 import { compact, refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
-import { invalid, nonEmpty, provider } from "./parse.js";
+import { nonEmpty, provider } from "./parse.js";
 
 export interface ParallelConfig {
   /** Defaults to the PARALLEL_API_KEY environment variable. */
@@ -324,8 +325,9 @@ export const sourcePolicy = (o: ParallelSources) => {
 
 export const fetchPolicy = (maxAge: number | undefined) => {
   if (maxAge !== undefined && maxAge < MIN_MAX_AGE_SECONDS) {
-    throw invalid(
-      `parallel cannot use a cached copy younger than ${MIN_MAX_AGE_SECONDS} seconds (maxAge was ${maxAge}); it has no setting that always fetches fresh`
+    throw invalidRequest(
+      provider,
+      `cannot use a cached copy younger than ${MIN_MAX_AGE_SECONDS} seconds (maxAge was ${maxAge}); it has no setting that always fetches fresh`
     );
   }
   return maxAge === undefined
@@ -348,8 +350,9 @@ export const decisionQuestion = (
   if (question.type === "choice") {
     const choices = [...new Set(question.choices)];
     if (choices.length < 2 || choices.length > 255) {
-      throw invalid(
-        `parallel decisions take 2 to 255 distinct choices; question "${name}" has ${choices.length}`
+      throw invalidRequest(
+        provider,
+        `decisions take 2 to 255 distinct choices; question "${name}" has ${choices.length}`
       );
     }
     // Parallel wants a description per option; the choice's own text is all there is.
@@ -362,8 +365,9 @@ export const decisionQuestion = (
   if (question.type === "score") {
     const levels = Object.values(question.scale);
     if (levels.length < 2 || levels.length > 10) {
-      throw invalid(
-        `parallel decisions take a score scale of 2 to 10 levels; question "${name}" has ${levels.length}`
+      throw invalidRequest(
+        provider,
+        `decisions take a score scale of 2 to 10 levels; question "${name}" has ${levels.length}`
       );
     }
     return {
@@ -374,8 +378,9 @@ export const decisionQuestion = (
   }
   // SAFETY: the checks above leave `question` as never; an untyped caller can
   // still pass another shape, and the message only reads its `type` to name it.
-  throw invalid(
-    `parallel does not know the question type "${String((question as { type?: unknown }).type)}" for "${name}"`
+  throw invalidRequest(
+    provider,
+    `does not know the question type "${String((question as { type?: unknown }).type)}" for "${name}"`
   );
 };
 
@@ -383,8 +388,9 @@ export const NAMED_FREQUENCY = { day: "1d", hour: "1h", week: "1w" } as const;
 
 export const frequency = (schedule: MonitorSchedule): string => {
   if ("cron" in schedule) {
-    throw invalid(
-      "parallel monitors run at a fixed interval from 1 hour to 30 days and cannot follow a cron expression; pass { every: ... }"
+    throw invalidRequest(
+      provider,
+      "monitors run at a fixed interval from 1 hour to 30 days and cannot follow a cron expression; pass { every: ... }"
     );
   }
   const named = Object.entries(NAMED_FREQUENCY).find(
@@ -397,8 +403,9 @@ export const frequency = (schedule: MonitorSchedule): string => {
   const count = Number(match?.groups?.count);
   const limit = match?.groups?.unit === "h" ? 720 : 30;
   if (!match || count < 1 || count > limit) {
-    throw invalid(
-      `parallel monitors run every 1 hour to 30 days; "${schedule.every}" is outside that`
+    throw invalidRequest(
+      provider,
+      `monitors run every 1 hour to 30 days; "${schedule.every}" is outside that`
     );
   }
   return schedule.every;

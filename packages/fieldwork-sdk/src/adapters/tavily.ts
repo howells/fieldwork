@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
@@ -18,8 +18,8 @@ import {
   extractBody,
   failures,
   imageResults,
-  invalid,
   page,
+  provider,
   responseMeta,
   searchBody,
   searchResults,
@@ -50,7 +50,6 @@ export type {
 } from "./tavily/options.js";
 
 export const tavily = (config: TavilyConfig = {}) => {
-  const provider = "tavily";
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.tavily.com",
     fetch: config.fetch,
@@ -103,7 +102,7 @@ export const tavily = (config: TavilyConfig = {}) => {
     async crawl(url, options) {
       const { call, rest: o } = callSettings(options);
       if (o.chunksPerSource !== undefined && o.instructions === undefined) {
-        throw invalid("tavily chunksPerSource needs instructions");
+        throw invalidRequest(provider, "chunksPerSource needs instructions");
       }
       const response = await raw.request("POST", "/crawl", {
         ...call,
@@ -190,7 +189,7 @@ export const tavily = (config: TavilyConfig = {}) => {
     async readMany(urls, options) {
       const { call, rest: o } = callSettings(options);
       if (urls.length === 0 || urls.length > 20) {
-        throw invalid("tavily reads 1 to 20 URLs in one call");
+        throw invalidRequest(provider, "reads 1 to 20 URLs in one call");
       }
       const response = await raw.request("POST", "/extract", {
         ...call,
@@ -209,8 +208,9 @@ export const tavily = (config: TavilyConfig = {}) => {
       const { call, rest: o } = callSettings(options);
       const files = o.files?.map((file) => {
         if (!RESEARCH_FILE.test(file.name)) {
-          throw invalid(
-            `tavily reads .txt, .md and .json files, not ${file.name}`
+          throw invalidRequest(
+            provider,
+            `reads .txt, .md and .json files, not ${file.name}`
           );
         }
         return {
@@ -224,7 +224,7 @@ export const tavily = (config: TavilyConfig = {}) => {
         };
       });
       if (files && files.length > 5) {
-        throw invalid("tavily research takes up to 5 files");
+        throw invalidRequest(provider, "research takes up to 5 files");
       }
       const id =
         o.resume ??

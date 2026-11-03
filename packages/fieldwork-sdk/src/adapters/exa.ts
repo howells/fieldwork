@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
+import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
@@ -30,7 +30,6 @@ import {
   failedStatuses,
   failureCode,
   generatedAnswer,
-  invalid,
   monitorEvent,
   monitorInfo,
   pageFrom,
@@ -294,10 +293,13 @@ export const exa = (config: ExaConfig = {}) => {
     async readMany(urls, options) {
       const { call, rest: o } = callSettings(options);
       if (urls.length === 0) {
-        invalid("readMany needs at least one URL");
+        throw invalidRequest(provider, "readMany needs at least one URL");
       }
       if (urls.length > MAX_READ_URLS) {
-        invalid(`readMany reads at most ${MAX_READ_URLS} URLs per call`);
+        throw invalidRequest(
+          provider,
+          `readMany reads at most ${MAX_READ_URLS} URLs per call`
+        );
       }
       const { body, response } = await fetchContents(urls, readBody(o), call);
       const failed: FailedUrl[] = failedStatuses(body.statuses).map(

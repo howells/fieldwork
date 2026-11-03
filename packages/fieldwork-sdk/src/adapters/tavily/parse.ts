@@ -1,4 +1,4 @@
-import { FieldworkError } from "../../errors.js";
+import { invalidRequest } from "../../errors.js";
 import type { FailedUrl, ImageResult, Page } from "../../types.js";
 import { compact, hours, meta } from "../../util.js";
 import { COUNTRIES } from "./countries.js";
@@ -14,10 +14,9 @@ import type {
   SearchBody,
 } from "./response.js";
 
-export const RESEARCH_FILE = /\.(?:txt|md|json)$/iu;
+export const provider = "tavily";
 
-export const invalid = (message: string): FieldworkError =>
-  new FieldworkError("InvalidRequest", message, { provider: "tavily" });
+export const RESEARCH_FILE = /\.(?:txt|md|json)$/iu;
 
 export const chunks = (content: string | undefined): string[] | undefined => {
   if (content === undefined) {
@@ -32,14 +31,16 @@ export const chunks = (content: string | undefined): string[] | undefined => {
 
 const countryName = (code: string, topic: string | undefined): string => {
   if (topic !== undefined && topic !== "general") {
-    throw invalid(
-      `tavily country only works with topic "general", not "${topic}"`
+    throw invalidRequest(
+      provider,
+      `country only works with topic "general", not "${topic}"`
     );
   }
   const name = COUNTRIES.get(code.toUpperCase());
   if (name === undefined) {
-    throw invalid(
-      `tavily has no country for "${code}"; pass an ISO 3166-1 alpha-2 code from its supported list`
+    throw invalidRequest(
+      provider,
+      `has no country for "${code}"; pass an ISO 3166-1 alpha-2 code from its supported list`
     );
   }
   return name;
@@ -64,17 +65,18 @@ const checkFilters = (o: TavilySearchOptions): void => {
     o.includeDomainsMode !== undefined &&
     (o.includeDomains?.length ?? 0) === 0
   ) {
-    throw invalid("tavily includeDomainsMode needs includeDomains");
+    throw invalidRequest(provider, "includeDomainsMode needs includeDomains");
   }
   if (o.filterByLanguage === true && o.language === undefined) {
-    throw invalid("tavily filterByLanguage needs language");
+    throw invalidRequest(provider, "filterByLanguage needs language");
   }
   if (
     o.safeSearch === true &&
     (o.searchDepth === "fast" || o.searchDepth === "ultra-fast")
   ) {
-    throw invalid(
-      `tavily safeSearch is not available with searchDepth "${o.searchDepth}"`
+    throw invalidRequest(
+      provider,
+      `safeSearch is not available with searchDepth "${o.searchDepth}"`
     );
   }
 };
@@ -82,17 +84,19 @@ const checkFilters = (o: TavilySearchOptions): void => {
 const checkSearch = (o: TavilySearchOptions): number | undefined => {
   checkFilters(o);
   if (o.chunksPerSource !== undefined && o.searchDepth === "ultra-fast") {
-    throw invalid(
-      'tavily chunksPerSource is not available with searchDepth "ultra-fast"'
+    throw invalidRequest(
+      provider,
+      'chunksPerSource is not available with searchDepth "ultra-fast"'
     );
   }
   if (o.imageDescriptions === true && o.includeImages !== true) {
-    throw invalid("tavily imageDescriptions needs includeImages");
+    throw invalidRequest(provider, "imageDescriptions needs includeImages");
   }
   const maxAgeHours = hours(o.maxAge);
   if (maxAgeHours !== undefined && maxAgeHours > 720) {
-    throw invalid(
-      "tavily keeps cached copies for at most 30 days (2,592,000 seconds)"
+    throw invalidRequest(
+      provider,
+      "keeps cached copies for at most 30 days (2,592,000 seconds)"
     );
   }
   return maxAgeHours;
@@ -175,7 +179,7 @@ export const page = (entry: PageEntry, query: boolean): Page => {
 
 export const extractBody = (urls: string[], o: TavilyExtractOptions) => {
   if (o.chunksPerSource !== undefined && o.query === undefined) {
-    throw invalid("tavily chunksPerSource needs query");
+    throw invalidRequest(provider, "chunksPerSource needs query");
   }
   return compact({
     chunks_per_source: o.chunksPerSource,

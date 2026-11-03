@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError, withJob } from "../errors.js";
+import { FieldworkError, invalidRequest, withJob } from "../errors.js";
 import { createRawClient, poll, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
@@ -184,16 +184,13 @@ const provider = "perplexity";
 const MAX_QUERIES = 5;
 const TERMINAL = new Set(["completed", "failed", "incomplete", "cancelled"]);
 
-const invalid = (message: string): FieldworkError =>
-  new FieldworkError("InvalidRequest", message, { provider });
-
 const usDate = (name: string, date: string | undefined) => {
   if (date === undefined) {
     return date;
   }
   const match = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u.exec(date);
   if (!match?.groups) {
-    throw invalid(`${name} must be YYYY-MM-DD, got "${date}"`);
+    throw invalidRequest(provider, `${name} must be YYYY-MM-DD, got "${date}"`);
   }
   const { year, month, day } = match.groups;
   return `${month}/${day}/${year}`;
@@ -331,7 +328,10 @@ const decisionState = (context: unknown) => {
   if (typeof context === "number" || typeof context === "boolean") {
     return String(context);
   }
-  throw invalid("perplexity decide needs a context: a string, object or array");
+  throw invalidRequest(
+    provider,
+    "decide needs a context: a string, object or array"
+  );
 };
 
 const search = async (
@@ -342,13 +342,15 @@ const search = async (
   const { call, rest: o } = callSettings(options);
   const queries = [query, ...(o.queries ?? [])];
   if (queries.length > MAX_QUERIES) {
-    throw invalid(
-      `perplexity search takes at most ${MAX_QUERIES} queries in one request, got ${queries.length}`
+    throw invalidRequest(
+      provider,
+      `search takes at most ${MAX_QUERIES} queries in one request, got ${queries.length}`
     );
   }
   if (o.limit !== undefined && o.limit > 20 && o.searchType !== "people") {
-    throw invalid(
-      'perplexity search returns at most 20 results unless searchType is "people"'
+    throw invalidRequest(
+      provider,
+      'search returns at most 20 results unless searchType is "people"'
     );
   }
   const response = await raw.request("POST", "/search", {
@@ -425,7 +427,7 @@ const answer = async <T>(
 
 const researchSetup = (o: PerplexityResearchOptions) => {
   if (o.models && (o.models.length < 1 || o.models.length > 5)) {
-    throw invalid("perplexity models takes one to five models");
+    throw invalidRequest(provider, "models takes one to five models");
   }
   const searchTool = webSearchTool(o);
   // Without an effort level the run has no tools or step budget of its own.

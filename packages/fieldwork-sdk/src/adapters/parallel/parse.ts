@@ -36,9 +36,6 @@ import type {
 
 export const provider = "parallel";
 
-export const invalid = (message: string): FieldworkError =>
-  new FieldworkError("InvalidRequest", message, { provider });
-
 export const nonEmpty = <T extends Json>(value: T): T | undefined => {
   const result = compact(value);
   return Object.keys(result).length > 0 ? result : undefined;

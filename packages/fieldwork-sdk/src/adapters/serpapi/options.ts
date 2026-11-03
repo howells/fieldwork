@@ -1,3 +1,4 @@
+import { invalidRequest } from "../../errors.js";
 import type {
   AccountUsage,
   CallOptions,
@@ -7,7 +8,7 @@ import type {
 } from "../../types.js";
 import { refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
-import { invalid, provider } from "./parse.js";
+import { provider } from "./parse.js";
 
 export interface SerpApiConfig {
   /** Defaults to the SERPAPI_API_KEY environment variable. */
@@ -264,7 +265,7 @@ export const isoDate = (name: string, value: unknown): string | undefined => {
     return undefined;
   }
   if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/u.test(value)) {
-    throw invalid(`${name} must be YYYY-MM-DD`);
+    throw invalidRequest(provider, `${name} must be YYYY-MM-DD`);
   }
   return value;
 };
@@ -294,7 +295,8 @@ export const bounded = (
     value < min ||
     value > max
   ) {
-    throw invalid(
+    throw invalidRequest(
+      provider,
       `${engine} limit must be a whole number from ${min} to ${max}`
     );
   }
@@ -329,7 +331,8 @@ export const duckDuckGoFilter = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
   if (o.recency === "hour") {
-    throw invalid(
+    throw invalidRequest(
+      provider,
       "duckduckgo has no hour window; use day, week, month or year"
     );
   }
@@ -340,7 +343,8 @@ export const duckDuckGoFilter = (o: Json): string | undefined => {
     return undefined;
   }
   if (o.publishedAfter === undefined || o.publishedBefore === undefined) {
-    throw invalid(
+    throw invalidRequest(
+      provider,
       "duckduckgo filters a date range by both ends: pass publishedAfter and publishedBefore together"
     );
   }
@@ -357,16 +361,23 @@ export const mapsOrigin = (o: Json) => {
   refuseTogether(provider, o, "location", "longitude");
   const coordinates = o.latitude !== undefined || o.longitude !== undefined;
   if (coordinates && (o.latitude === undefined || o.longitude === undefined)) {
-    throw invalid("google_maps needs latitude and longitude together");
+    throw invalidRequest(
+      provider,
+      "google_maps needs latitude and longitude together"
+    );
   }
   const origin = coordinates || o.location !== undefined;
   if (origin && o.zoom === undefined) {
-    throw invalid(
+    throw invalidRequest(
+      provider,
       "google_maps needs zoom with location or latitude and longitude"
     );
   }
   if (!origin && o.zoom !== undefined) {
-    throw invalid("google_maps zoom needs location or latitude and longitude");
+    throw invalidRequest(
+      provider,
+      "google_maps zoom needs location or latitude and longitude"
+    );
   }
   return {
     lat: count(o.latitude),

@@ -1,4 +1,3 @@
-import { FieldworkError } from "../../errors.js";
 import type { ImageResult, Price, SearchResult } from "../../types.js";
 import { compact, meta } from "../../util.js";
 import type {
@@ -10,11 +9,6 @@ import type {
 } from "./response.js";
 
 export const provider = "serpapi";
-
-export const invalid = (message: string): FieldworkError =>
-  new FieldworkError("InvalidRequest", `${provider} ${message}`, {
-    provider,
-  });
 
 export const priceOf = (item: ShoppingBlock): Price | undefined => {
   const price = compact({

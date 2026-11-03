@@ -90,11 +90,13 @@ export const providersWith = (capability: Capability): string[] =>
 export const offeredFields = (spec: Spec, provider: string): Field[] =>
   spec.fields.filter(
     (field) =>
-      field.providers === undefined || field.providers.includes(provider)
+      field.providers === undefined ||
+      field.providers.some((name) => name === provider)
   );
 
 export const isRequired = (field: Field, provider: string): boolean =>
-  field.required === true || field.requiredFor?.includes(provider) === true;
+  field.required === true ||
+  field.requiredFor?.some((name) => name === provider) === true;
 
 const SCHEMA: JsonValue = {
   properties: { width: { type: "string" } },

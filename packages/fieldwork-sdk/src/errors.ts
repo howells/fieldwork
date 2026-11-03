@@ -116,3 +116,7 @@ export const codeForStatus = (status: number): FieldworkErrorCode => {
   }
   return "ProviderError";
 };
+
+/** A request refused before it is sent, with the provider's name leading the message. */
+export const invalidRequest = (provider: string, message: string) =>
+  new FieldworkError("InvalidRequest", `${provider} ${message}`, { provider });

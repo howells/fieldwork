@@ -2,7 +2,6 @@ import type { AnyAdapter } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
 import type { Fieldwork } from "./fieldwork.js";
 import { SPECS } from "./tool-specs/index.js";
-import { toJsonSchema } from "./tool-specs/schema.js";
 import type { Field, Spec } from "./tool-specs/types.js";
 import { argumentsFor, operationFor } from "./tools/dispatch.js";
 import type { Dispatcher, Operation } from "./tools/dispatch.js";
@@ -97,10 +96,12 @@ export interface ToolsOptions {
 }
 
 const offers = (field: Field, provider: string): boolean =>
-  field.providers === undefined || field.providers.includes(provider);
+  field.providers === undefined ||
+  field.providers.some((name) => name === provider);
 
 const needs = (field: Field, provider: string): boolean =>
-  field.required === true || field.requiredFor?.includes(provider) === true;
+  field.required === true ||
+  field.requiredFor?.some((name) => name === provider) === true;
 
 const invalid = (tool: string, provider: string, message: string) =>
   new FieldworkError("InvalidRequest", `${tool}: ${message}`, { provider });
@@ -164,7 +165,7 @@ const resultObject = (
 const inputSchema = (fields: Field[], provider: string): JsonSchema => ({
   additionalProperties: false,
   properties: Object.fromEntries(
-    fields.map((field) => [field.name, toJsonSchema(field.schema)])
+    fields.map((field) => [field.name, { ...field.schema }])
   ),
   required: fields
     .filter((field) => needs(field, provider))
@@ -197,7 +198,7 @@ const toolFor = (
     inputSchema: inputSchema(fields, provider),
     method: spec.method,
     name: spec.name,
-    outputSchema: toJsonSchema(spec.output),
+    outputSchema: { ...spec.output },
     provider,
   };
 };
