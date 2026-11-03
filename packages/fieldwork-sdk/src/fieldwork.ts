@@ -88,8 +88,14 @@ class FieldworkClient {
     this.provider = adapter.name;
     this.raw = adapter.raw;
     this.#providers = adapter.providers ?? {};
-    const has = (capability: Capability) =>
-      bindOperation(adapter.operations, capability) !== undefined;
+    // One lookup per capability, so `capabilities` and the methods agree.
+    const bound = new Map(
+      CAPABILITIES.map((capability) => [
+        capability,
+        bindOperation(adapter.operations, capability),
+      ])
+    );
+    const has = (capability: Capability) => bound.get(capability) !== undefined;
     // Listing every capability makes the compiler refuse a new one left out.
     this.capabilities = Object.freeze({
       act: has("act"),
@@ -117,8 +123,7 @@ class FieldworkClient {
       Object.fromEntries(
         CAPABILITIES.map((capability) => [
           capability,
-          bindOperation(adapter.operations, capability) ??
-            unsupported(adapter.name, capability),
+          bound.get(capability) ?? unsupported(adapter.name, capability),
         ])
       )
     );
