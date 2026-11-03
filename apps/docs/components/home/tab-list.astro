@@ -1,7 +1,8 @@
 ---
 // The provider tabs of a code panel: a strip of buttons that shows one
 // tabpanel at a time. Each panel's id is `${id}-panel-${index}`; put the
-// panels beside this strip inside an element with data-provider-tabs.
+// panels beside this strip inside an element with data-provider-tabs, which
+// receives a "tabchange" event after each selection.
 interface Props {
   id: string;
   initial?: number;
@@ -43,6 +44,7 @@ const { id, initial = 0, label, tabs } = Astro.props;
             panel.hidden = !selected;
           }
         }
+        root.dispatchEvent(new Event("tabchange"));
       };
       for (const [index, tab] of tabs.entries()) {
         tab.addEventListener("click", () => select(tab));

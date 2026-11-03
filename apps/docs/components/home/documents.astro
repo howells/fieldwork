@@ -33,6 +33,13 @@ const RULES = rowTops.slice(1).map((top, index) => {
 const TABLE = { left: x(0.313), right: x(0.684) };
 
 const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+
+// The figure first shows the first parser's box; the script moves it.
+const [firstParser] = PARSER_BOXES;
+if (firstParser === undefined) {
+  throw new Error("the parse figure needs a parser");
+}
+const first = firstParser.box;
 ---
 
 <section class="border-t border-rule bg-wash">
@@ -46,72 +53,78 @@ const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
 
     <div class="hero-panel mt-10 min-w-0 overflow-clip rounded-[12px] border border-rule bg-paper md:mt-16" data-provider-tabs>
       <TabList id="parse" label="Parser" tabs={PARSER_BOXES.map((parser) => parser.label)} />
-      {PARSER_BOXES.map((parser, index) => {
-        const [left, top, width, height] = parser.box;
-        return (
-          <div
-            aria-labelledby={`parse-tab-${index}`}
-            class="grid lg:grid-cols-[minmax(0,1fr)_480px]"
-            hidden={index !== 0}
-            id={`parse-panel-${index}`}
-            role="tabpanel"
-          >
-            <figure class="m-0 bg-wash p-4 sm:p-8 lg:p-12">
-              <div class="relative rounded-[2px] bg-paper shadow-[0_0_0_1px_var(--color-rule),0_12px_32px_-16px_rgb(18_20_23/18%)]" style={`aspect-ratio: ${PAGE_RATIO}`}>
-                <svg aria-hidden="true" class="absolute inset-0 size-full" viewBox={`0 0 1000 ${HEIGHT}`}>
-                  {IMAGES.map(([l, t, w, h]) => (
-                    <rect fill="#ECEDEA" height={y(h)} rx="2" width={x(w)} x={x(l)} y={y(t)} />
-                  ))}
-                  {TEXT.flatMap((box) => bars(box)).map((bar) => (
-                    <rect fill="#D6D8D3" height={bar.height} rx={bar.height / 2} width={bar.width} x={bar.x} y={bar.y} />
-                  ))}
-                  {RULES.map((ruleY) => (
-                    <line stroke="#E4E5E2" stroke-width="1" vector-effect="non-scaling-stroke" x1={TABLE.left} x2={TABLE.right} y1={ruleY} y2={ruleY} />
-                  ))}
-                  {CELLS.map((cell, cellIndex) => bars(cell).map((bar) => (
-                    <rect
-                      fill={cellIndex === MARKED_CELL ? "var(--color-ink)" : cellIndex % 2 === 0 ? "#C6C9C3" : "#DCDED9"}
-                      height={bar.height}
-                      rx={bar.height / 2}
-                      width={bar.width}
-                      x={bar.x}
-                      y={bar.y}
-                    />
-                  )))}
-                  <g stroke="var(--color-map-blue)" stroke-dasharray="3 4" stroke-width="1" vector-effect="non-scaling-stroke">
-                    <line vector-effect="non-scaling-stroke" x1="0" x2={x(left)} y1={y(top)} y2={y(top)} />
-                    <line vector-effect="non-scaling-stroke" x1={x(left)} x2={x(left)} y1="0" y2={y(top)} />
-                  </g>
-                  <rect
-                    fill="rgb(31 63 209 / 10%)"
-                    height={y(height)}
-                    stroke="var(--color-map-blue)"
-                    stroke-width="1.5"
-                    vector-effect="non-scaling-stroke"
-                    width={x(width)}
-                    x={x(left)}
-                    y={y(top)}
-                  />
-                </svg>
-                <span
-                  class="type-small absolute -translate-x-1/2 -translate-y-full pb-1 font-mono tabular-nums text-map-blue"
-                  style={`left: ${percent(left / 2)}; top: ${percent(top)}`}
-                >{left.toFixed(3)}</span>
-                <span
-                  class="type-small absolute -translate-y-1/2 pl-2 font-mono tabular-nums text-map-blue"
-                  style={`left: ${percent(left)}; top: ${percent(top / 2)}`}
-                >{top.toFixed(3)}</span>
-              </div>
-              <figcaption class="sr-only">
-                {parser.label} puts the box at {left.toFixed(3)} from the left and {top.toFixed(3)} from the top of the page.
-              </figcaption>
-            </figure>
-            <div class="flex min-w-0 flex-col justify-center border-t border-rule px-5 py-7 sm:px-8 lg:border-t-0 lg:border-l">
-              <Code code={parser.code} label={`${parser.label} parse`} size="sm" />
-            </div>
+      <div class="grid lg:grid-cols-[minmax(0,1fr)_480px]">
+        <figure
+          aria-hidden="true"
+          class="m-0 bg-wash p-4 sm:p-8 lg:p-12"
+          data-boxes={PARSER_BOXES.map((parser) => parser.box.join(",")).join(" ")}
+          data-height={HEIGHT}
+          data-parse-figure
+        >
+          <div class="relative rounded-[2px] bg-paper shadow-[0_0_0_1px_var(--color-rule),0_12px_32px_-16px_rgb(18_20_23/18%)] [contain:layout]" style={`aspect-ratio: ${PAGE_RATIO}`}>
+            <svg class="absolute inset-0 size-full" viewBox={`0 0 1000 ${HEIGHT}`}>
+              {IMAGES.map(([l, t, w, h]) => (
+                <rect fill="#ECEDEA" height={y(h)} rx="2" width={x(w)} x={x(l)} y={y(t)} />
+              ))}
+              {TEXT.flatMap((box) => bars(box)).map((bar) => (
+                <rect fill="#D6D8D3" height={bar.height} rx={bar.height / 2} width={bar.width} x={bar.x} y={bar.y} />
+              ))}
+              {RULES.map((ruleY) => (
+                <line stroke="#E4E5E2" stroke-width="1" vector-effect="non-scaling-stroke" x1={TABLE.left} x2={TABLE.right} y1={ruleY} y2={ruleY} />
+              ))}
+              {CELLS.map((cell, cellIndex) => bars(cell).map((bar) => (
+                <rect
+                  fill={cellIndex === MARKED_CELL ? "var(--color-ink)" : cellIndex % 2 === 0 ? "#C6C9C3" : "#DCDED9"}
+                  height={bar.height}
+                  rx={bar.height / 2}
+                  width={bar.width}
+                  x={bar.x}
+                  y={bar.y}
+                />
+              )))}
+              <g stroke="var(--color-map-blue)" stroke-dasharray="3 4" stroke-width="1">
+                <line data-guide="left" vector-effect="non-scaling-stroke" x1="0" x2={x(first[0])} y1={y(first[1])} y2={y(first[1])} />
+                <line data-guide="top" vector-effect="non-scaling-stroke" x1={x(first[0])} x2={x(first[0])} y1="0" y2={y(first[1])} />
+              </g>
+              <rect
+                class="parse-box"
+                data-box
+                fill="rgb(31 63 209 / 10%)"
+                height={y(first[3])}
+                stroke="var(--color-map-blue)"
+                stroke-width="1.5"
+                vector-effect="non-scaling-stroke"
+                width={x(first[2])}
+                x={x(first[0])}
+                y={y(first[1])}
+              />
+            </svg>
+            <span
+              class="parse-readout type-small absolute -translate-x-1/2 -translate-y-full pb-1 font-mono tabular-nums text-map-blue"
+              data-readout="left"
+              style={`left: ${percent(first[0] / 2)}; top: ${percent(first[1])}`}
+            >{first[0].toFixed(3)}</span>
+            <span
+              class="parse-readout type-small absolute -translate-y-1/2 pl-2 font-mono tabular-nums text-map-blue"
+              data-readout="top"
+              style={`left: ${percent(first[0])}; top: ${percent(first[1] / 2)}`}
+            >{first[1].toFixed(3)}</span>
           </div>
-        );
-      })}
+        </figure>
+        <div class="flex min-w-0 flex-col justify-center border-t border-rule px-5 py-7 sm:px-8 lg:border-t-0 lg:border-l">
+          {PARSER_BOXES.map((parser, index) => {
+            const [left, top] = parser.box;
+            return (
+              <div aria-labelledby={`parse-tab-${index}`} hidden={index !== 0} id={`parse-panel-${index}`} role="tabpanel">
+                <p class="sr-only">
+                  {parser.label} puts the box at {left.toFixed(3)} from the left and {top.toFixed(3)} from the top of the page.
+                </p>
+                <Code code={parser.code} label={`${parser.label} parse`} size="sm" />
+              </div>
+            );
+          })}
+        </div>
+      </div>
     </div>
 
     <div class="mt-8 flex justify-end">
@@ -119,3 +132,162 @@ const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
     </div>
   </div>
 </section>
+
+<style>
+  /* The box settles in once the guides reach it. */
+  .parse-box {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition:
+      opacity 250ms var(--ease-out-quint),
+      transform 250ms var(--ease-out-quint);
+  }
+
+  [data-parse-figure][data-waiting] .parse-box {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+</style>
+
+<script>
+  type Box = [number, number, number, number];
+  interface State {
+    box: Box;
+    /** How far the guides have reached from the page edges, 0 to 1. */
+    reach: number;
+  }
+
+  // easings.net's easeOutQuint and easeInOutQuart, the curves behind the
+  // --ease-out-quint and --ease-in-out-quart tokens.
+  const outQuint = (p: number) => 1 - (1 - p) ** 5;
+  const inOutQuart = (p: number) => (p < 0.5 ? 8 * p ** 4 : 1 - (-2 * p + 2) ** 4 / 2);
+  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
+
+  const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+  const lerp = (from: number, to: number, p: number) => from + (to - from) * p;
+
+  const toBox = (text: string): Box => {
+    const [left, top, width, height] = text.split(",").map(Number);
+    if (left === undefined || top === undefined || width === undefined || height === undefined) {
+      throw new Error(`the parse figure has a malformed box: ${text}`);
+    }
+    return [left, top, width, height];
+  };
+
+  const set = (element: Element, values: Record<string, number>) => {
+    for (const [name, value] of Object.entries(values)) {
+      element.setAttribute(name, String(value));
+    }
+  };
+
+  const need = <T extends Element>(root: Element, selector: string): T => {
+    const element = root.querySelector<T>(selector);
+    if (element === null) {
+      throw new Error(`the parse figure is missing ${selector}`);
+    }
+    return element;
+  };
+
+  const bindFigure = (figure: HTMLElement) => {
+    figure.dataset.bound = "";
+    const tabs = figure.closest<HTMLElement>("[data-provider-tabs]");
+    const boxes = (figure.dataset.boxes ?? "").split(" ").map(toBox);
+    const height = Number(figure.dataset.height);
+    const box = need<SVGRectElement>(figure, "[data-box]");
+    const guideLeft = need<SVGLineElement>(figure, '[data-guide="left"]');
+    const guideTop = need<SVGLineElement>(figure, '[data-guide="top"]');
+    const readLeft = need<HTMLElement>(figure, '[data-readout="left"]');
+    const readTop = need<HTMLElement>(figure, '[data-readout="top"]');
+    const [start] = boxes;
+    if (tabs === null || start === undefined) {
+      throw new Error("the parse figure needs its tabs and boxes");
+    }
+
+    let state: State = { box: start, reach: 1 };
+    let target = 0;
+    let frame = 0;
+
+    const render = ({ box: [left, top, width, h], reach }: State) => {
+      set(box, { height: h * height, width: width * 1000, x: left * 1000, y: top * height });
+      set(guideLeft, { x2: left * 1000 * reach, y1: top * height, y2: top * height });
+      set(guideTop, { x1: left * 1000, x2: left * 1000, y2: top * height * reach });
+      const shown = String(Math.min(1, reach * 3));
+      readLeft.style.left = percent((left * reach) / 2);
+      readLeft.style.top = percent(top);
+      readLeft.style.opacity = shown;
+      readLeft.textContent = (left * reach).toFixed(3);
+      readTop.style.left = percent(left);
+      readTop.style.top = percent((top * reach) / 2);
+      readTop.style.opacity = shown;
+      readTop.textContent = (top * reach).toFixed(3);
+    };
+
+    // Moves from whatever is on screen, so a second click retargets mid-flight.
+    const tween = (to: State, duration: number, ease: (p: number) => number) => {
+      cancelAnimationFrame(frame);
+      if (reduced.matches) {
+        state = to;
+        render(state);
+        delete figure.dataset.waiting;
+        return;
+      }
+      const from = state;
+      const began = performance.now();
+      const step = (now: number) => {
+        const p = Math.min(1, (now - began) / duration);
+        const e = ease(p);
+        const [left, top, width, h] = from.box;
+        const [toLeft, toTop, toWidth, toHeight] = to.box;
+        state = {
+          box: [lerp(left, toLeft, e), lerp(top, toTop, e), lerp(width, toWidth, e), lerp(h, toHeight, e)],
+          reach: lerp(from.reach, to.reach, e),
+        };
+        render(state);
+        if (state.reach > 0.85) {
+          delete figure.dataset.waiting;
+        }
+        if (p < 1) {
+          frame = requestAnimationFrame(step);
+        }
+      };
+      frame = requestAnimationFrame(step);
+    };
+
+    const buttons = [...tabs.querySelectorAll('[role="tab"]')];
+    tabs.addEventListener("tabchange", () => {
+      target = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
+      const next = boxes[target];
+      if (next !== undefined) {
+        tween({ box: next, reach: 1 }, 600, inOutQuart);
+      }
+    });
+
+    // The first time the figure comes into view, the guides draw in from the
+    // page edges and the readouts count up to where the box sits.
+    if (reduced.matches) {
+      return;
+    }
+    state = { box: start, reach: 0 };
+    figure.dataset.waiting = "";
+    render(state);
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          observer.disconnect();
+          tween({ box: boxes[target] ?? start, reach: 1 }, 1100, outQuint);
+        }
+      },
+      { threshold: 0.5 }
+    );
+    observer.observe(figure);
+  };
+
+  const bind = () => {
+    for (const figure of document.querySelectorAll<HTMLElement>("[data-parse-figure]:not([data-bound])")) {
+      bindFigure(figure);
+    }
+  };
+
+  bind();
+  document.addEventListener("astro:page-load", bind);
+</script>
