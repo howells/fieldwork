@@ -1,5 +1,6 @@
 ---
 import { HONEST_SAMPLE } from "../../lib/samples";
+import Chevron from "../chevron.astro";
 import Panel from "./panel.astro";
 
 const PRINCIPLES = [
@@ -32,7 +33,7 @@ const PRINCIPLES = [
             <details class="disclosure">
               <summary>
                 <span class="type-body flex-1 font-medium text-ink">{principle.title}</span>
-                <svg aria-hidden="true" class="disclosure-chevron" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 16 16" width="16"><path d="m4 6 4 4 4-4" /></svg>
+                <Chevron />
               </summary>
               <p class="type-small m-0 pb-5 text-graphite">{principle.body}</p>
             </details>

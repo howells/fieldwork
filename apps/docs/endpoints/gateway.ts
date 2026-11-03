@@ -19,7 +19,12 @@ export const ALL = async ({
       );
     });
     return await handle(request);
-  } catch {
+  } catch (error) {
+    // The message only: never the environment, which holds the API keys.
+    console.error(
+      "fieldwork gateway:",
+      error instanceof Error ? error.message : String(error)
+    );
     return Response.json(
       {
         error: {

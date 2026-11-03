@@ -19,7 +19,7 @@ const { id, initial = 0, label, tabs } = Astro.props;
     <button
       aria-controls={`${id}-panel-${index}`}
       aria-selected={index === initial ? "true" : "false"}
-      class="type-small relative h-9 shrink-0 rounded-[6px] px-2.5 text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
+      class="type-small relative h-9 shrink-0 before:absolute before:inset-x-0 before:-inset-y-1 before:content-[''] rounded-[6px] px-2.5 text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
       id={`${id}-tab-${index}`}
       role="tab"
       tabindex={index === initial ? 0 : -1}
@@ -29,61 +29,61 @@ const { id, initial = 0, label, tabs } = Astro.props;
 </div>
 
 <script>
-  const bind = () => {
-    for (const root of document.querySelectorAll<HTMLElement>(
-      "[data-provider-tabs]:not([data-bound])"
-    )) {
-      root.dataset.bound = "";
-      const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
-      const indicator = root.querySelector<HTMLElement>("[data-tab-indicator]");
-      // The highlight slides to a clicked tab; it jumps for the keyboard and
-      // on resize, where motion would only lag behind.
-      const place = (animate: boolean) => {
-        const current = tabs.find((tab) => tab.getAttribute("aria-selected") === "true");
-        if (indicator === null || current === undefined) {
+  import { bindAll } from "../../lib/bind";
+
+  bindAll("[data-provider-tabs]", (root) => {
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+    const indicator = root.querySelector<HTMLElement>("[data-tab-indicator]");
+    // The highlight slides to a clicked tab; it jumps for the keyboard and
+    // on resize, where motion would only lag behind.
+    const place = (animate: boolean) => {
+      const current = tabs.find((tab) => tab.getAttribute("aria-selected") === "true");
+      if (indicator === null || current === undefined) {
+        return;
+      }
+      indicator.style.transitionDuration = animate ? "" : "0s";
+      indicator.style.width = `${current.offsetWidth}px`;
+      indicator.style.height = `${current.offsetHeight}px`;
+      indicator.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;
+    };
+    const select = (next: HTMLButtonElement, animate: boolean) => {
+      for (const tab of tabs) {
+        const selected = tab === next;
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        const panel = root.querySelector<HTMLElement>(`#${tab.getAttribute("aria-controls") ?? ""}`);
+        if (panel) {
+          panel.hidden = !selected;
+        }
+      }
+      place(animate);
+      root.dispatchEvent(new Event("tabchange"));
+    };
+    const tablist = root.querySelector('[role="tablist"]');
+    if (indicator !== null && tablist !== null) {
+      new ResizeObserver(() => place(false)).observe(tablist);
+      root.dataset.tabsReady = "";
+    }
+    for (const [index, tab] of tabs.entries()) {
+      tab.addEventListener("click", (event) => select(tab, event.detail !== 0));
+      tab.addEventListener("keydown", (event) => {
+        const targets = new Map([
+          ["ArrowLeft", (index - 1 + tabs.length) % tabs.length],
+          ["ArrowRight", (index + 1) % tabs.length],
+          ["End", tabs.length - 1],
+          ["Home", 0],
+        ]);
+        const target = targets.get(event.key);
+        if (target === undefined) {
           return;
         }
-        indicator.style.transitionDuration = animate ? "" : "0s";
-        indicator.style.width = `${current.offsetWidth}px`;
-        indicator.style.height = `${current.offsetHeight}px`;
-        indicator.style.transform = `translate(${current.offsetLeft}px, ${current.offsetTop}px)`;
-      };
-      const select = (next: HTMLButtonElement, animate: boolean) => {
-        for (const tab of tabs) {
-          const selected = tab === next;
-          tab.setAttribute("aria-selected", String(selected));
-          tab.tabIndex = selected ? 0 : -1;
-          const panel = root.querySelector<HTMLElement>(`#${tab.getAttribute("aria-controls") ?? ""}`);
-          if (panel) {
-            panel.hidden = !selected;
-          }
+        event.preventDefault();
+        const next = tabs[target];
+        if (next) {
+          select(next, false);
+          next.focus();
         }
-        place(animate);
-        root.dispatchEvent(new Event("tabchange"));
-      };
-      const tablist = root.querySelector('[role="tablist"]');
-      if (indicator !== null && tablist !== null) {
-        new ResizeObserver(() => place(false)).observe(tablist);
-        root.dataset.tabsReady = "";
-      }
-      for (const [index, tab] of tabs.entries()) {
-        tab.addEventListener("click", (event) => select(tab, event.detail !== 0));
-        tab.addEventListener("keydown", (event) => {
-          const step = { ArrowLeft: -1, ArrowRight: 1 }[event.key];
-          if (step === undefined) {
-            return;
-          }
-          event.preventDefault();
-          const next = tabs.at((index + step) % tabs.length);
-          if (next) {
-            select(next, false);
-            next.focus();
-          }
-        });
-      }
+      });
     }
-  };
-
-  bind();
-  document.addEventListener("astro:page-load", bind);
+  });
 </script>

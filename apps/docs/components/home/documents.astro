@@ -1,14 +1,8 @@
 ---
-import { CELLS, IMAGES, MARKED_CELL, PAGE_RATIO, PARSER_BOXES, TEXT } from "../../lib/parse-figure";
+import { boxGeometry, CELLS, HEIGHT, IMAGES, MARKED_CELL, PAGE_RATIO, PARSER_BOXES, readouts, TEXT, WIDTH, x, y } from "../../lib/parse-figure";
 import type { Box } from "../../lib/parse-figure";
 import Code from "./code.astro";
 import TabList from "./tab-list.astro";
-
-// The drawing's units: the page is 1000 wide, so a fraction f sits at f * 1000
-// across and f * HEIGHT down.
-const HEIGHT = 1000 / PAGE_RATIO;
-const x = (fraction: number) => fraction * 1000;
-const y = (fraction: number) => fraction * HEIGHT;
 
 /** A line of text drawn as a bar: the box split into lines, the last one shorter. */
 const bars = (box: Box) => {
@@ -32,14 +26,14 @@ const RULES = rowTops.slice(1).map((top, index) => {
 });
 const TABLE = { left: x(0.313), right: x(0.684) };
 
-const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
-
 // The figure first shows the first parser's box; the script moves it.
 const [firstParser] = PARSER_BOXES;
 if (firstParser === undefined) {
   throw new Error("the parse figure needs a parser");
 }
 const first = firstParser.box;
+const start = boxGeometry(first, 1);
+const [readLeft, readTop] = [readouts(first, 1).left, readouts(first, 1).top];
 ---
 
 <section class="border-t border-rule bg-wash">
@@ -57,12 +51,10 @@ const first = firstParser.box;
         <figure
           aria-hidden="true"
           class="m-0 bg-wash p-4 sm:p-8 lg:p-12"
-          data-boxes={PARSER_BOXES.map((parser) => parser.box.join(",")).join(" ")}
-          data-height={HEIGHT}
           data-parse-figure
         >
           <div class="relative rounded-[2px] bg-paper shadow-[0_0_0_1px_var(--color-rule),0_12px_32px_-16px_rgb(18_20_23/18%)] [contain:layout]" style={`aspect-ratio: ${PAGE_RATIO}`}>
-            <svg class="absolute inset-0 size-full" viewBox={`0 0 1000 ${HEIGHT}`}>
+            <svg class="absolute inset-0 size-full" viewBox={`0 0 ${WIDTH} ${HEIGHT}`}>
               {IMAGES.map(([l, t, w, h]) => (
                 <rect fill="#ECEDEA" height={y(h)} rx="2" width={x(w)} x={x(l)} y={y(t)} />
               ))}
@@ -70,7 +62,7 @@ const first = firstParser.box;
                 <rect fill="#D6D8D3" height={bar.height} rx={bar.height / 2} width={bar.width} x={bar.x} y={bar.y} />
               ))}
               {RULES.map((ruleY) => (
-                <line stroke="#E4E5E2" stroke-width="1" vector-effect="non-scaling-stroke" x1={TABLE.left} x2={TABLE.right} y1={ruleY} y2={ruleY} />
+                <line stroke="var(--color-rule)" stroke-width="1" vector-effect="non-scaling-stroke" x1={TABLE.left} x2={TABLE.right} y1={ruleY} y2={ruleY} />
               ))}
               {CELLS.map((cell, cellIndex) => bars(cell).map((bar) => (
                 <rect
@@ -83,32 +75,32 @@ const first = firstParser.box;
                 />
               )))}
               <g stroke="var(--color-map-blue)" stroke-dasharray="3 4" stroke-width="1">
-                <line data-guide="left" vector-effect="non-scaling-stroke" x1="0" x2={x(first[0])} y1={y(first[1])} y2={y(first[1])} />
-                <line data-guide="top" vector-effect="non-scaling-stroke" x1={x(first[0])} x2={x(first[0])} y1="0" y2={y(first[1])} />
+                <line data-guide="left" vector-effect="non-scaling-stroke" x1="0" x2={start.guideLeft.x2} y1={start.guideLeft.y1} y2={start.guideLeft.y2} />
+                <line data-guide="top" vector-effect="non-scaling-stroke" x1={start.guideTop.x1} x2={start.guideTop.x2} y1="0" y2={start.guideTop.y2} />
               </g>
               <rect
                 class="parse-box"
                 data-box
                 fill="rgb(31 63 209 / 10%)"
-                height={y(first[3])}
+                height={start.box.height}
                 stroke="var(--color-map-blue)"
                 stroke-width="1.5"
                 vector-effect="non-scaling-stroke"
-                width={x(first[2])}
-                x={x(first[0])}
-                y={y(first[1])}
+                width={start.box.width}
+                x={start.box.x}
+                y={start.box.y}
               />
             </svg>
             <span
               class="parse-readout type-small absolute -translate-x-1/2 -translate-y-full pb-1 font-mono tabular-nums text-map-blue"
               data-readout="left"
-              style={`left: ${percent(first[0] / 2)}; top: ${percent(first[1])}`}
-            >{first[0].toFixed(3)}</span>
+              style={`left: ${readLeft.left}; top: ${readLeft.top}`}
+            >{readLeft.text}</span>
             <span
               class="parse-readout type-small absolute -translate-y-1/2 pl-2 font-mono tabular-nums text-map-blue"
               data-readout="top"
-              style={`left: ${percent(first[0])}; top: ${percent(first[1] / 2)}`}
-            >{first[1].toFixed(3)}</span>
+              style={`left: ${readTop.left}; top: ${readTop.top}`}
+            >{readTop.text}</span>
           </div>
         </figure>
         <div class="flex min-w-0 flex-col justify-center border-t border-rule px-5 py-7 sm:px-8 lg:border-t-0 lg:border-l">
@@ -143,14 +135,18 @@ const first = firstParser.box;
       transform 250ms var(--ease-out-quint);
   }
 
-  [data-parse-figure][data-waiting] .parse-box {
+  [data-parse-figure][data-reveal="waiting"] .parse-box {
     opacity: 0;
     transform: scale(0.96);
   }
 </style>
 
 <script>
-  type Box = [number, number, number, number];
+  import { bindAll } from "../../lib/bind";
+  import type { Box } from "../../lib/parse-figure";
+  import { boxGeometry, PARSER_BOXES, readouts } from "../../lib/parse-figure";
+  import { onReveal, reducedMotion } from "../../lib/reveal";
+
   interface State {
     box: Box;
     /** How far the guides have reached from the page edges, 0 to 1. */
@@ -161,18 +157,8 @@ const first = firstParser.box;
   // --ease-out-quint and --ease-in-out-quart tokens.
   const outQuint = (p: number) => 1 - (1 - p) ** 5;
   const inOutQuart = (p: number) => (p < 0.5 ? 8 * p ** 4 : 1 - (-2 * p + 2) ** 4 / 2);
-  const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
 
-  const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
   const lerp = (from: number, to: number, p: number) => from + (to - from) * p;
-
-  const toBox = (text: string): Box => {
-    const [left, top, width, height] = text.split(",").map(Number);
-    if (left === undefined || top === undefined || width === undefined || height === undefined) {
-      throw new Error(`the parse figure has a malformed box: ${text}`);
-    }
-    return [left, top, width, height];
-  };
 
   const set = (element: Element, values: Record<string, number>) => {
     for (const [name, value] of Object.entries(values)) {
@@ -188,47 +174,47 @@ const first = firstParser.box;
     return element;
   };
 
-  const bindFigure = (figure: HTMLElement) => {
-    figure.dataset.bound = "";
+  bindAll("[data-parse-figure]", (figure) => {
     const tabs = figure.closest<HTMLElement>("[data-provider-tabs]");
-    const boxes = (figure.dataset.boxes ?? "").split(" ").map(toBox);
-    const height = Number(figure.dataset.height);
     const box = need<SVGRectElement>(figure, "[data-box]");
     const guideLeft = need<SVGLineElement>(figure, '[data-guide="left"]');
     const guideTop = need<SVGLineElement>(figure, '[data-guide="top"]');
     const readLeft = need<HTMLElement>(figure, '[data-readout="left"]');
     const readTop = need<HTMLElement>(figure, '[data-readout="top"]');
-    const [start] = boxes;
-    if (tabs === null || start === undefined) {
+    const [first] = PARSER_BOXES;
+    if (tabs === null || first === undefined) {
       throw new Error("the parse figure needs its tabs and boxes");
     }
+    const start = first.box;
 
     let state: State = { box: start, reach: 1 };
-    let target = 0;
+    let goal = start;
     let frame = 0;
 
-    const render = ({ box: [left, top, width, h], reach }: State) => {
-      set(box, { height: h * height, width: width * 1000, x: left * 1000, y: top * height });
-      set(guideLeft, { x2: left * 1000 * reach, y1: top * height, y2: top * height });
-      set(guideTop, { x1: left * 1000, x2: left * 1000, y2: top * height * reach });
+    const render = ({ box: current, reach }: State) => {
+      const geometry = boxGeometry(current, reach);
+      set(box, geometry.box);
+      set(guideLeft, geometry.guideLeft);
+      set(guideTop, geometry.guideTop);
       const shown = String(Math.min(1, reach * 3));
-      readLeft.style.left = percent((left * reach) / 2);
-      readLeft.style.top = percent(top);
-      readLeft.style.opacity = shown;
-      readLeft.textContent = (left * reach).toFixed(3);
-      readTop.style.left = percent(left);
-      readTop.style.top = percent((top * reach) / 2);
-      readTop.style.opacity = shown;
-      readTop.textContent = (top * reach).toFixed(3);
+      const read = readouts(current, reach);
+      for (const [element, values] of [
+        [readLeft, read.left],
+        [readTop, read.top],
+      ] as const) {
+        element.style.left = values.left;
+        element.style.top = values.top;
+        element.style.opacity = shown;
+        element.textContent = values.text;
+      }
     };
 
     // Moves from whatever is on screen, so a second click retargets mid-flight.
     const tween = (to: State, duration: number, ease: (p: number) => number) => {
       cancelAnimationFrame(frame);
-      if (reduced.matches) {
+      if (reducedMotion()) {
         state = to;
         render(state);
-        delete figure.dataset.waiting;
         return;
       }
       const from = state;
@@ -236,15 +222,15 @@ const first = firstParser.box;
       const step = (now: number) => {
         const p = Math.min(1, (now - began) / duration);
         const e = ease(p);
-        const [left, top, width, h] = from.box;
+        const [left, top, width, height] = from.box;
         const [toLeft, toTop, toWidth, toHeight] = to.box;
         state = {
-          box: [lerp(left, toLeft, e), lerp(top, toTop, e), lerp(width, toWidth, e), lerp(h, toHeight, e)],
+          box: [lerp(left, toLeft, e), lerp(top, toTop, e), lerp(width, toWidth, e), lerp(height, toHeight, e)],
           reach: lerp(from.reach, to.reach, e),
         };
         render(state);
         if (state.reach > 0.85) {
-          delete figure.dataset.waiting;
+          figure.dataset.reveal = "shown";
         }
         if (p < 1) {
           frame = requestAnimationFrame(step);
@@ -255,39 +241,25 @@ const first = firstParser.box;
 
     const buttons = [...tabs.querySelectorAll('[role="tab"]')];
     tabs.addEventListener("tabchange", () => {
-      target = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
-      const next = boxes[target];
-      if (next !== undefined) {
-        tween({ box: next, reach: 1 }, 600, inOutQuart);
+      const selected = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
+      const next = PARSER_BOXES[selected];
+      if (next === undefined) {
+        throw new Error("the parse figure has no parser for the selected tab");
       }
+      goal = next.box;
+      tween({ box: goal, reach: 1 }, 600, inOutQuart);
     });
 
     // The first time the figure comes into view, the guides draw in from the
-    // page edges and the readouts count up to where the box sits.
-    if (reduced.matches) {
-      return;
+    // page edges and the readouts count up to where the box sits. With
+    // reduced motion it never waits: the box sits at its final state.
+    const waiting = onReveal(figure, () => {
+      tween({ box: goal, reach: 1 }, 1100, outQuint);
+    });
+    if (waiting) {
+      state = { box: start, reach: 0 };
+      figure.dataset.reveal = "waiting";
+      render(state);
     }
-    state = { box: start, reach: 0 };
-    figure.dataset.waiting = "";
-    render(state);
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          observer.disconnect();
-          tween({ box: boxes[target] ?? start, reach: 1 }, 1100, outQuint);
-        }
-      },
-      { threshold: 0.5 }
-    );
-    observer.observe(figure);
-  };
-
-  const bind = () => {
-    for (const figure of document.querySelectorAll<HTMLElement>("[data-parse-figure]:not([data-bound])")) {
-      bindFigure(figure);
-    }
-  };
-
-  bind();
-  document.addEventListener("astro:page-load", bind);
+  });
 </script>

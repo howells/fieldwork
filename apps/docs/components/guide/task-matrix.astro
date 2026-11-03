@@ -1,5 +1,10 @@
 ---
 import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide";
+import Chevron from "../chevron.astro";
+
+// What a search matches: the words a row shows, not its "Read the docs" link.
+const searchText = (task: (typeof GUIDE_TASKS)[number]) =>
+  [task.title, ...task.capabilities, ...task.choices, task.why].join(" ").toLowerCase();
 ---
 
 <section aria-labelledby="matrix-heading" data-guide-matrix id="matrix">
@@ -27,12 +32,12 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide"
 
   <div class="mt-6 border-t border-ink" id="task-list">
     {GUIDE_TASKS.map((task) => (
-        <details class="guide-task border-b border-rule" data-group={task.group} data-providers={task.providers.join("|")} data-task-row id={`task-${task.id}`}>
+        <details class="guide-task border-b border-rule" data-group={task.group} data-providers={task.providers.join("|")} data-search={searchText(task)} data-task-row id={`task-${task.id}`}>
           <summary class="guide-task-summary">
             <span class="type-body font-medium text-ink">{task.title}</span>
             <span class="type-small font-mono text-map-blue">{task.capabilities.join(" · ")}</span>
             <span class="type-small text-ink">{task.choices.join(", ")}</span>
-            <svg aria-hidden="true" class="disclosure-chevron" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 16 16" width="16"><path d="m4 6 4 4 4-4" /></svg>
+            <Chevron />
           </summary>
           <div class="guide-task-detail">
             <p class="type-small m-0 max-w-2xl text-graphite">{task.why}</p>
@@ -48,10 +53,15 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide"
 </section>
 
 <script>
+  import { bindAll } from "../../lib/bind";
+
   const matchesTask = (row: HTMLDetailsElement, group: string, query: string, provider: string) => {
     const matchesGroup = group === "all" || row.dataset.group === group;
     const matchesProvider = provider === "" || (row.dataset.providers ?? "").split("|").includes(provider);
-    const matchesQuery = (row.textContent ?? "").toLowerCase().includes(query);
+    if (row.dataset.search === undefined) {
+      throw new Error(`the task row ${row.id} has no data-search`);
+    }
+    const matchesQuery = row.dataset.search.includes(query);
     return matchesGroup && matchesProvider && matchesQuery;
   };
 
@@ -61,9 +71,8 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide"
     const count = root.querySelector<HTMLElement>("[data-task-count]");
     const empty = root.querySelector<HTMLElement>("[data-no-tasks]");
     if (!search || !provider || !count || !empty) {
-      return;
+      throw new Error("the task matrix is missing its search, provider, count or empty state");
     }
-    root.dataset.bound = "";
     const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-task-group]")];
     const rows = [...root.querySelectorAll<HTMLDetailsElement>("[data-task-row]")];
     let group = "all";
@@ -103,13 +112,7 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide"
     update();
   };
 
-  const bindMatrix = () => {
-    for (const root of document.querySelectorAll<HTMLElement>("[data-guide-matrix]:not([data-bound])")) {
-      bindRoot(root);
-    }
-  };
-  bindMatrix();
-  document.addEventListener("astro:page-load", bindMatrix);
+  bindAll("[data-guide-matrix]", bindRoot);
 </script>
 
 <style>

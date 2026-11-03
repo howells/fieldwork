@@ -110,3 +110,46 @@ ${fixed(FIRECRAWL)}`,
     label: "Firecrawl",
   },
 ];
+
+// The drawing's units: the page is WIDTH wide, so a fraction f sits at
+// f * WIDTH across and f * HEIGHT down.
+export const WIDTH = 1000;
+export const HEIGHT = WIDTH / PAGE_RATIO;
+export const x = (fraction: number) => fraction * WIDTH;
+export const y = (fraction: number) => fraction * HEIGHT;
+
+export const percent = (fraction: number) => `${(fraction * 100).toFixed(2)}%`;
+
+/**
+ * The SVG attributes of a box and its two guides. The guides run from the
+ * page edges, and `reach` (0 to 1) is how far along they are.
+ */
+export const boxGeometry = (
+  [left, top, width, height]: Box,
+  reach: number
+) => ({
+  box: { height: y(height), width: x(width), x: x(left), y: y(top) },
+  guideLeft: { x2: x(left) * reach, y1: y(top), y2: y(top) },
+  guideTop: { x1: x(left), x2: x(left), y2: y(top) * reach },
+});
+
+export interface Readout {
+  /** CSS left and top, as percentages of the page. */
+  left: string;
+  top: string;
+  text: string;
+}
+
+/** The two readouts beside the guides: the box's left, then its top. */
+export const readouts = ([left, top]: Box, reach: number) => ({
+  left: {
+    left: percent((left * reach) / 2),
+    text: (left * reach).toFixed(3),
+    top: percent(top),
+  },
+  top: {
+    left: percent(left),
+    text: (top * reach).toFixed(3),
+    top: percent((top * reach) / 2),
+  },
+});

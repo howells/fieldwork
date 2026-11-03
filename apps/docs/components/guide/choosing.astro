@@ -1,5 +1,6 @@
 ---
 import { GUIDE_RULES } from "../../lib/tool-guide";
+import Chevron from "../chevron.astro";
 ---
 
 <section aria-labelledby="choosing-heading" id="how-to-choose">
@@ -11,7 +12,7 @@ import { GUIDE_RULES } from "../../lib/tool-guide";
           <summary>
             <span class="type-small w-6 shrink-0 text-graphite tabular-nums">{index + 1}</span>
             <span class="type-body flex-1 font-medium">{rule.title}</span>
-            <svg aria-hidden="true" class="disclosure-chevron" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 16 16" width="16"><path d="m4 6 4 4 4-4" /></svg>
+            <Chevron />
           </summary>
           <div class="pb-6 pl-10">
             <p class="type-small m-0 max-w-2xl text-graphite">{rule.detail}</p>

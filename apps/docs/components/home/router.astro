@@ -20,11 +20,23 @@ const PROVIDERS = [
 const DOT_X = 96;
 const BOX_X = 410;
 const rowY = (index: number) => 20 + index * 40;
-const providerY = (label: string) => PROVIDERS.find((provider) => provider.label === label)?.y ?? 0;
+const providerY = (label: string) => {
+  const provider = PROVIDERS.find((candidate) => candidate.label === label);
+  if (provider === undefined) {
+    throw new Error(`the router diagram has no provider ${label}`);
+  }
+  return provider.y;
+};
 // The order routes draw in on first view, and the first route to reach each
 // provider, which sets when that provider's box lights.
 const ROUTED = CAPABILITIES.filter((name) => ROUTES.has(name));
-const arrival = (label: string) => ROUTED.findIndex((name) => ROUTES.get(name) === label);
+const arrival = (label: string) => {
+  const index = ROUTED.findIndex((name) => ROUTES.get(name) === label);
+  if (index === -1) {
+    throw new Error(`the router diagram has no route to ${label}`);
+  }
+  return index;
+};
 const curve = (y1: number, y2: number) =>
   `M${DOT_X} ${y1}C${DOT_X + 170} ${y1} ${BOX_X - 150} ${y2} ${BOX_X} ${y2}`;
 ---
@@ -109,8 +121,5 @@ const curve = (y1: number, y2: number) =>
 </style>
 
 <script>
-  import { bindReveals } from "../../lib/reveal";
-
-  bindReveals();
-  document.addEventListener("astro:page-load", bindReveals);
+  import "../../lib/reveal";
 </script>

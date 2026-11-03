@@ -56,7 +56,7 @@
  * roles; nothing else sets size, leading, tracking or family. Signifier is
  * for the two large roles only, display and heading. Allowed beside a role:
  * font-medium (emphasis), font-mono (a literal value) and tabular-nums.
- * scripts/check-typography.mjs enforces this.
+ * scripts/check-typography.ts enforces this.
  */
 @utility type-display {
   font-family: var(--blume-font-display);
