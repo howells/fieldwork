@@ -1177,6 +1177,31 @@ describe("firecrawl act", () => {
     expect(requests(calls).at(-1)).toBe("DELETE /v2/interact/s7");
   });
 
+  it("reports a session it could not close, with its id", async () => {
+    const { web } = client(
+      { body: { id: "s8", success: true } },
+      { body: { stdout: "c", success: true } },
+      { body: { error: "unavailable" }, status: 503 }
+    );
+    const result = await web.act("1");
+    expect(result.sessionId).toBe("s8");
+    expect(result.meta?.warnings).toStrictEqual([
+      expect.stringContaining("could not close session s8"),
+    ]);
+  });
+
+  it("names a session it could not close when the script fails", async () => {
+    const { web } = client(
+      { body: { id: "s9", success: true } },
+      { body: { error: "bad gateway" }, status: 502 },
+      { body: { error: "unavailable" }, status: 503 }
+    );
+    await expect(web.act("1")).rejects.toMatchObject({
+      message: expect.stringContaining("could not close session s9"),
+      status: 502,
+    });
+  });
+
   it("refuses session settings for a session that already exists", async () => {
     const { web, calls } = client();
     await expect(

@@ -1,8 +1,8 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { FieldworkError } from "../errors.js";
-import { createRawClient, poll, requireKey } from "../http.js";
+import { FieldworkError, withJob } from "../errors.js";
+import { createRawClient, poll, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { OutputSchema } from "../schema.js";
@@ -454,7 +454,7 @@ const startResearch = async (
   o: PerplexityResearchOptions,
   call: CallOptions
 ) => {
-  if (o.resume !== undefined && o.resume !== "") {
+  if (o.resume !== undefined) {
     return o.resume;
   }
   const created = z.parse(
@@ -491,7 +491,7 @@ const researchOutput = (
     return parseJson(provider, reply);
   } catch (error) {
     if (status === "completed") {
-      throw error;
+      throw withJob(error, id);
     }
     // A run cut short can leave JSON that stops mid-value: no usable output.
     throw new FieldworkError(
@@ -512,16 +512,14 @@ const research = async <T>(
   const run = await poll(
     provider,
     id,
-    async () => {
+    async (request) => {
       const found = z.parse(
         AgentRun,
-        await raw.request("GET", `/v1/agent/${encodeURIComponent(id)}`, {
-          signal: call.signal,
-        })
+        await raw.request("GET", `/v1/agent/${segment(id)}`, request)
       );
       return TERMINAL.has(found.value.status ?? "") ? found : undefined;
     },
-    { interval: o.interval, signal: call.signal, timeout: call.timeout }
+    { ...call, interval: o.interval }
   );
   const { status } = run.value;
   const read = readResponse(run.value);

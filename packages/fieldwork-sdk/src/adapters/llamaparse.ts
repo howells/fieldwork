@@ -3,7 +3,13 @@ import * as z from "zod/mini";
 import { defineAdapter } from "../adapter.js";
 import { documentPart, refuseLarger } from "../document.js";
 import { FieldworkError, withJob } from "../errors.js";
-import { createRawClient, poll, readSigned, requireKey } from "../http.js";
+import {
+  createRawClient,
+  poll,
+  readSigned,
+  requireKey,
+  segment,
+} from "../http.js";
 import type { RawClient } from "../http.js";
 import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
 import {
@@ -92,7 +98,7 @@ const startParse = async (
   o: LlamaParseParseOptions,
   call: CallOptions
 ) => {
-  if (o.resume !== undefined && o.resume !== "") {
+  if (o.resume !== undefined) {
     return o.resume;
   }
   refuseLarger(provider, document, MAX_PARSE_MB);
@@ -160,19 +166,27 @@ const parse = async (
   const found = await poll(
     provider,
     id,
-    async () =>
+    async (request) =>
       finished(
         z.parse(
           JobResult,
-          await raw.request("GET", `/api/v2/parse/${encodeURIComponent(id)}`, {
+          await raw.request("GET", `/api/v2/parse/${segment(id)}`, {
+            ...request,
             query: { expand },
-            signal: call.signal,
           })
         ),
         id
       ),
-    { interval: o.interval, signal: call.signal, timeout: call.timeout }
+    { ...call, interval: o.interval }
   );
+  // A blank page still arrives as a page; a finished job with none lost its output.
+  if (found.value.markdown.pages.length === 0) {
+    throw new FieldworkError(
+      "ProviderError",
+      `llamaparse finished job ${id} without any pages of Markdown`,
+      { cause: found.original, jobId: id, provider }
+    );
+  }
   const grounded =
     o.wordBoxes === true
       ? await groundedPages(found, id, {

@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
-import { createRawClient, poll, requireKey } from "../http.js";
+import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
 import { callSettings, compact, requireJobId } from "../util.js";
@@ -253,10 +253,10 @@ export const tavily = (config: TavilyConfig = {}) => {
       const { body: run, response } = await poll(
         provider,
         id,
-        async () => {
-          const current = await raw.request("GET", `/research/${id}`, {
+        async (request) => {
+          const current = await raw.request("GET", `/research/${segment(id)}`, {
+            ...request,
             query: { include_usage: true },
-            signal: call.signal,
           });
           const parsed = z.parse(ResearchRun, current);
           if (parsed.status === "failed") {

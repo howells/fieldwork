@@ -72,7 +72,28 @@ export const publishedBefore = (providers: readonly string[]): Field => ({
   schema: date("Only pages published before this date, YYYY-MM-DD."),
 });
 
-const RECENCY_NOTE = "Not together with publishedAfter or publishedBefore.";
+/** The providers whose adapters refuse recency with a date bound, as each one's API does. */
+const RECENCY_REFUSERS = new Map([
+  ["brave", "Brave"],
+  ["firecrawl", "Firecrawl"],
+  ["serpapi", "SerpApi"],
+]);
+
+/** Names the refusers among `providers`, so a model is told only what applies. */
+const recencyNote = (providers: readonly string[]) => {
+  const names = providers.flatMap((name) => {
+    const label = RECENCY_REFUSERS.get(name);
+    return label === undefined ? [] : [label];
+  });
+  if (names.length === 0) {
+    return "";
+  }
+  const list =
+    names.length === 1
+      ? names.join("")
+      : `${names.slice(0, -1).join(", ")} and ${names.at(-1) ?? ""}`;
+  return ` ${list} refuse it together with publishedAfter or publishedBefore.`;
+};
 
 /**
  * `withHour` providers accept all five windows; `fromDay` providers have no
@@ -87,7 +108,7 @@ export const recency = (
       name: "recency",
       providers: withHour,
       schema: choice(
-        `Only pages from the last hour, day, week, month or year. ${RECENCY_NOTE}`,
+        `Only pages from the last hour, day, week, month or year.${recencyNote(withHour)}`,
         ["hour", "day", "week", "month", "year"]
       ),
     },
@@ -95,7 +116,7 @@ export const recency = (
       name: "recency",
       providers: fromDay,
       schema: choice(
-        `Only pages from the last day, week, month or year. ${RECENCY_NOTE}`,
+        `Only pages from the last day, week, month or year.${recencyNote(fromDay)}`,
         ["day", "week", "month", "year"]
       ),
     },

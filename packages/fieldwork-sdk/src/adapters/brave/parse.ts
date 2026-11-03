@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { FieldworkError } from "../../errors.js";
 import type { Citation, Place, SearchResult } from "../../types.js";
-import { compact, refuseTogether } from "../../util.js";
+import { compact, parseJson, refuseTogether } from "../../util.js";
 import type { BraveRecency, SearchInput } from "./options.js";
 import { CitationTag, Completion } from "./response.js";
 import type {
@@ -340,4 +340,20 @@ export const answerCitations = (content: string): Citation[] => {
   return [...byUrl].map(([url, excerpts]) =>
     compact({ excerpts: excerpts.length > 0 ? excerpts : undefined, url })
   );
+};
+
+/**
+ * The answer text of a reply to `/chat/completions`, and the response to keep
+ * in `raw`. A stream arrives as event lines; a plain completion as one JSON
+ * object.
+ */
+export const replyContent = (reply: string) => {
+  if (!reply.trimStart().startsWith("{")) {
+    return { content: streamText(reply), response: reply };
+  }
+  const completion = parseJson(provider, reply);
+  return {
+    content: completionText(z.parse(Completion, completion)),
+    response: completion,
+  };
 };

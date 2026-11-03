@@ -15,6 +15,8 @@ export interface RequestOptions extends CallOptions {
    * on, is retried.
    */
   creates?: boolean;
+  /** The endpoint answers in text, such as an event stream, so its body is returned as a string. */
+  text?: boolean;
 }
 
 /**
@@ -82,7 +84,8 @@ const retryDelay = (
     state.count >= state.retries ||
     state.signal?.aborted === true ||
     !error.retryable ||
-    error.code === "Timeout" ||
+    // The call's own deadline ran out; a 408 from the server can be retried.
+    (error.code === "Timeout" && error.status === undefined) ||
     (state.creates && error.code !== "RateLimited")
   ) {
     return undefined;
@@ -94,6 +97,73 @@ const retryDelay = (
   // Exponential backoff with jitter, so clients that failed together spread out.
   const ceiling = Math.min(MAX_RETRY_WAIT, FIRST_RETRY_WAIT * 2 ** state.count);
   return ceiling / 2 + Math.random() * (ceiling / 2);
+};
+
+/** Whether a stopped signal's deadline ran out, rather than its caller cancelling. */
+const timedOut = (signal: AbortSignal) =>
+  signal.reason instanceof DOMException &&
+  signal.reason.name === "TimeoutError";
+
+/**
+ * The error for a call its signal stopped: `Timeout` when the signal's
+ * deadline ran out (a call's `timeout` is a deadline signal across all its
+ * requests), `Aborted` when the caller cancelled.
+ */
+const stopped = (
+  signal: AbortSignal,
+  message: string,
+  options: { cause?: unknown; jobId?: string; provider: string }
+) =>
+  new FieldworkError(
+    timedOut(signal) ? "Timeout" : "Aborted",
+    message,
+    options
+  );
+
+const transportError = (
+  provider: string,
+  error: unknown,
+  signal: AbortSignal | undefined
+) => {
+  if (signal?.aborted === true) {
+    return stopped(
+      signal,
+      `${provider} request stopped: ${timedOut(signal) ? "timed out" : "cancelled"}`,
+      {
+        cause: error,
+        provider,
+      }
+    );
+  }
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return new FieldworkError("Timeout", `${provider} request timed out`, {
+      cause: error,
+      provider,
+    });
+  }
+  // The request never reached a response, so repeating it can succeed.
+  return new FieldworkError(
+    "ProviderError",
+    `${provider} request failed: ${String(error)}`,
+    {
+      cause: error,
+      provider,
+      retryable: true,
+    }
+  );
+};
+
+/** A response's body; a connection lost while it streams is a transport error like any other. */
+const readText = async (
+  provider: string,
+  response: Response,
+  signal: AbortSignal | undefined
+): Promise<string> => {
+  try {
+    return await response.text();
+  } catch (error) {
+    throw transportError(provider, error, signal);
+  }
 };
 
 export const createRawClient = (config: ClientConfig): RawClient => {
@@ -145,11 +215,23 @@ export const createRawClient = (config: ClientConfig): RawClient => {
           method,
           url,
         });
-        const text = await response.text();
-        const parsed = parseBody(text);
+        const text = await readText(config.provider, response, signal);
+        const json = jsonOf(text);
+        const parsed = json === undefined ? text : json.value;
         if (response.ok) {
-          // SAFETY: the caller names T, the shape it expects of this endpoint's JSON; the client does not validate the body against it.
-          return parsed as T;
+          if (options.text !== true && json === undefined) {
+            throw new FieldworkError(
+              "ProviderError",
+              `${config.provider} ${method} ${path} returned ${response.status} with a body that is not JSON: ${text.slice(0, 300)}`,
+              {
+                cause: text,
+                provider: config.provider,
+                status: response.status,
+              }
+            );
+          }
+          // SAFETY: the caller names T: the shape it expects of this endpoint's JSON, or string for a text endpoint. The client does not validate the body against it.
+          return (options.text === true ? text : parsed) as T;
         }
         throw new FieldworkError(
           codeForStatus(response.status),
@@ -189,9 +271,9 @@ export const createRawClient = (config: ClientConfig): RawClient => {
           }
           await sleep(wait, signal);
           if (options.signal?.aborted === true) {
-            throw new FieldworkError(
-              "Aborted",
-              `${config.provider} request was cancelled while waiting to retry`,
+            throw stopped(
+              options.signal,
+              `${config.provider} request stopped while waiting to retry`,
               { cause: error, provider: config.provider }
             );
           }
@@ -272,43 +354,15 @@ const combineSignals = (
   return signals.length <= 1 ? signals[0] : AbortSignal.any(signals);
 };
 
-const transportError = (
-  provider: string,
-  error: unknown,
-  signal: AbortSignal | undefined
-) => {
-  if (signal?.aborted === true) {
-    return new FieldworkError("Aborted", `${provider} request was cancelled`, {
-      cause: error,
-      provider,
-    });
-  }
-  if (error instanceof DOMException && error.name === "TimeoutError") {
-    return new FieldworkError("Timeout", `${provider} request timed out`, {
-      cause: error,
-      provider,
-    });
-  }
-  // The request never reached a response, so repeating it can succeed.
-  return new FieldworkError(
-    "ProviderError",
-    `${provider} request failed: ${String(error)}`,
-    {
-      cause: error,
-      provider,
-      retryable: true,
-    }
-  );
-};
-
-const parseBody = (text: string): unknown => {
+/** The body's JSON, or undefined when the body is not JSON. An empty body is JSON with no value. */
+const jsonOf = (text: string): { value: unknown } | undefined => {
   if (text === "") {
-    return undefined;
+    return { value: undefined };
   }
   try {
-    return JSON.parse(text);
+    return { value: JSON.parse(text) };
   } catch {
-    return text;
+    return undefined;
   }
 };
 
@@ -348,25 +402,32 @@ export interface PollOptions extends CallOptions {
   interval?: number;
 }
 
+/**
+ * Checks a job until `check` returns its result. Each check is given the
+ * settings for its request: the call's signal, which carries the call's whole
+ * deadline, and its retries. A check that throws, a cancellation and a
+ * timeout all surface with `jobId`, so the caller can resume the job.
+ */
 export const poll = async <T>(
   provider: string,
   jobId: string,
-  check: () => Promise<T | undefined>,
+  check: (request: CallOptions) => Promise<T | undefined>,
   options: PollOptions = {}
 ): Promise<T> => {
   const interval = options.interval ?? 2000;
   const deadline = Date.now() + (options.timeout ?? 600_000);
+  const request = { retries: options.retries, signal: options.signal };
   for (;;) {
     if (options.signal?.aborted === true) {
-      throw new FieldworkError(
-        "Aborted",
+      throw stopped(
+        options.signal,
         `stopped waiting for ${provider} job ${jobId}; it may still be running`,
         { jobId, provider }
       );
     }
     let value: T | undefined;
     try {
-      value = await check();
+      value = await check(request);
     } catch (error) {
       throw withJob(error, jobId);
     }
@@ -383,6 +444,9 @@ export const poll = async <T>(
     await sleep(interval, options.signal);
   }
 };
+
+/** An id as one path segment, so a caller's `resume` cannot reach another endpoint. */
+export const segment = (id: string): string => encodeURIComponent(id);
 
 export const requireKey = (
   provider: string,
@@ -420,7 +484,7 @@ export const readSigned = async (
   } catch (error) {
     throw transportError(provider, error, options.signal);
   }
-  const text = await response.text();
+  const text = await readText(provider, response, options.signal);
   if (!response.ok) {
     throw new FieldworkError(
       codeForStatus(response.status),

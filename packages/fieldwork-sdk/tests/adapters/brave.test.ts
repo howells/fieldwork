@@ -619,7 +619,7 @@ describe("brave adapter", () => {
     ].join("\n\n");
 
     it("asks Brave's answer endpoint for a cited stream", async () => {
-      const { web, calls } = setup({ body: stream });
+      const { web, calls } = setup({ text: stream });
       await web.answer("Is oak hard?", {
         country: "gb",
         language: "EN",
@@ -660,7 +660,7 @@ describe("brave adapter", () => {
     });
 
     it("sends only the required fields by default", async () => {
-      const { web, calls } = setup({ body: stream });
+      const { web, calls } = setup({ text: stream });
       await web.answer("Is oak hard?");
       expect(nth(calls, 0).body).toStrictEqual({
         enable_citations: true,
@@ -670,7 +670,7 @@ describe("brave adapter", () => {
     });
 
     it("joins the stream, lifts out citations and reads the cost", async () => {
-      const { web } = setup({ body: stream });
+      const { web } = setup({ text: stream });
       const response = await web.answer("Is oak hard?");
       expect(response.answer).toBe("Oak is hard and durable.");
       expect(response.citations).toStrictEqual([
@@ -697,7 +697,7 @@ describe("brave adapter", () => {
         ),
         "data: [DONE]",
       ].join("\n\n");
-      const { web } = setup({ body });
+      const { web } = setup({ text: body });
       const response = await web.answer("q");
       expect(response.answer).toBe("Yes.");
       expect(response.citations).toStrictEqual([]);
@@ -716,7 +716,7 @@ describe("brave adapter", () => {
     });
 
     it("fails when the stream holds no answer text", async () => {
-      const { web } = setup({ body: "data: [DONE]\n\n" });
+      const { web } = setup({ text: "data: [DONE]\n\n" });
       await expect(web.answer("q")).rejects.toMatchObject({
         code: "ProviderError",
         provider: "brave",

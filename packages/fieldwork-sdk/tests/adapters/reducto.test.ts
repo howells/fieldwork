@@ -180,6 +180,30 @@ describe("reducto parse", () => {
     });
   });
 
+  it("fails loudly, with the job id, when a finished job has no output", async () => {
+    const { web } = client(...started, {
+      body: { result: { result: { type: "full" } }, status: "Completed" },
+    });
+    await expect(web.parse(sheet)).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "job-1",
+    });
+  });
+
+  it("refuses a result type it does not read", async () => {
+    const { web } = client(...started, {
+      body: {
+        result: { result: { chunks: [], type: "chunked" } },
+        status: "Completed",
+      },
+    });
+    await expect(web.parse(sheet)).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "job-1",
+      message: expect.stringContaining("chunked"),
+    });
+  });
+
   it("throws JobFailed with the job id and Reducto's reason", async () => {
     const { web } = client(...started, {
       body: { reason: "password protected", status: "Failed" },

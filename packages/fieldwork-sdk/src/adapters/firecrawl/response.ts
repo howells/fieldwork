@@ -314,7 +314,7 @@ export const researchResult = (
 export const actResult = (
   entry: ExecutionBlock,
   sessionId: string | undefined,
-  closed: ClosedBlock | null
+  close: { closed?: ClosedBlock; failure?: string }
 ): ActResult => {
   const result = entry.value;
   const stdout = result.stdout ?? "";
@@ -329,7 +329,10 @@ export const actResult = (
     error: result.error ?? failure,
     exitCode: result.exitCode,
     killed: result.killed,
-    meta: meta({ credits: closed?.creditsBilled }),
+    meta: meta({
+      credits: close.closed?.creditsBilled,
+      warnings: close.failure,
+    }),
     raw: entry.original,
     result: repeated ? undefined : result.result,
     sessionId,

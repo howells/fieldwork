@@ -29,10 +29,10 @@ describe("browserbase adapter with a response of the wrong shape", () => {
     expect(response.raw).toStrictEqual(body);
   });
 
-  it("returns no results for a body that is not an object, and keeps it in raw", async () => {
-    const response = await setup({ body: "oops" }).search("oak");
-    expect(response.results).toStrictEqual([]);
-    expect(response.raw).toBe("oops");
+  it("fails loudly on a body that is not JSON", async () => {
+    await expect(setup({ text: "oops" }).search("oak")).rejects.toMatchObject({
+      code: "ProviderError",
+    });
   });
 
   it("reads a fetch whose content and status are of the wrong type", async () => {

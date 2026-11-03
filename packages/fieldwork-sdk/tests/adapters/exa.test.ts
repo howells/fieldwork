@@ -426,6 +426,13 @@ describe("exa extract", () => {
 });
 
 describe("exa answer", () => {
+  it("fails loudly when Exa returns no answer text", async () => {
+    const { web } = client({ body: { answer: "", citations: [] } });
+    await expect(web.answer("q")).rejects.toMatchObject({
+      code: "ProviderError",
+    });
+  });
+
   it("calls /answer and returns the cited answer", async () => {
     const { web, calls } = client({
       body: {

@@ -283,6 +283,17 @@ describe("llamaparse parse", () => {
     });
   });
 
+  it("fails loudly, with the job id, when a finished job has no pages", async () => {
+    const { web } = client(
+      { body: { id: "pjb-1" } },
+      { body: { job: { id: "pjb-1", status: "COMPLETED" } } }
+    );
+    await expect(web.parse(sheet)).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "pjb-1",
+    });
+  });
+
   it("throws JobFailed with the job id when the job fails", async () => {
     const { web } = client(
       { body: { id: "pjb-1" } },

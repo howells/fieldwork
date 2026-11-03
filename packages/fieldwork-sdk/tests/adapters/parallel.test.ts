@@ -1440,6 +1440,15 @@ describe("parallel monitor", () => {
     ]);
   });
 
+  it("stops listing when a cursor repeats", async () => {
+    const { web, calls } = connect(
+      { body: { monitors: [monitor], next_cursor: "same" } },
+      { body: { monitors: [], next_cursor: "same" } }
+    );
+    await web.monitor.list();
+    expect(calls).toHaveLength(2);
+  });
+
   it("deletes a monitor by cancelling it", async () => {
     const { web, calls } = connect({
       body: { ...monitor, status: "cancelled" },

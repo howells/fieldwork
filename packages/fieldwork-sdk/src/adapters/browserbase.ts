@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
-import { createRawClient, requireKey } from "../http.js";
+import { createRawClient, requireKey, segment } from "../http.js";
 import type {
   AccountUsage,
   BrowserSession,
@@ -32,9 +32,8 @@ export interface BrowserbaseConfig {
   apiKey?: string;
   /**
    * The project that new browser sessions belong to and whose usage `usage`
-   * reads. Defaults to the BROWSERBASE_PROJECT_ID environment variable.
-   * Browserbase infers the project from the API key when it is not set, and
-   * `usage` then uses the key's only project.
+   * reads. Without it, Browserbase infers the project from the API key, and
+   * `usage` uses the key's only project.
    */
   projectId?: string;
   baseUrl?: string;
@@ -173,8 +172,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     provider,
     retries: config.retries,
   });
-  // oxlint-disable-next-line no-restricted-properties -- the SDK reads API keys and ids from the environment, like requireKey
-  const projectId = config.projectId ?? process.env.BROWSERBASE_PROJECT_ID;
+  const { projectId } = config;
 
   const invalid: (message: string) => never = (message) => {
     throw new FieldworkError("InvalidRequest", `${provider} ${message}`, {
@@ -206,11 +204,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     try {
       const urls = z.parse(
         DebugResponse,
-        await raw.request(
-          "GET",
-          `/v1/sessions/${encodeURIComponent(id)}/debug`,
-          call
-        )
+        await raw.request("GET", `/v1/sessions/${segment(id)}/debug`, call)
       );
       return { url: urls.debuggerFullscreenUrl ?? urls.debuggerUrl };
     } catch (error) {
@@ -226,7 +220,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     browser: {
       async close(id, options) {
         const { call } = callSettings(options);
-        await raw.request("POST", `/v1/sessions/${encodeURIComponent(id)}`, {
+        await raw.request("POST", `/v1/sessions/${segment(id)}`, {
           ...call,
           body: { status: "REQUEST_RELEASE" },
         });
@@ -365,7 +359,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       const id = projectId ?? (await onlyProject(call));
       const response = await raw.request(
         "GET",
-        `/v1/projects/${encodeURIComponent(id)}/usage`,
+        `/v1/projects/${segment(id)}/usage`,
         call
       );
       const body = z.parse(UsageResponse, response);
@@ -390,7 +384,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     );
     if (projects.length !== 1) {
       invalid(
-        `usage needs a project: pass projectId or set BROWSERBASE_PROJECT_ID (this key has ${projects.length} projects)`
+        `usage needs a project: pass projectId (this key has ${projects.length} projects)`
       );
     }
     return requireJobId(

@@ -117,7 +117,7 @@ describe("brave adapter with a response of the wrong shape", () => {
       ),
       "data: [DONE]",
     ].join("\n\n");
-    const response = await setup({ body }).answer("q");
+    const response = await setup({ text: body }).answer("q");
     expect(response.answer).toBe("Yes.");
     expect(response.meta).toStrictEqual({ usage: { units: { queries: 2 } } });
   });

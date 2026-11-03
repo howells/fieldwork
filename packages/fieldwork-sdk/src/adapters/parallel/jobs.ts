@@ -1,7 +1,7 @@
 import * as z from "zod/mini";
 
 import { FieldworkError, withJob } from "../../errors.js";
-import { poll } from "../../http.js";
+import { poll, segment } from "../../http.js";
 import type { PollOptions, RawClient } from "../../http.js";
 import type { CallOptions } from "../../types.js";
 import { compact, requireJobId } from "../../util.js";
@@ -47,18 +47,18 @@ export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
 export const taskResult = async (
   raw: RawClient,
   id: string,
-  signal: AbortSignal | undefined
+  request: CallOptions
 ) => {
   try {
     return z.parse(
       TaskResult,
-      await raw.request("GET", `/v1/tasks/runs/${id}/result`, { signal })
+      await raw.request("GET", `/v1/tasks/runs/${segment(id)}/result`, request)
     );
   } catch (error) {
     if (error instanceof FieldworkError && error.code === "NotFound") {
       const run = z.parse(
         TaskRun,
-        await raw.request("GET", `/v1/tasks/runs/${id}`, { signal })
+        await raw.request("GET", `/v1/tasks/runs/${segment(id)}`, request)
       );
       if (run.value.status === "failed" || run.value.status === "cancelled") {
         throw stoppedRun(id, run);
@@ -81,22 +81,19 @@ export const runTask = async (
       z.parse(
         TaskStart,
         await raw.request("POST", "/v1/tasks/runs", {
+          ...wait,
           body,
           creates: true,
-          signal: wait.signal,
-          timeout: wait.timeout,
         })
       ).run_id
     );
   const result = await poll(
     raw.provider,
     id,
-    async () => {
+    async (request) => {
       const run = z.parse(
         TaskRun,
-        await raw.request("GET", `/v1/tasks/runs/${id}`, {
-          signal: wait.signal,
-        })
+        await raw.request("GET", `/v1/tasks/runs/${segment(id)}`, request)
       );
       const { status } = run.value;
       if (
@@ -108,7 +105,7 @@ export const runTask = async (
       }
       // queued, running and cancelling are still going.
       return status === "completed"
-        ? await taskResult(raw, id, wait.signal)
+        ? await taskResult(raw, id, request)
         : undefined;
     },
     wait
@@ -144,13 +141,13 @@ export const startFindAll = async (
   const id = requireJobId(provider, created.findall_id);
   if (o.schema) {
     try {
-      await raw.request("POST", `/v1beta/findall/runs/${id}/enrich`, {
+      await raw.request("POST", `/v1beta/findall/runs/${segment(id)}/enrich`, {
+        ...call,
         body: compact({
           output_schema: jsonOutput(o.schema),
           processor: o.processor,
         }),
         creates: true,
-        signal: call.signal,
       });
     } catch (error) {
       throw withJob(error, id);
@@ -163,11 +160,11 @@ export const startFindAll = async (
 export const findAllResult = async (
   raw: RawClient,
   id: string,
-  signal: AbortSignal | undefined
+  request: CallOptions
 ) => {
   const run = z.parse(
     FindAllRun,
-    await raw.request("GET", `/v1beta/findall/runs/${id}`, { signal })
+    await raw.request("GET", `/v1beta/findall/runs/${segment(id)}`, request)
   );
   const { status } = run.value.status;
   if (status === "action_required") {
@@ -182,9 +179,11 @@ export const findAllResult = async (
   return stopped
     ? z.parse(
         FindAllResult,
-        await raw.request("GET", `/v1beta/findall/runs/${id}/result`, {
-          signal,
-        })
+        await raw.request(
+          "GET",
+          `/v1beta/findall/runs/${segment(id)}/result`,
+          request
+        )
       )
     : undefined;
 };

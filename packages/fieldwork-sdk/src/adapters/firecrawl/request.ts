@@ -243,6 +243,7 @@ export const scriptRequest = (
   seconds: number | undefined
 ): RequestOptions => ({
   body: compact({ code, language: language ?? "node", timeout: seconds }),
+  retries: call.retries,
   signal: call.signal,
   timeout:
     call.timeout === undefined ? undefined : call.timeout + REPORT_GRACE_MS,

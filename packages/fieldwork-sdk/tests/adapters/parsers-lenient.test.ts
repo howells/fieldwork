@@ -66,6 +66,7 @@ describe("document parsers with a response of the wrong shape", () => {
               content: ["x"],
             },
           ],
+          type: "full",
         },
         usage: "free",
       },

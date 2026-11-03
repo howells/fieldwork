@@ -14,7 +14,6 @@ import {
   CITATION_TAG,
   USAGE_TAG,
   answerCitations,
-  completionText,
   freshness,
   gogglesOf,
   lower,
@@ -23,16 +22,15 @@ import {
   placeResult,
   provider,
   refuseUnsupported,
+  replyContent,
   result,
   section,
-  streamText,
   tagBodies,
   upper,
   warningsOf,
   withQuery,
 } from "./brave/parse.js";
 import {
-  Completion,
   ContextResponse,
   ImageSearchResponse,
   UsageTag,
@@ -87,7 +85,7 @@ export const brave = (config: BraveConfig = {}) => {
             : undefined,
       });
       // Brave returns citations only on a stream, so the answer is always streamed.
-      const response = await raw.request("POST", "/chat/completions", {
+      const reply = await raw.request<string>("POST", "/chat/completions", {
         ...call,
         body: compact({
           country: upper(o.country),
@@ -101,11 +99,9 @@ export const brave = (config: BraveConfig = {}) => {
           web_search_options:
             Object.keys(searchOptions).length > 0 ? searchOptions : undefined,
         }),
+        text: true,
       });
-      const stream = z.safeParse(z.string(), response);
-      const content = stream.success
-        ? streamText(stream.data)
-        : completionText(z.parse(Completion, response));
+      const { content, response } = replyContent(reply);
       const answer = content
         .replace(CITATION_TAG, "")
         .replace(USAGE_TAG, "")

@@ -1,4 +1,4 @@
-import { country } from "./fields.js";
+import { country, resume } from "./fields.js";
 import {
   ACT_OUTPUT,
   CLOSE_BROWSER_OUTPUT,
@@ -115,6 +115,7 @@ export const BROWSER_SPECS: Spec[] = [
         providers: ["firecrawl"],
         schema: flag("Also return the Markdown of each page separately."),
       },
+      resume(["llamaparse", "reducto"]),
     ],
     idempotent: true,
     name: "parse_document",

@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
-import { createRawClient, poll, requireKey } from "../http.js";
+import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type {
   DecisionAnswer,
@@ -239,7 +239,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       const result = await poll(
         provider,
         id,
-        async () => await findAllResult(raw, id, call.signal),
+        async (request) => await findAllResult(raw, id, request),
         { ...call, interval: o.interval }
       );
       const found = discovery(id, result);
@@ -402,7 +402,7 @@ export const parallel = (config: ParallelConfig = {}) => {
       async delete(id, options) {
         await raw.request(
           "POST",
-          `/v1/monitors/${encodeURIComponent(id)}/cancel`,
+          `/v1/monitors/${segment(id)}/cancel`,
           options
         );
       },
@@ -411,7 +411,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         const { call, rest: o } = callSettings(options);
         const response = await raw.request(
           "GET",
-          `/v1/monitors/${encodeURIComponent(id)}/events`,
+          `/v1/monitors/${segment(id)}/events`,
           {
             ...call,
             query: {
@@ -434,30 +434,32 @@ export const parallel = (config: ParallelConfig = {}) => {
         return monitorInfo(
           z.parse(
             MonitorEntry,
-            await raw.request(
-              "GET",
-              `/v1/monitors/${encodeURIComponent(id)}`,
-              options
-            )
+            await raw.request("GET", `/v1/monitors/${segment(id)}`, options)
           )
         );
       },
 
       async list(options) {
+        const { call } = callSettings(options);
         const monitors: MonitorInfo[] = [];
+        const seen = new Set<string>();
         let cursor: string | undefined;
-        do {
+        for (;;) {
           const page = z.parse(
             MonitorsPage,
             await raw.request("GET", "/v1/monitors", {
-              ...options,
+              ...call,
               query: { cursor, limit: 100 },
             })
           );
           monitors.push(...page.monitors.map((entry) => monitorInfo(entry)));
           cursor = page.next_cursor;
-        } while (cursor !== undefined);
-        return monitors;
+          // A cursor seen before would page forever.
+          if (cursor === undefined || seen.has(cursor)) {
+            return monitors;
+          }
+          seen.add(cursor);
+        }
       },
     },
 

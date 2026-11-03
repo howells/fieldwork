@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError } from "../errors.js";
-import { createRawClient, poll, requireKey } from "../http.js";
+import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
@@ -154,14 +154,14 @@ export const exa = (config: ExaConfig = {}) => {
 
     async delete(id, options) {
       const { call } = callSettings(options);
-      await raw.request("DELETE", `/monitors/${encodeURIComponent(id)}`, call);
+      await raw.request("DELETE", `/monitors/${segment(id)}`, call);
     },
 
     async events(id, options) {
       const { call, rest: o } = callSettings(options);
       const response = await raw.request(
         "GET",
-        `/monitors/${encodeURIComponent(id)}/runs`,
+        `/monitors/${segment(id)}/runs`,
         { ...call, query: { cursor: o.cursor, limit: o.limit } }
       );
       const page = z.parse(RunsPage, response);
@@ -177,7 +177,7 @@ export const exa = (config: ExaConfig = {}) => {
       return monitorInfo(
         z.parse(
           MonitorEntry,
-          await raw.request("GET", `/monitors/${encodeURIComponent(id)}`, call)
+          await raw.request("GET", `/monitors/${segment(id)}`, call)
         )
       );
     },
@@ -225,12 +225,20 @@ export const exa = (config: ExaConfig = {}) => {
         }),
       });
       const body = z.parse(AnswerResponse, response);
-      const { structure } = body.answer;
+      const { structure, text } = body.answer;
+      const answer = structure === undefined ? text : JSON.stringify(structure);
+      if (answer === undefined || answer === "") {
+        throw new FieldworkError(
+          "ProviderError",
+          "exa returned no answer text",
+          {
+            cause: response,
+            provider,
+          }
+        );
+      }
       return compact({
-        answer:
-          structure === undefined
-            ? (body.answer.text ?? "")
-            : JSON.stringify(structure),
+        answer,
         citations: uniqueCitations(citationsOf(body.citations)),
         meta: responseMeta(body),
         output:
@@ -328,12 +336,10 @@ export const exa = (config: ExaConfig = {}) => {
       const run = await poll(
         provider,
         id,
-        async () => {
+        async (request) => {
           const current = z.parse(
             RunEntry,
-            await raw.request("GET", `/agent/runs/${encodeURIComponent(id)}`, {
-              signal: call.signal,
-            })
+            await raw.request("GET", `/agent/runs/${segment(id)}`, request)
           );
           const { status } = current.value;
           return status === "completed" ||

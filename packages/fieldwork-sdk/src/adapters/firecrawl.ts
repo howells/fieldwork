@@ -2,7 +2,7 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, withJob } from "../errors.js";
-import { createRawClient, poll, requireKey } from "../http.js";
+import { createRawClient, poll, requireKey, segment } from "../http.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, MonitorInfo } from "../types.js";
 import {
@@ -73,7 +73,7 @@ import {
   Session,
   UsageResponse,
 } from "./firecrawl/shapes.js";
-import { invalid, provider, segment } from "./firecrawl/shared.js";
+import { invalid, provider } from "./firecrawl/shared.js";
 
 export type {
   FirecrawlAction,
@@ -99,6 +99,9 @@ export type {
   FirecrawlSearchOptions,
   FirecrawlSessionSettings,
 } from "./firecrawl/options.js";
+
+/** How long closing a session may take, apart from the call's own deadline. */
+const CLOSE_TIMEOUT = 15_000;
 
 export const firecrawl = (config: FirecrawlConfig = {}) => {
   const baseUrl = config.baseUrl ?? "https://api.firecrawl.dev/v2";
@@ -144,10 +147,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       to: string
     ) => {
       try {
-        return z.parse(
-          schema,
-          await raw.request("GET", to, { signal: call.signal })
-        );
+        return z.parse(schema, await raw.request("GET", to, call));
       } catch (error) {
         throw withJob(error, id);
       }
@@ -155,11 +155,8 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     const first = await poll(
       provider,
       id,
-      async () => {
-        const status = z.parse(
-          Batch,
-          await raw.request("GET", path, { signal: call.signal })
-        );
+      async (request) => {
+        const status = z.parse(Batch, await raw.request("GET", path, request));
         const state = status.value.status;
         if (state === "failed" || state === "cancelled") {
           throw new FieldworkError(
@@ -193,28 +190,42 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       await raw.request("POST", "/interact", {
         body: sessionBody(o),
         creates: true,
+        retries: call.retries,
         signal: call.signal,
       })
     );
     return { id: requireJobId(provider, session.value.id), session };
   };
 
-  const closeQuietly = async (id: string, call: CallOptions) => {
+  /**
+   * Closes a session so it stops billing. It runs on its own deadline, so a
+   * call that was cancelled or timed out still closes what it opened. A
+   * failure is returned rather than thrown: the caller reports it with the
+   * session id, so the session can still be closed by hand.
+   */
+  const closeSession = async (id: string, call: CallOptions) => {
     try {
-      return z.parse(
+      const closed = z.parse(
         Closed,
         await raw.request("DELETE", `/interact/${segment(id)}`, {
-          signal: call.signal,
+          retries: call.retries,
+          signal: AbortSignal.timeout(CLOSE_TIMEOUT),
         })
       );
-    } catch {
-      return null;
+      return { closed, failure: undefined };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      return {
+        closed: undefined,
+        failure: `firecrawl could not close session ${id}, which may still bill: ${reason}. Close it with DELETE /interact/${id}`,
+      };
     }
   };
 
   const operations: FirecrawlOperations = {
     async act(code, options) {
-      const { call, rest: o } = callSettings(options);
+      // The script's limit goes to Firecrawl, which needs a moment more to report it.
+      const { call, rest: o } = callSettings(options, REPORT_GRACE_MS);
       const seconds = checkAct(o, call.timeout);
       const created = o.session === undefined;
       const keep = o.keepSession ?? !created;
@@ -235,14 +246,34 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
             }
           )
         );
-        const closed = keep ? null : await closeQuietly(id, call);
-        return actResult(result, keep ? id : undefined, closed);
+        if (keep) {
+          return actResult(result, id, {});
+        }
+        const close = await closeSession(id, call);
+        // A session that would not close is reported with its id, so it can be closed by hand.
+        return actResult(
+          result,
+          close.failure === undefined ? undefined : id,
+          close
+        );
       } catch (error) {
         // A session the caller owns and wants kept stays; any other would bill with no way to find it.
-        if (created || !keep) {
-          await closeQuietly(id, call);
+        if (!created && keep) {
+          throw error;
         }
-        throw error;
+        const close = await closeSession(id, call);
+        if (close.failure === undefined || !(error instanceof FieldworkError)) {
+          throw error;
+        }
+        throw new FieldworkError(
+          error.code,
+          `${error.message}; ${close.failure}`,
+          {
+            cause: error,
+            provider,
+            status: error.status,
+          }
+        );
       }
     },
 
@@ -406,7 +437,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     },
 
     async parse(document, options) {
-      const { call, rest: o } = callSettings(options);
+      const { call, rest: o } = callSettings(options, REPORT_GRACE_MS);
       const form = parseForm(document, o, call.timeout);
       const response = await raw.request("POST", "/parse", {
         ...call,
@@ -513,14 +544,12 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       const run = await poll(
         provider,
         id,
-        async () =>
+        async (request) =>
           researchState(
             id,
             z.parse(
               AgentRun,
-              await raw.request("GET", `/agent/${segment(id)}`, {
-                signal: call.signal,
-              })
+              await raw.request("GET", `/agent/${segment(id)}`, request)
             )
           ),
         { ...call, interval: o.interval }

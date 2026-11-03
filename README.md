@@ -243,16 +243,16 @@ On a router, `raw` is keyed by provider name.
 
 ## Keys
 
-| Adapter | Environment variable |
-| --- | --- |
-| `exa()` | `EXA_API_KEY` |
-| `firecrawl()` | `FIRECRAWL_API_KEY` |
-| `tavily()` | `TAVILY_API_KEY` |
-| `parallel()` | `PARALLEL_API_KEY` |
-| `perplexity()` | `PERPLEXITY_API_KEY` |
-| `brave()` | `BRAVE_API_KEY` |
-| `serpapi()` | `SERPAPI_API_KEY` |
-| `browserbase()` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` |
+| Adapter         | Environment variable  |
+| --------------- | --------------------- |
+| `exa()`         | `EXA_API_KEY`         |
+| `firecrawl()`   | `FIRECRAWL_API_KEY`   |
+| `tavily()`      | `TAVILY_API_KEY`      |
+| `parallel()`    | `PARALLEL_API_KEY`    |
+| `perplexity()`  | `PERPLEXITY_API_KEY`  |
+| `brave()`       | `BRAVE_API_KEY`       |
+| `serpapi()`     | `SERPAPI_API_KEY`     |
+| `browserbase()` | `BROWSERBASE_API_KEY` |
 
 Pass `apiKey` (and Browserbase's `projectId`) to override, and `fetch` to supply your own. Requests follow redirects only within the provider's origin; a redirect to any other host, scheme or port fails before the key is sent there.
 

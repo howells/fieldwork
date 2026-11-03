@@ -16,11 +16,37 @@ export const compact = <T extends Json>(value: T): T =>
     Object.entries(value).filter(([, item]) => item !== undefined)
   ) as T;
 
-export const callSettings = <T extends CallOptions>(options: T | undefined) => {
+/**
+ * Splits an operation's options into the provider's own and the call's
+ * settings. The call's `signal` also carries its `timeout` as a deadline, set
+ * now, so every request the operation makes (a start, each poll, a result
+ * download) shares one budget instead of restarting it. An empty `resume`
+ * names no job, so it is refused here, once for every adapter.
+ *
+ * `grace` extends the deadline past `timeout` for an operation that sends the
+ * timeout to the provider and needs a moment more to hear its report.
+ */
+export const callSettings = <T extends CallOptions>(
+  options: T | undefined,
+  grace = 0
+) => {
   // SAFETY: every operation interface makes `options` required when its type has
   // required keys, so absent options reach here only for a T with none, and {} is a T.
   const { retries, signal, timeout, ...rest } = options ?? ({} as T);
-  return { call: { retries, signal, timeout }, rest };
+  if ("resume" in rest && rest.resume === "") {
+    throw new FieldworkError(
+      "InvalidRequest",
+      "resume is empty: pass the jobId an earlier call returned, or leave resume out to start a job"
+    );
+  }
+  const deadline =
+    timeout === undefined
+      ? signal
+      : AbortSignal.any([
+          ...(signal === undefined ? [] : [signal]),
+          AbortSignal.timeout(timeout + grace),
+        ]);
+  return { call: { retries, signal: deadline, timeout }, rest };
 };
 
 export const parseJson = (provider: string, value: unknown): unknown => {

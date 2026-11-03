@@ -413,6 +413,19 @@ describe("perplexity research", () => {
     });
   });
 
+  it("keeps the run id when a completed run's structured output is not JSON", async () => {
+    const { web } = client(
+      { body: { id: "r", status: "queued" } },
+      { body: { id: "r", output: [message("not json")], status: "completed" } }
+    );
+    await expect(
+      web.research("SKU", { schema, ...wait })
+    ).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "r",
+    });
+  });
+
   it("sends a model chain with the default tools and ten steps", async () => {
     const { web, calls } = client(
       { body: { id: "r", status: "queued" } },
