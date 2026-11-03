@@ -147,6 +147,11 @@ class FieldworkClient {
 // SAFETY: the constructor assigns every capability name to the adapter's bound
 // operation or a refusing stand-in, so an instance has the methods that
 // Fieldwork<A> declares for the adapter's operations.
+/**
+ * The client: `new Fieldwork({ adapter })` has exactly the methods its adapter offers.
+ *
+ * Check `supports` or `capabilities` before calling dynamically; a capability the provider lacks throws `Unsupported`.
+ */
 export const Fieldwork = FieldworkClient as new <A extends AnyAdapter>(
   options: FieldworkOptions<A>
 ) => Fieldwork<A>;

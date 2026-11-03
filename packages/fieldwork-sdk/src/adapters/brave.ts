@@ -53,6 +53,11 @@ export type {
   BraveWebSearchOptions,
 } from "./brave/options.js";
 
+/**
+ * An adapter for Brave: search, images and answer. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `BRAVE_API_KEY` is set.
+ */
 export const brave = (config: BraveConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.search.brave.com/res/v1",

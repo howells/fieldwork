@@ -157,6 +157,11 @@ const SEARCH_MODES = {
   parallel: ["fast", "advanced"],
 } as const;
 
+/**
+ * An adapter for Browserbase: search, read, browser and usage. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `BROWSERBASE_API_KEY` is set.
+ */
 export const browserbase = (config: BrowserbaseConfig = {}) => {
   const provider = "browserbase";
   const raw = createRawClient({

@@ -49,6 +49,11 @@ export type {
   TavilySearchOptions,
 } from "./tavily/options.js";
 
+/**
+ * An adapter for Tavily: search, images, read, readMany, map, crawl, answer, research and usage. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `TAVILY_API_KEY` is set.
+ */
 export const tavily = (config: TavilyConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.tavily.com",

@@ -16,6 +16,7 @@ import { reducto } from "@howells/fieldwork-sdk/reducto";
 import { serpapi } from "@howells/fieldwork-sdk/serpapi";
 import { tavily } from "@howells/fieldwork-sdk/tavily";
 
+/** Every provider the server can serve, by the name its flags use. */
 export const PROVIDERS = [
   "exa",
   "firecrawl",
@@ -33,6 +34,7 @@ export type Provider = (typeof PROVIDERS)[number];
 /** API keys given directly; a provider without one reads its key from the environment. */
 export type ApiKeys = Partial<Record<Provider, string>>;
 
+/** The server's settings, as `parseArgs` reads them from the command line. */
 export interface ServerConfig {
   /** Capabilities left out by default that the flags ask for. */
   allow: Capability[];

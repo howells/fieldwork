@@ -218,6 +218,11 @@ const parse = async (
   });
 };
 
+/**
+ * An adapter for LlamaParse: parse. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `LLAMA_CLOUD_API_KEY` is set.
+ */
 export const llamaparse = (config: LlamaParseConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.cloud.llamaindex.ai",

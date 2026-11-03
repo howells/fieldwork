@@ -5,6 +5,7 @@ import { bindOperation } from "./fieldwork.js";
 import { CAPABILITIES } from "./types.js";
 import type { Capability } from "./types.js";
 
+/** Which adapter serves each capability, for `router`. */
 export type Routes = Partial<Record<Capability, AnyAdapter>>;
 
 /** Each route must name an adapter whose provider offers that capability. */

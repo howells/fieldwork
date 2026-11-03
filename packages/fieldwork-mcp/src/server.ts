@@ -6,6 +6,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { registerTool } from "./register.js";
 import { VERSION } from "./version.js";
 
+/** Which tools the server registers; the same options as `toolsFor`. */
 export type FieldworkServerOptions = ToolsOptions;
 
 /**

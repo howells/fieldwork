@@ -188,6 +188,11 @@ const parse = async (
   });
 };
 
+/**
+ * An adapter for Reducto: parse. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `REDUCTO_API_KEY` is set.
+ */
 export const reducto = (config: ReductoConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://platform.reducto.ai",

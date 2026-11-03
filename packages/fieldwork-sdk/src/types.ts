@@ -27,6 +27,7 @@ export const CAPABILITIES = [
   "usage",
 ] as const;
 
+/** A capability's name, such as `search` or `monitor`. */
 export type Capability = (typeof CAPABILITIES)[number];
 
 /**
@@ -103,12 +104,14 @@ export interface Price {
   formatted?: string;
 }
 
+/** Where a place result is. */
 export interface Place {
   address?: string;
   latitude?: number;
   longitude?: number;
 }
 
+/** One result of `search`. Fields a provider does not return are absent. */
 export interface SearchResult {
   url: string;
   title?: string;
@@ -138,6 +141,7 @@ export interface SearchResult {
   place?: Place;
 }
 
+/** One image from `images`, or from a search asked for images. */
 export interface ImageResult {
   /** The image itself. */
   url: string;
@@ -150,6 +154,7 @@ export interface ImageResult {
   height?: number;
 }
 
+/** What `search` returns. */
 export interface SearchResponse {
   results: SearchResult[];
   /** A generated answer, when the provider was asked for one. */
@@ -160,12 +165,14 @@ export interface SearchResponse {
   raw: unknown;
 }
 
+/** What `images` returns. */
 export interface ImageSearch {
   results: ImageResult[];
   meta?: Meta;
   raw: unknown;
 }
 
+/** What `read` returns: one page, in the formats the call asked for. */
 export interface Page {
   url: string;
   title?: string;
@@ -203,6 +210,7 @@ export interface FailedUrl {
   error: string;
 }
 
+/** What `readMany` returns. A URL that fails goes in `failed` rather than failing the call. */
 export interface PageBatch {
   /** The provider's job id, for providers that read in a background job. */
   id?: string;
@@ -212,6 +220,7 @@ export interface PageBatch {
   raw: unknown;
 }
 
+/** What `extract` returns: values in the shape of the schema. */
 export interface Extraction<T> {
   /** The values, in the shape of the schema. */
   data: T;
@@ -221,11 +230,13 @@ export interface Extraction<T> {
   raw: unknown;
 }
 
+/** A product photo. */
 export interface ProductImage {
   url: string;
   alt?: string;
 }
 
+/** One purchasable version of a product, such as a size or colour. */
 export interface ProductVariant {
   id?: string;
   sku?: string;
@@ -243,6 +254,7 @@ export interface ProductVariant {
   gtin?: string;
 }
 
+/** What `product` returns: a product page read into its variants and prices. */
 export interface Product {
   title?: string;
   brand?: string;
@@ -255,18 +267,21 @@ export interface Product {
   raw: unknown;
 }
 
+/** One URL `map` found. */
 export interface SiteLink {
   url: string;
   title?: string;
   description?: string;
 }
 
+/** What `map` returns: a site's URLs, without their content. */
 export interface SiteMap {
   links: SiteLink[];
   meta?: Meta;
   raw: unknown;
 }
 
+/** What `crawl` returns: the pages reached by following links from the start URL. */
 export interface Crawl {
   /** The provider's job id, for providers that crawl in a background job. */
   id?: string;
@@ -288,6 +303,7 @@ export interface Crawl {
  */
 export type RunStatus = "completed" | "partial";
 
+/** What `answer` returns: a cited answer to a question. */
 export interface Answer<T> {
   /** The answer text. */
   answer: string;
@@ -302,6 +318,11 @@ export interface Answer<T> {
   raw: unknown;
 }
 
+/**
+ * What `research` returns once the run ends.
+ *
+ * A run that fails or ends without output throws `JobFailed` with its `jobId`.
+ */
 export interface Research<T> {
   /** The provider's id for the run. */
   id: string;
@@ -334,6 +355,7 @@ export interface Entity<T = Record<string, unknown>> {
   fields?: FieldSource[];
 }
 
+/** What `discover` returns: the entities a run found. */
 export interface Discovery<T = Record<string, unknown>> {
   /** The provider's id for the run. */
   id: string;
@@ -365,6 +387,7 @@ export type DecisionQuestion =
       scale: Record<string, string>;
     };
 
+/** The answer to one `DecisionQuestion`. Which fields are set follows the question's `type`. */
 export interface DecisionAnswer {
   /** For `yesno`: the probability that the answer is yes, 0 to 1. */
   probability?: number;
@@ -377,6 +400,7 @@ export interface DecisionAnswer {
   refusal?: string;
 }
 
+/** What `decide` returns. */
 export interface Decisions {
   /** Answers keyed by the question names given. */
   answers: Record<string, DecisionAnswer>;
@@ -386,6 +410,7 @@ export interface Decisions {
   raw: unknown;
 }
 
+/** What `act` returns: the outcome of a script run in a remote browser. */
 export interface ActResult {
   /** What the script printed. */
   stdout: string;
@@ -416,6 +441,7 @@ export interface BrowserSession {
   raw: unknown;
 }
 
+/** One page of a parsed document, as Markdown. */
 export interface DocumentPage {
   /** The physical page number, starting at 1. */
   pageNumber: number;
@@ -466,6 +492,7 @@ export interface DocumentBlock {
   cells?: TableCell[];
 }
 
+/** What `parse` returns: a document as Markdown, with pages and layout when asked for. */
 export interface ParsedDocument {
   /** The provider's job id, for providers that parse in a background job. */
   id?: string;
@@ -490,6 +517,7 @@ export type MonitorSchedule =
   | { cron: string }
   | { every: "hour" | "day" | "week" | `${number}h` | `${number}d` };
 
+/** A monitor, as `monitor.create`, `monitor.get` and `monitor.list` return it. */
 export interface MonitorInfo {
   id: string;
   /** What the monitor watches: a query, a URL list or a goal. */
@@ -515,6 +543,7 @@ export interface MonitorEvent {
   raw: unknown;
 }
 
+/** What `monitor.events` returns: one page of events. */
 export interface MonitorEvents {
   events: MonitorEvent[];
   /** Pass as `cursor` for the next page. */

@@ -103,6 +103,11 @@ export type {
 /** How long closing a session may take, apart from the call's own deadline. */
 const CLOSE_TIMEOUT = 15_000;
 
+/**
+ * An adapter for Firecrawl: search, images, read, readMany, extract, product, map, crawl, research, act, browser, parse, monitor and usage. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `FIRECRAWL_API_KEY` is set.
+ */
 export const firecrawl = (config: FirecrawlConfig = {}) => {
   const baseUrl = config.baseUrl ?? "https://api.firecrawl.dev/v2";
   const raw = createRawClient({

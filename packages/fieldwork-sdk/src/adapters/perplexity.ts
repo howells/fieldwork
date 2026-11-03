@@ -268,6 +268,11 @@ const decide = async (
   };
 };
 
+/**
+ * An adapter for Perplexity: search, answer, research and decide. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `PERPLEXITY_API_KEY` is set.
+ */
 export const perplexity = (config: PerplexityConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.perplexity.ai",

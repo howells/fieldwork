@@ -71,6 +71,11 @@ export type {
   ExaWebhookEvent,
 } from "./exa/options.js";
 
+/**
+ * An adapter for Exa: search, read, readMany, extract, answer, research and monitor. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `EXA_API_KEY` is set.
+ */
 export const exa = (config: ExaConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.exa.ai",

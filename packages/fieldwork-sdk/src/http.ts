@@ -2,6 +2,7 @@ import { codeForStatus, FieldworkError, withJob } from "./errors.js";
 import type { CallOptions } from "./types.js";
 import { record } from "./util.js";
 
+/** Options for one request through an adapter's `raw` client. */
 export interface RequestOptions extends CallOptions {
   /** A JSON body. */
   body?: unknown;

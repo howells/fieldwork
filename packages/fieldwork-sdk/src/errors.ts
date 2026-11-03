@@ -1,3 +1,4 @@
+/** Why a call failed. Branch on this, not on the message, which can change. */
 export type FieldworkErrorCode =
   /** The adapter's provider does not offer this capability. */
   | "Unsupported"

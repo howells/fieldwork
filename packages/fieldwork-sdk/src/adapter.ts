@@ -32,9 +32,15 @@ export interface Adapter<
   readonly providers?: Partial<Record<Capability, string>>;
 }
 
+/** Any adapter, whatever its provider and operations. Use it to accept an adapter generically. */
 // oxlint-disable-next-line typescript/no-explicit-any -- any adapter, whatever its operations
 export type AnyAdapter = Adapter<string, any, unknown>;
 
+/**
+ * Types an adapter literal without widening it, so `Fieldwork` keeps each operation's own options.
+ *
+ * It returns its argument unchanged; write a custom adapter with it.
+ */
 export const defineAdapter = <
   Name extends string,
   Ops extends Operations,

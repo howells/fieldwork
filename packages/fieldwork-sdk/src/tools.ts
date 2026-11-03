@@ -29,6 +29,7 @@ export type ToolArguments = JsonObject;
 /** What a tool returns: a JSON object, shaped for a model. */
 export type ToolOutput = JsonObject;
 
+/** MCP tool annotations, which clients use to decide when to ask before calling. */
 export interface ToolAnnotations {
   title: string;
   /** True when the tool changes nothing outside Fieldwork. */
@@ -41,6 +42,7 @@ export interface ToolAnnotations {
   openWorldHint: boolean;
 }
 
+/** One agent tool, ready to register with an MCP server or a model's tool API. */
 export interface FieldworkTool {
   /** A verb_noun name, such as `search_web`. */
   name: string;
@@ -76,6 +78,7 @@ export const EXCLUDED_BY_DEFAULT: readonly Capability[] = [
   "monitor",
 ];
 
+/** Which tools `toolsFor` makes, and how much text each result may return. */
 export interface ToolsOptions {
   /**
    * Capabilities to make tools for. Defaults to every capability the instance

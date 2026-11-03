@@ -34,6 +34,11 @@ export type {
   SerpApiShoppingOptions,
 } from "./serpapi/options.js";
 
+/**
+ * An adapter for SerpApi: search, images and usage. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `SERPAPI_API_KEY` is set.
+ */
 export const serpapi = (config: SerpApiConfig = {}) => {
   const key = requireKey(provider, config.apiKey, "SERPAPI_API_KEY");
   // SerpApi authenticates with an `api_key` query parameter, so the key is

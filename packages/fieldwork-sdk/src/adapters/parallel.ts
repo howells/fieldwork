@@ -86,6 +86,11 @@ export type {
   ParallelWebhookEvent,
 } from "./parallel/options.js";
 
+/**
+ * An adapter for Parallel: search, images, read, readMany, extract, answer, research, discover, decide and monitor. Pass it to `new Fieldwork({ adapter })`.
+ *
+ * Throws `Unauthorized` when neither `apiKey` nor `PARALLEL_API_KEY` is set.
+ */
 export const parallel = (config: ParallelConfig = {}) => {
   const raw = createRawClient({
     baseUrl: config.baseUrl ?? "https://api.parallel.ai",
