@@ -156,6 +156,10 @@ jobs:
           pnpm --filter "${scope}..." run --if-present typecheck
           # Lint gates through the ratchet, as it does locally: `lint` lists
           # every finding, including the committed backlog in lint-baseline.json.
+          # The ratchet lints the whole repo, so every package is built first:
+          # the docs app imports fieldwork-mcp, and without its declarations
+          # type-aware lint reports unsafe calls that do not exist.
+          pnpm --filter "./packages/*" run --if-present build
           pnpm run lint:ratchet
           pnpm --filter "${scope}..." run --if-present test
           mkdir -p "$GITHUB_WORKSPACE/release-artifacts"
