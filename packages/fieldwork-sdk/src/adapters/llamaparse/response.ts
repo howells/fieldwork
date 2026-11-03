@@ -59,6 +59,14 @@ export const JobStart = looseObject({ id: withOriginal(optionalId) });
 /** `GET /api/v2/parse/{id}`, as it arrived beside the value read from it. */
 export const JobResult = withOriginal(
   looseObject({
+    images_content_metadata: looseObject({
+      images: arrayOf(
+        looseObject({
+          filename: optionalString,
+          presigned_url: optionalString,
+        })
+      ),
+    }),
     items: looseObject({ pages: arrayOf(ItemsPage) }),
     job: looseObject({
       error_message: optionalString,

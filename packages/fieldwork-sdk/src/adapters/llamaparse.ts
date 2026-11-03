@@ -61,28 +61,50 @@ export interface LlamaParseParseOptions extends CallOptions {
   wordBoxes?: boolean;
   /** Leave out text a reader cannot see, such as white text on white. */
   ignoreHiddenText?: boolean;
+  /**
+   * Also return a picture of each page as `pages[].image`, an address that
+   * expires after about an hour. Collect fresh addresses with
+   * `parse({ resume: id, pageImages: true })`; a parse started without
+   * `pageImages` saved no pictures, so resuming it with them throws.
+   */
+  pageImages?: boolean;
   /** The id of a job from an error's `jobId`; waits for it instead of starting another. */
   resume?: string;
   /** Milliseconds between checks. Defaults to 2000. */
   interval?: number;
 }
 
+/** Options for collecting an earlier parse by its id, without the file. */
+export type LlamaParseResumeOptions = Omit<LlamaParseParseOptions, "resume"> & {
+  resume: string;
+};
+
 export interface LlamaParseOperations {
-  parse: (
-    document: DocumentInput,
-    options?: LlamaParseParseOptions
-  ) => Promise<ParsedDocument>;
+  parse: {
+    (
+      document: DocumentInput,
+      options?: LlamaParseParseOptions
+    ): Promise<ParsedDocument>;
+    /** Collects an earlier parse by its id, without sending the file again. */
+    (options: LlamaParseResumeOptions): Promise<ParsedDocument>;
+  };
 }
 
 const provider = "llamaparse";
+/** LlamaParse names each page's screenshot `page_<n>.jpg`. */
+const PAGE_IMAGE = /^page_(?<page>\d+)\.jpg$/u;
 /** The largest file LlamaParse takes, in megabytes. */
 const MAX_PARSE_MB = 512;
 
 const configuration = (o: LlamaParseParseOptions) =>
   compact({
     output_options:
-      o.wordBoxes === true
-        ? { granular_bboxes: ["word", "line", "cell"] }
+      o.wordBoxes === true || o.pageImages === true
+        ? compact({
+            granular_bboxes:
+              o.wordBoxes === true ? ["word", "line", "cell"] : undefined,
+            images_to_save: o.pageImages === true ? ["screenshot"] : undefined,
+          })
         : undefined,
     processing_options:
       o.ignoreHiddenText === true
@@ -94,12 +116,19 @@ const configuration = (o: LlamaParseParseOptions) =>
 
 const startParse = async (
   raw: RawClient,
-  document: DocumentInput,
+  document: DocumentInput | undefined,
   o: LlamaParseParseOptions,
   call: CallOptions
 ) => {
   if (o.resume !== undefined) {
     return o.resume;
+  }
+  if (document === undefined) {
+    throw new FieldworkError(
+      "InvalidRequest",
+      "parse needs a document, or resume with the id of an earlier parse",
+      { provider }
+    );
   }
   refuseLarger(provider, document, MAX_PARSE_MB);
   const form = new FormData();
@@ -153,16 +182,40 @@ const groundedPages = async (
   }
 };
 
+/** Each page's picture, keyed by page number, from the job's saved screenshots. */
+const pageImageAddresses = (found: JobResultBlock, id: string) => {
+  const addresses = new Map<number, string>();
+  for (const image of found.value.images_content_metadata.images) {
+    const page = PAGE_IMAGE.exec(image.filename ?? "")?.groups?.page;
+    if (page !== undefined && image.presigned_url !== undefined) {
+      addresses.set(Number(page), image.presigned_url);
+    }
+  }
+  if (addresses.size === 0) {
+    throw new FieldworkError(
+      "ProviderError",
+      `llamaparse job ${id} has no page pictures; only a parse started with pageImages saves them`,
+      { cause: found.original, jobId: id, provider }
+    );
+  }
+  return addresses;
+};
+
 const parse = async (
   raw: RawClient,
-  document: DocumentInput,
+  document: DocumentInput | undefined,
   options: LlamaParseParseOptions | undefined,
   fetchImpl: typeof fetch | undefined
 ): Promise<ParsedDocument> => {
   const { call, rest: o } = callSettings(options);
   const id = await startParse(raw, document, o, call);
   const blocks = o.blocks === true || o.wordBoxes === true;
-  const expand = ["markdown", "usage", ...(blocks ? ["items"] : [])].join(",");
+  const expand = [
+    "markdown",
+    "usage",
+    ...(blocks ? ["items"] : []),
+    ...(o.pageImages === true ? ["images_content_metadata"] : []),
+  ].join(",");
   const found = await poll(
     provider,
     id,
@@ -194,11 +247,28 @@ const parse = async (
           signal: call.signal,
         })
       : undefined;
-  const pages = found.value.markdown.pages.flatMap((page) =>
-    page.page_number === undefined
-      ? []
-      : [{ markdown: page.markdown ?? "", pageNumber: page.page_number }]
-  );
+  const images =
+    o.pageImages === true ? pageImageAddresses(found, id) : undefined;
+  const pages = found.value.markdown.pages.flatMap((page) => {
+    if (page.page_number === undefined) {
+      return [];
+    }
+    const image = images?.get(page.page_number);
+    if (images !== undefined && image === undefined) {
+      throw new FieldworkError(
+        "ProviderError",
+        `llamaparse job ${id} has no picture of page ${page.page_number}`,
+        { cause: found.original, jobId: id, provider }
+      );
+    }
+    return [
+      compact({
+        image,
+        markdown: page.markdown ?? "",
+        pageNumber: page.page_number,
+      }),
+    ];
+  });
   let laidOut;
   if (grounded !== undefined) {
     laidOut = documentBlocks(grounded.map((row) => z.parse(ItemsPage, row)));
@@ -235,8 +305,13 @@ export const llamaparse = (config: LlamaParseConfig = {}) => {
   });
 
   const operations: LlamaParseOperations = {
-    async parse(document, options) {
-      return await parse(raw, document, options, config.fetch);
+    async parse(
+      first: DocumentInput | LlamaParseResumeOptions,
+      options?: LlamaParseParseOptions
+    ) {
+      return "resume" in first
+        ? await parse(raw, undefined, first, config.fetch)
+        : await parse(raw, first, options, config.fetch);
     },
   };
 

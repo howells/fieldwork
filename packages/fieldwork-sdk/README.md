@@ -104,7 +104,7 @@ Every result is normalized and keeps the provider's response in `raw`. Most also
 - `answer` returns `{ answer, output, citations, continuationId }`.
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
-- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order: each block's `page`, `type` (the provider's own word), `text` and `box`. With `wordBoxes: true` (LlamaParse and Reducto), blocks also carry `words` and table `cells`, each with its own box. Every box is `{ left, top, width, height }` in fractions of the page from its top-left corner, whatever units the provider used, so boxes from different providers line up.
+- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order: each block's `page`, `type` (the provider's own word), `text` and `box`. With `wordBoxes: true` (LlamaParse and Reducto), blocks also carry `words` and table `cells`, each with its own box. With `pageImages: true` (LlamaParse), each page carries `image`, an address for a picture of the page that expires after about an hour; `parse({ resume: id, pageImages: true })` collects fresh addresses without the file. Every box is `{ left, top, width, height }` in fractions of the page from its top-left corner, whatever units the provider used, so boxes from different providers line up.
 
 A job that stopped early but produced output, for example on a credit or step limit, returns `status: "partial"` with `stopReason`. A job with no usable output throws `JobFailed`.
 

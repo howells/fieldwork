@@ -446,6 +446,8 @@ export interface DocumentPage {
   /** The physical page number, starting at 1. */
   pageNumber: number;
   markdown: string;
+  /** An address for a picture of the page, when the parse asked for page images. It expires. */
+  image?: string;
 }
 
 /**

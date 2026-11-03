@@ -29,7 +29,7 @@ page.raw; // the provider's own response
 - `answer` returns `{ answer, output, citations, continuationId }`.
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
-- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order, each block with its `page`, `type`, `text` and `box`. With `wordBoxes: true`, LlamaParse and Reducto add `words` and table `cells`, each with its own box.
+- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order, each block with its `page`, `type`, `text` and `box`. With `wordBoxes: true`, LlamaParse and Reducto add `words` and table `cells`, each with its own box. With `pageImages: true` (LlamaParse), each page carries `image`, an address for a picture of the page that expires after about an hour; `parse({ resume: id, pageImages: true })` collects fresh addresses without the file.
 
 </AccordionItem>
 <AccordionItem title="Pages that don't exist">

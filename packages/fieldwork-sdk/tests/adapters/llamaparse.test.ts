@@ -118,6 +118,18 @@ const groundedClient = () =>
     { text: `${JSON.stringify(grounded)}\n${JSON.stringify(page([]))}\n` }
   );
 
+const picture = (pageNumber: number) =>
+  `https://files.s3.test/page_${pageNumber}.jpg?X-Amz-Signature=s`;
+
+/** The job's saved screenshots, plus an image on a page that is not a screenshot. */
+const pictures = {
+  images: [
+    { filename: "page_2.jpg", presigned_url: picture(2) },
+    { filename: "page_1.jpg", presigned_url: picture(1) },
+    { filename: "img_p1_1.png", presigned_url: "https://files.s3.test/x.png" },
+  ],
+};
+
 const options = {
   ignoreHiddenText: true,
   interval: 1,
@@ -307,6 +319,83 @@ describe("llamaparse parse", () => {
       code: "JobFailed",
       jobId: "pjb-1",
       message: "llamaparse job failed: corrupt file",
+    });
+  });
+
+  it("asks for page pictures and returns each page's address", async () => {
+    const { web, calls } = client(
+      { body: { id: "pjb-1" } },
+      { body: { ...job("COMPLETED"), images_content_metadata: pictures } }
+    );
+    const document = await web.parse(sheet, { pageImages: true });
+    await expect(configurationOf(calls).json()).resolves.toMatchObject({
+      output_options: { images_to_save: ["screenshot"] },
+    });
+    expect(calls[1]?.url.searchParams.get("expand")).toBe(
+      "markdown,usage,images_content_metadata"
+    );
+    expect(document.pages).toStrictEqual([
+      { image: picture(1), markdown: "## 600°C rating", pageNumber: 1 },
+      { image: picture(2), markdown: "page two", pageNumber: 2 },
+    ]);
+  });
+
+  it("asks for page pictures and word boxes together", async () => {
+    const { web, calls } = client(
+      { body: { id: "pjb-1" } },
+      {
+        body: {
+          ...job("COMPLETED", { groundedUrl: signed }),
+          images_content_metadata: pictures,
+        },
+      },
+      { text: `${JSON.stringify(grounded)}\n` }
+    );
+    await web.parse(sheet, { pageImages: true, wordBoxes: true });
+    await expect(configurationOf(calls).json()).resolves.toMatchObject({
+      output_options: {
+        granular_bboxes: ["word", "line", "cell"],
+        images_to_save: ["screenshot"],
+      },
+    });
+  });
+
+  it("collects fresh page pictures from an earlier parse without the file", async () => {
+    const { web, calls } = client({
+      body: { ...job("COMPLETED"), images_content_metadata: pictures },
+    });
+    const document = await web.parse({ pageImages: true, resume: "pjb-9" });
+    expect(
+      calls.map((call) => `${call.method} ${call.url.pathname}`)
+    ).toStrictEqual(["GET /api/v2/parse/pjb-9"]);
+    expect(document.pages?.map((each) => each.image)).toStrictEqual([
+      picture(1),
+      picture(2),
+    ]);
+  });
+
+  it("fails loudly when the job saved no page pictures", async () => {
+    const { web } = client({ body: job("COMPLETED") });
+    await expect(
+      web.parse({ pageImages: true, resume: "pjb-9" })
+    ).rejects.toMatchObject({ code: "ProviderError", jobId: "pjb-9" });
+  });
+
+  it("fails loudly when a page has no picture", async () => {
+    const { web } = client({
+      body: {
+        ...job("COMPLETED"),
+        images_content_metadata: {
+          images: [{ filename: "page_1.jpg", presigned_url: picture(1) }],
+        },
+      },
+    });
+    await expect(
+      web.parse({ pageImages: true, resume: "pjb-9" })
+    ).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "pjb-9",
+      message: "llamaparse job pjb-9 has no picture of page 2",
     });
   });
 
