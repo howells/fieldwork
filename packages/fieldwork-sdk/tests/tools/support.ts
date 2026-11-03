@@ -3,8 +3,10 @@ import { brave } from "../../src/adapters/brave.js";
 import { browserbase } from "../../src/adapters/browserbase.js";
 import { exa } from "../../src/adapters/exa.js";
 import { firecrawl } from "../../src/adapters/firecrawl.js";
+import { llamaparse } from "../../src/adapters/llamaparse.js";
 import { parallel } from "../../src/adapters/parallel.js";
 import { perplexity } from "../../src/adapters/perplexity.js";
+import { reducto } from "../../src/adapters/reducto.js";
 import { serpapi } from "../../src/adapters/serpapi.js";
 import { tavily } from "../../src/adapters/tavily.js";
 import { Fieldwork } from "../../src/fieldwork.js";
@@ -41,12 +43,20 @@ const FACTORIES = new Map<string, Factory>([
     (fetchImpl) => firecrawl({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
   ],
   [
+    "llamaparse",
+    (fetchImpl) => llamaparse({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
     "parallel",
     (fetchImpl) => parallel({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
   ],
   [
     "perplexity",
     (fetchImpl) => perplexity({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "reducto",
+    (fetchImpl) => reducto({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
   ],
   [
     "serpapi",
@@ -240,7 +250,10 @@ const bodyText = async (call: RecordedCall): Promise<string> => {
   const parts = await Promise.all(
     [...body.entries()].map(async ([key, part]) => [
       key,
-      part instanceof Blob ? await part.text() : part,
+      // A file part's name reaches the provider too.
+      part instanceof File
+        ? { name: part.name, text: await part.text(), type: part.type }
+        : part,
     ])
   );
   return JSON.stringify(parts);

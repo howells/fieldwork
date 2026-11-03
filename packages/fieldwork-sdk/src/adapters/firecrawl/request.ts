@@ -1,3 +1,9 @@
+import {
+  documentPart,
+  MEDIA_TYPES,
+  mediaTypeOf,
+  refuseLarger,
+} from "../../document.js";
 import type { RequestOptions } from "../../http.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { CallOptions, DocumentInput, Recency } from "../../types.js";
@@ -19,8 +25,8 @@ import type {
 import { cronFor } from "./schedule.js";
 import { country, invalid, provider } from "./shared.js";
 
-/** The largest file `/parse` takes. */
-const MAX_PARSE_BYTES = 50 * 1024 * 1024;
+/** The largest file `/parse` takes, in megabytes. */
+const MAX_PARSE_MB = 50;
 /** Longest script `/interact/{id}/execute` runs, in seconds. */
 const MAX_SCRIPT_SECONDS = 300;
 /** Longest `/parse` runs, in milliseconds. */
@@ -31,31 +37,6 @@ export const REPORT_GRACE_MS = 10_000;
 export const PAGE_SIZE = 100;
 /** The longest query a search monitor takes. */
 const MAX_MONITOR_QUERY = 256;
-
-const MEDIA_TYPES = new Map<string, string>(
-  Object.entries({
-    csv: "text/csv",
-    doc: "application/msword",
-    docm: "application/vnd.ms-word.document.macroEnabled.12",
-    docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    epub: "application/epub+zip",
-    htm: "text/html",
-    html: "text/html",
-    odp: "application/vnd.oasis.opendocument.presentation",
-    ods: "application/vnd.oasis.opendocument.spreadsheet",
-    odt: "application/vnd.oasis.opendocument.text",
-    pdf: "application/pdf",
-    ppt: "application/vnd.ms-powerpoint",
-    pptm: "application/vnd.ms-powerpoint.presentation.macroEnabled.12",
-    pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    rtf: "application/rtf",
-    xhtml: "application/xhtml+xml",
-    xls: "application/vnd.ms-excel",
-    xlsb: "application/vnd.ms-excel.sheet.binary.macroEnabled.12",
-    xlsm: "application/vnd.ms-excel.sheet.macroEnabled.12",
-    xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  })
-);
 
 const RECENCY = {
   day: "d",
@@ -277,22 +258,12 @@ export const parseForm = (
       `firecrawl parses for at most ${MAX_PARSE_MS / 1000} seconds`
     );
   }
-  const extension = document.name.split(".").pop()?.toLowerCase() ?? "";
-  const mediaType = MEDIA_TYPES.get(extension);
-  if (mediaType === undefined) {
+  if (mediaTypeOf(document.name) === undefined) {
     throw invalid(
       `firecrawl parses ${[...MEDIA_TYPES.keys()].join(", ")} files, not "${document.name}"`
     );
   }
-  const size =
-    document.data instanceof Blob
-      ? document.data.size
-      : document.data.byteLength;
-  if (size > MAX_PARSE_BYTES) {
-    throw invalid(
-      `firecrawl parses files up to 50 MB; ${document.name} is ${(size / 1024 / 1024).toFixed(1)} MB`
-    );
-  }
+  refuseLarger(provider, document, MAX_PARSE_MB);
   const parser = compact({
     blocks: o.blocks,
     maxPages: o.maxPages,
@@ -312,13 +283,7 @@ export const parseForm = (
       compact({ formats: ["markdown"], parsers: [parser], timeout })
     )
   );
-  // A Uint8Array may sit on a SharedArrayBuffer, which a Blob part does not
-  // type; copying it puts the bytes on an ArrayBuffer.
-  const part =
-    document.data instanceof Uint8Array
-      ? new Uint8Array(document.data)
-      : document.data;
-  form.set("file", new Blob([part], { type: mediaType }), document.name);
+  form.set("file", documentPart(document), document.name);
   return form;
 };
 

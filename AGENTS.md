@@ -1,6 +1,6 @@
 # fieldwork
 
-One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase. Two packages:
+One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. Two packages:
 
 - `packages/fieldwork-sdk`, published as `@howells/fieldwork-sdk`: the client, the adapters and agent tool definitions (`/tools`).
 - `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: an MCP server over stdio that serves those tools.

@@ -1,6 +1,6 @@
 # Fieldwork MCP server
 
-Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio.
+Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio.
 
 ```sh
 npx -y @howells/fieldwork-mcp --provider firecrawl
@@ -37,6 +37,8 @@ Each provider reads its key from the environment.
 | `brave` | `BRAVE_API_KEY` | `search`, `images`, `answer` |
 | `serpapi` | `SERPAPI_API_KEY` | `search`, `images`, `usage` |
 | `browserbase` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` | `search`, `read`, `browser`, `usage` |
+| `llamaparse` | `LLAMA_CLOUD_API_KEY` | `parse` |
+| `reducto` | `REDUCTO_API_KEY` | `parse` |
 
 ## Options
 
@@ -99,7 +101,7 @@ Each tool serves one capability, or one method of `browser` or `monitor`. The la
 | `research_question` | An answer with sources, from a job of many steps. | Exa, Firecrawl, Tavily, Parallel, Perplexity |
 | `find_entities` | Entities of one kind that meet every condition you list. | Parallel |
 | `make_decisions` | Yes or no, choice and score answers about a context, with probabilities. | Parallel, Perplexity |
-| `parse_document` | A PDF, DOCX, XLSX, PPTX, HTML or CSV file as Markdown. | Firecrawl |
+| `parse_document` | A PDF, DOCX, XLSX, PPTX, HTML or CSV file as Markdown. | Firecrawl, LlamaParse, Reducto |
 | `check_usage` | Credits used and remaining. | Firecrawl, Tavily, SerpApi, Browserbase |
 | `run_browser_script` | A script run in a remote browser. Only with `--allow-act`. | Firecrawl |
 | `open_browser` | A remote browser to drive over CDP. Only with `--allow-browser`. | Firecrawl, Browserbase |

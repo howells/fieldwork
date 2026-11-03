@@ -71,7 +71,7 @@ export default defineConfig({
   // The canonical origin, for the sitemap, canonical tags and absolute llms.txt links.
   deployment: vercel({ maxDuration: 60, site: "https://fieldwork-sdk.dev" }),
   description:
-    "One TypeScript API for web search, page reading, extraction, crawling, answers, research, monitors and remote browsers across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.",
+    "One TypeScript API for web search, page reading, extraction, crawling, answers, research, monitors, remote browsers and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto.",
   footer: {
     copyright: "© 2026 Daniel Howells · MIT License",
     links: [

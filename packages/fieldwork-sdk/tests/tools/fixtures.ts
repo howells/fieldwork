@@ -255,7 +255,14 @@ const session: BrowserSession = {
 };
 
 const parsed: ParsedDocument = {
-  blocks: [{ type: "text" }],
+  blocks: [
+    {
+      box: { height: 0.1, left: 0.1, top: 0.1, width: 0.5 },
+      page: 1,
+      text: "text",
+      type: "text",
+    },
+  ],
   markdown: "text",
   meta,
   pageCount: 1,

@@ -9,8 +9,10 @@ import { brave } from "@howells/fieldwork-sdk/brave";
 import { browserbase } from "@howells/fieldwork-sdk/browserbase";
 import { exa } from "@howells/fieldwork-sdk/exa";
 import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
+import { llamaparse } from "@howells/fieldwork-sdk/llamaparse";
 import { parallel } from "@howells/fieldwork-sdk/parallel";
 import { perplexity } from "@howells/fieldwork-sdk/perplexity";
+import { reducto } from "@howells/fieldwork-sdk/reducto";
 import { serpapi } from "@howells/fieldwork-sdk/serpapi";
 import { tavily } from "@howells/fieldwork-sdk/tavily";
 
@@ -23,6 +25,8 @@ export const PROVIDERS = [
   "brave",
   "serpapi",
   "browserbase",
+  "llamaparse",
+  "reducto",
 ] as const;
 export type Provider = (typeof PROVIDERS)[number];
 
@@ -54,9 +58,9 @@ Choose providers with one of:
 
 Providers: ${PROVIDERS.join(", ")}.
 Keys come from EXA_API_KEY, FIRECRAWL_API_KEY, TAVILY_API_KEY,
-PARALLEL_API_KEY, PERPLEXITY_API_KEY, BRAVE_API_KEY, SERPAPI_API_KEY and
-BROWSERBASE_API_KEY. Browserbase also reads BROWSERBASE_PROJECT_ID, which is
-optional.
+PARALLEL_API_KEY, PERPLEXITY_API_KEY, BRAVE_API_KEY, SERPAPI_API_KEY,
+BROWSERBASE_API_KEY, LLAMA_CLOUD_API_KEY and REDUCTO_API_KEY. Browserbase also
+reads BROWSERBASE_PROJECT_ID, which is optional.
 
 Tools that start remote browsers or create lasting, billed resources are off
 unless you ask for them:
@@ -137,8 +141,10 @@ const FACTORIES = {
   browserbase: (apiKey: string | undefined) => browserbase({ apiKey }),
   exa: (apiKey: string | undefined) => exa({ apiKey }),
   firecrawl: (apiKey: string | undefined) => firecrawl({ apiKey }),
+  llamaparse: (apiKey: string | undefined) => llamaparse({ apiKey }),
   parallel: (apiKey: string | undefined) => parallel({ apiKey }),
   perplexity: (apiKey: string | undefined) => perplexity({ apiKey }),
+  reducto: (apiKey: string | undefined) => reducto({ apiKey }),
   serpapi: (apiKey: string | undefined) => serpapi({ apiKey }),
   tavily: (apiKey: string | undefined) => tavily({ apiKey }),
 } satisfies Record<Provider, (apiKey: string | undefined) => AnyAdapter>;

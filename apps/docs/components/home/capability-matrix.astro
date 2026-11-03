@@ -13,7 +13,7 @@ import { CAPABILITY_ROWS, PROVIDERS } from "../../lib/capabilities";
           <th class="type-small pb-4 text-graphite" scope="col">Method</th>
           <th class="pb-4" scope="col"><span class="sr-only">What it does</span></th>
           {PROVIDERS.map((provider) => (
-            <th class="type-small w-[100px] pb-4 text-center font-medium text-ink" scope="col">{provider.label}</th>
+            <th class="type-small w-[84px] px-1.5 pb-4 text-center whitespace-nowrap font-medium text-ink" scope="col">{provider.label}</th>
           ))}
         </tr>
       </thead>
@@ -41,7 +41,7 @@ import { CAPABILITY_ROWS, PROVIDERS } from "../../lib/capabilities";
         <div class="flex flex-col gap-1 border-b border-rule py-3.5">
           <dt class="type-small font-mono text-ink">{row.name}</dt>
           <dd class="type-small m-0 text-graphite">
-            {row.providers.length === PROVIDERS.length ? "All eight" : row.providers.join(", ")}
+            {row.providers.length === PROVIDERS.length ? "Every provider" : row.providers.join(", ")}
           </dd>
         </div>
       ))}

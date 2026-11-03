@@ -1,6 +1,6 @@
 # Fieldwork
 
-One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.
+One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto.
 
 ```sh
 npm i @howells/fieldwork-sdk
@@ -24,25 +24,25 @@ Swap the adapter to switch providers. Everything below the constructor stays the
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. `new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent. Nothing falls back to another provider, and nothing is emulated: a provider without an answer endpoint has no `answer`, even though search plus a model could imitate one.
 
-| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |
-| `images(query)` |  | yes | yes | yes |  | yes | yes |  |
-| `read(url)` | yes | yes | yes | yes |  |  |  | yes |
-| `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |
-| `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |
-| `product(url)` |  | yes |  |  |  |  |  |  |
-| `map(url)` |  | yes | yes |  |  |  |  |  |
-| `crawl(url)` |  | yes | yes |  |  |  |  |  |
-| `answer(question)` | yes |  | yes | yes | yes | yes |  |  |
-| `research(question)` | yes | yes | yes | yes | yes |  |  |  |
-| `discover(objective, { entityType, conditions })` |  |  |  | yes |  |  |  |  |
-| `decide(context, questions)` |  |  |  | yes | yes |  |  |  |
-| `act(code)` |  | yes |  |  |  |  |  |  |
-| `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes |
-| `parse(document)` |  | yes |  |  |  |  |  |  |
-| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |
-| `usage()` |  | yes | yes |  |  |  | yes | yes |
+| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | LlamaParse | Reducto |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |  |  |
+| `images(query)` |  | yes | yes | yes |  | yes | yes |  |  |  |
+| `read(url)` | yes | yes | yes | yes |  |  |  | yes |  |  |
+| `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |  |  |
+| `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |  |  |
+| `product(url)` |  | yes |  |  |  |  |  |  |  |  |
+| `map(url)` |  | yes | yes |  |  |  |  |  |  |  |
+| `crawl(url)` |  | yes | yes |  |  |  |  |  |  |  |
+| `answer(question)` | yes |  | yes | yes | yes | yes |  |  |  |  |
+| `research(question)` | yes | yes | yes | yes | yes |  |  |  |  |  |
+| `discover(objective, { entityType, conditions })` |  |  |  | yes |  |  |  |  |  |  |
+| `decide(context, questions)` |  |  |  | yes | yes |  |  |  |  |  |
+| `act(code)` |  | yes |  |  |  |  |  |  |  |  |
+| `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes |  |  |
+| `parse(document)` |  | yes |  |  |  |  |  |  | yes | yes |
+| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |  |  |
+| `usage()` |  | yes | yes |  |  |  | yes | yes |  |  |
 
 `web.capabilities` and `web.supports("crawl")` report the same table at runtime.
 
@@ -104,12 +104,13 @@ Every result is normalized and keeps the provider's response in `raw`. Most also
 - `answer` returns `{ answer, output, citations, continuationId }`.
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
+- `parse` returns `{ id, markdown, pages, blocks, pageCount }`. With `blocks: true`, `blocks` lists the layout in reading order: each block's `page`, `type` (the provider's own word), `text` and `box`. With `wordBoxes: true` (LlamaParse and Reducto), blocks also carry `words` and table `cells`, each with its own box. Every box is `{ left, top, width, height }` in fractions of the page from its top-left corner, whatever units the provider used, so boxes from different providers line up.
 
 A job that stopped early but produced output, for example on a credit or step limit, returns `status: "partial"` with `stopReason`. A job with no usable output throws `JobFailed`.
 
 ### Long jobs
 
-Research, discovery, crawls, batch reads and Parallel extraction are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
+Research, discovery, crawls, batch reads, Parallel extraction and LlamaParse and Reducto parses are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
 
 When a job outlasts `timeout`, or `signal` stops the wait, the provider keeps running it and charging for it. The error carries the job's id as `jobId`; pass it back as `resume` to collect the result instead of starting another job:
 
@@ -264,6 +265,8 @@ On a router, `raw` is keyed by provider name.
 | `brave()` | `BRAVE_API_KEY` |
 | `serpapi()` | `SERPAPI_API_KEY` |
 | `browserbase()` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` |
+| `llamaparse()` | `LLAMA_CLOUD_API_KEY` |
+| `reducto()` | `REDUCTO_API_KEY` |
 
 Pass `apiKey` (and Browserbase's `projectId`) to override, and `fetch` to supply your own. Requests follow redirects only within the provider's origin; a redirect to any other host, scheme or port fails before the key is sent there.
 

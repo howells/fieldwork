@@ -422,11 +422,57 @@ export interface DocumentPage {
   markdown: string;
 }
 
+/**
+ * Where something sits on its page, as fractions of the page's width and
+ * height measured from its top-left corner, whatever units the provider used.
+ */
+export interface Box {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
+/** A word and where it sits. */
+export interface WordBox {
+  text: string;
+  box: Box;
+}
+
+/** A table cell and where it sits. Rows and columns count from 0. */
+export interface TableCell {
+  row: number;
+  column: number;
+  /** Rows the cell spans, when more than one. */
+  rowSpan?: number;
+  /** Columns the cell spans, when more than one. */
+  columnSpan?: number;
+  text: string;
+  box?: Box;
+}
+
+/** One piece of a page's layout: a heading, a paragraph, a table, a figure. */
+export interface DocumentBlock {
+  /** The physical page number, starting at 1. */
+  page: number;
+  /** The kind of block in the provider's own words, such as "Table", "heading" or "page_header". */
+  type: string;
+  /** The block's content as the provider gave it: Markdown, or HTML for some tables. */
+  text: string;
+  box?: Box;
+  /** Where each word sits, when the parse asked for word boxes. */
+  words?: WordBox[];
+  /** A table's cells, when the parse asked for word boxes. */
+  cells?: TableCell[];
+}
+
 export interface ParsedDocument {
+  /** The provider's job id, for providers that parse in a background job. */
+  id?: string;
   markdown: string;
   pages?: DocumentPage[];
-  /** Layout blocks with positions, as the provider returns them. */
-  blocks?: unknown[];
+  /** The layout, in reading order, when the parse asked for blocks. */
+  blocks?: DocumentBlock[];
   /** Pages in the file; more than `pages.length` means the parse was cut short. */
   pageCount?: number;
   meta?: Meta;

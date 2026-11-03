@@ -1272,6 +1272,44 @@ describe("firecrawl parse", () => {
     });
   });
 
+  it("returns blocks with boxes from Firecrawl's corners", async () => {
+    const { web } = client({
+      body: {
+        data: {
+          blocks: [
+            {
+              height: 1100,
+              items: [
+                {
+                  bbox: [0.1, 0.2, 0.6, 0.25],
+                  content: "Fire rating",
+                  label: "title",
+                  type: "title",
+                },
+                { bbox: [], content: "no box", type: "text" },
+              ],
+              pageNumber: 2,
+              width: 850,
+            },
+            { items: [{ content: "no page" }] },
+          ],
+          markdown: "Fire rating",
+        },
+        success: true,
+      },
+    });
+    const document = await web.parse(care, { blocks: true });
+    expect(document.blocks).toStrictEqual([
+      {
+        box: { height: 0.25 - 0.2, left: 0.1, top: 0.2, width: 0.6 - 0.1 },
+        page: 2,
+        text: "Fire rating",
+        type: "title",
+      },
+      { page: 2, text: "no box", type: "text" },
+    ]);
+  });
+
   it("sends each documented file type with its content type", async () => {
     const types = {
       csv: "text/csv",

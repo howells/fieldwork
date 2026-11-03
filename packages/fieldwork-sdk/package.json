@@ -1,17 +1,21 @@
 {
   "name": "@howells/fieldwork-sdk",
   "version": "0.4.0",
-  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.",
+  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto.",
   "keywords": [
     "agents",
     "brave",
     "browserbase",
+    "document-parsing",
     "exa",
     "extraction",
     "firecrawl",
+    "llamaparse",
     "monitoring",
     "parallel",
+    "pdf",
     "perplexity",
+    "reducto",
     "research",
     "scraping",
     "sdk",
@@ -70,6 +74,14 @@
     "./browserbase": {
       "types": "./dist/browserbase.d.ts",
       "import": "./dist/browserbase.js"
+    },
+    "./llamaparse": {
+      "types": "./dist/llamaparse.d.ts",
+      "import": "./dist/llamaparse.js"
+    },
+    "./reducto": {
+      "types": "./dist/reducto.d.ts",
+      "import": "./dist/reducto.js"
     },
     "./tools": {
       "types": "./dist/tools.d.ts",

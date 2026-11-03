@@ -2,6 +2,7 @@ import { FieldworkError } from "../../errors.js";
 import type {
   ActResult,
   BrowserSession,
+  DocumentBlock,
   FailedUrl,
   ImageResult,
   MonitorEvent,
@@ -32,6 +33,7 @@ import type {
   PageDataBlock,
   PaperBlock,
   ParseBody,
+  ParsePageBlock,
   PriceBlock,
   RunStartBlock,
   ScrapeBody,
@@ -347,6 +349,31 @@ export const browserSession = (entry: SessionBlock): BrowserSession => {
   });
 };
 
+/** Firecrawl's blocks, a page at a time; a page without a number is left out. */
+const documentBlocks = (pages: readonly ParsePageBlock[]): DocumentBlock[] =>
+  pages.flatMap((entry) => {
+    const page = entry.pageNumber;
+    if (page === undefined) {
+      return [];
+    }
+    return entry.items.map((item) => {
+      const [x0, y0, x1, y1] = item.bbox;
+      return compact({
+        box:
+          item.bbox.length === 4 &&
+          x0 !== undefined &&
+          y0 !== undefined &&
+          x1 !== undefined &&
+          y1 !== undefined
+            ? { height: y1 - y0, left: x0, top: y0, width: x1 - x0 }
+            : undefined,
+        page,
+        text: item.content ?? "",
+        type: item.type ?? "unknown",
+      });
+    });
+  });
+
 /** A parsed document; the caller adds `raw`. */
 export const parseResult = (body: ParseBody): Omit<ParsedDocument, "raw"> => {
   const { data } = body;
@@ -356,7 +383,7 @@ export const parseResult = (body: ParseBody): Omit<ParsedDocument, "raw"> => {
       markdown: page.markdown ?? "",
       pageNumber: Number(page.pageNumber),
     })),
-    blocks: data.blocks,
+    blocks: data.blocks && documentBlocks(data.blocks),
     // totalPages is the file's own count; numPages stops at maxPages.
     pageCount: data.metadata.totalPages ?? data.metadata.numPages,
     meta: pageMeta(data, body.warning.notes),

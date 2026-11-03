@@ -7,8 +7,10 @@ import { brave } from "@howells/fieldwork-sdk/brave";
 import { browserbase } from "@howells/fieldwork-sdk/browserbase";
 import { exa } from "@howells/fieldwork-sdk/exa";
 import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
+import { llamaparse } from "@howells/fieldwork-sdk/llamaparse";
 import { parallel } from "@howells/fieldwork-sdk/parallel";
 import { perplexity } from "@howells/fieldwork-sdk/perplexity";
+import { reducto } from "@howells/fieldwork-sdk/reducto";
 import { serpapi } from "@howells/fieldwork-sdk/serpapi";
 import { tavily } from "@howells/fieldwork-sdk/tavily";
 
@@ -23,6 +25,8 @@ const adapters = [
   { adapter: brave({ apiKey }), label: "Brave" },
   { adapter: serpapi({ apiKey }), label: "SerpApi" },
   { adapter: browserbase({ apiKey }), label: "Browserbase" },
+  { adapter: llamaparse({ apiKey }), label: "LlamaParse" },
+  { adapter: reducto({ apiKey }), label: "Reducto" },
 ];
 
 export interface Provider {

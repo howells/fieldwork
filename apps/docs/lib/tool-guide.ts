@@ -92,13 +92,13 @@ export const GUIDE_TASKS: GuideTask[] = [
   },
   {
     capabilities: ["read", "parse"],
-    choices: ["Exa · read", "Firecrawl · parse"],
+    choices: ["Exa · read", "Firecrawl · parse", "Reducto · parse"],
     docs: "/docs/capabilities",
     group: "read",
     id: "pdf",
-    providers: ["Exa", "Firecrawl"],
+    providers: ["Exa", "Firecrawl", "Reducto", "LlamaParse"],
     title: "Read a PDF",
-    why: "Read a PDF at a URL with Exa. Parse a file you hold with Firecrawl.",
+    why: "Read a PDF at a URL with Exa. Parse a file you hold with Firecrawl for Markdown, or with Reducto when you need where each word and table cell sits. LlamaParse places words as well and can leave out hidden text.",
   },
   {
     capabilities: ["map"],

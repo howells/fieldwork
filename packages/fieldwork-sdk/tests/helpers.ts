@@ -7,7 +7,10 @@ export interface RecordedCall {
 
 interface Reply {
   status?: number;
+  /** A JSON body. */
   body?: unknown;
+  /** A body sent as it is, in place of `body`. */
+  text?: string;
   headers?: Record<string, string>;
 }
 
@@ -28,7 +31,8 @@ export const fakeFetch = (...replies: Reply[]) => {
       throw new Error(`unexpected request: ${call.method} ${call.url.href}`);
     }
     return new Response(
-      reply.body === undefined ? "" : JSON.stringify(reply.body),
+      reply.text ??
+        (reply.body === undefined ? "" : JSON.stringify(reply.body)),
       { headers: reply.headers, status: reply.status ?? 200 }
     );
   };

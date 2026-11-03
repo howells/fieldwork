@@ -280,8 +280,8 @@ describe("the command line", () => {
     expect(providers.has("run_browser_script")).toBe(false);
   });
 
-  it("builds a server for each of the eight providers", () => {
-    expect(PROVIDERS).toHaveLength(8);
+  it("builds a server for each of the ten providers", () => {
+    expect(PROVIDERS).toHaveLength(10);
     for (const provider of PROVIDERS) {
       const web = fieldworkFor(parseArgs(["--provider", provider]), {
         [provider]: "k",
@@ -305,6 +305,8 @@ describe("the command line", () => {
       "SERPAPI_API_KEY",
       "BROWSERBASE_API_KEY",
       "BROWSERBASE_PROJECT_ID",
+      "LLAMA_CLOUD_API_KEY",
+      "REDUCTO_API_KEY",
       "--monitor firecrawl",
       "--browser browserbase",
     ];

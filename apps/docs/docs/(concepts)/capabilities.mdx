@@ -1,31 +1,31 @@
 ---
 title: Capabilities
-description: Which of Fieldwork's 17 capabilities each of the eight providers offers, and how an instance reports them at run time.
+description: Which of Fieldwork's 17 capabilities each of the ten providers offers, and how an instance reports them at run time.
 ---
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
 
 Not sure which to use? See the [provider guide](/tools).
 
-| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `search(query)` | ● | ● | ● | ● | ● | ● | ● | ● |
-| `images(query)` |  | ● | ● | ● |  | ● | ● |  |
-| `read(url)` | ● | ● | ● | ● |  |  |  | ● |
-| `readMany(urls)` | ● | ● | ● | ● |  |  |  |  |
-| `extract(url, { schema })` | ● | ● |  | ● |  |  |  |  |
-| `product(url)` |  | ● |  |  |  |  |  |  |
-| `map(url)` |  | ● | ● |  |  |  |  |  |
-| `crawl(url)` |  | ● | ● |  |  |  |  |  |
-| `answer(question)` | ● |  | ● | ● | ● | ● |  |  |
-| `research(question)` | ● | ● | ● | ● | ● |  |  |  |
-| `discover(objective, { entityType, conditions })` |  |  |  | ● |  |  |  |  |
-| `decide(context, questions)` |  |  |  | ● | ● |  |  |  |
-| `act(code)` |  | ● |  |  |  |  |  |  |
-| `browser.open()`, `browser.close(id)` |  | ● |  |  |  |  |  | ● |
-| `parse(document)` |  | ● |  |  |  |  |  |  |
-| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | ● | ● |  | ● |  |  |  |  |
-| `usage()` |  | ● | ● |  |  |  | ● | ● |
+| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | LlamaParse | Reducto |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `search(query)` | ● | ● | ● | ● | ● | ● | ● | ● |  |  |
+| `images(query)` |  | ● | ● | ● |  | ● | ● |  |  |  |
+| `read(url)` | ● | ● | ● | ● |  |  |  | ● |  |  |
+| `readMany(urls)` | ● | ● | ● | ● |  |  |  |  |  |  |
+| `extract(url, { schema })` | ● | ● |  | ● |  |  |  |  |  |  |
+| `product(url)` |  | ● |  |  |  |  |  |  |  |  |
+| `map(url)` |  | ● | ● |  |  |  |  |  |  |  |
+| `crawl(url)` |  | ● | ● |  |  |  |  |  |  |  |
+| `answer(question)` | ● |  | ● | ● | ● | ● |  |  |  |  |
+| `research(question)` | ● | ● | ● | ● | ● |  |  |  |  |  |
+| `discover(objective, { entityType, conditions })` |  |  |  | ● |  |  |  |  |  |  |
+| `decide(context, questions)` |  |  |  | ● | ● |  |  |  |  |  |
+| `act(code)` |  | ● |  |  |  |  |  |  |  |  |
+| `browser.open()`, `browser.close(id)` |  | ● |  |  |  |  |  | ● |  |  |
+| `parse(document)` |  | ● |  |  |  |  |  |  | ● | ● |
+| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | ● | ● |  | ● |  |  |  |  |  |  |
+| `usage()` |  | ● | ● |  |  |  | ● | ● |  |  |
 
 <Accordion>
 <AccordionItem title="What each one does">
@@ -38,7 +38,7 @@ Not sure which to use? See the [provider guide](/tools).
 - `discover` returns a list of entities, such as companies or products, that meet every condition you give.
 - `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
 - `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer. `act(code)` runs one script in a fresh session.
-- `parse` turns a document file into Markdown.
+- `parse` turns a document file into Markdown, and with `blocks: true` lists its layout with boxes. Every box is in fractions of the page from its top-left corner, so boxes from different providers line up. LlamaParse and Reducto also place each word and table cell with `wordBoxes: true`.
 - `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
 - `usage` reports the account's credits used and remaining.
 

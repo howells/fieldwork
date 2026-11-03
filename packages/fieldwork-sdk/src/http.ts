@@ -401,3 +401,32 @@ export const requireKey = (
   }
   return key;
 };
+
+/**
+ * Fetches a presigned URL a provider returned, such as a large result on
+ * storage, and returns its body as text. Nothing of the provider's client is
+ * sent with it: the URL carries its own authorization, and the key must not
+ * reach another host.
+ */
+export const readSigned = async (
+  provider: string,
+  url: string,
+  options: { fetch?: typeof fetch; signal?: AbortSignal }
+): Promise<string> => {
+  const doFetch = options.fetch ?? globalThis.fetch;
+  let response: Response;
+  try {
+    response = await doFetch(url, { signal: options.signal });
+  } catch (error) {
+    throw transportError(provider, error, options.signal);
+  }
+  const text = await response.text();
+  if (!response.ok) {
+    throw new FieldworkError(
+      codeForStatus(response.status),
+      `${provider} result at ${new URL(url).origin} returned ${response.status}: ${text.slice(0, 300)}`,
+      { provider, status: response.status }
+    );
+  }
+  return text;
+};

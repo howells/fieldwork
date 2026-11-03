@@ -5,6 +5,7 @@ import {
   arrayOf,
   both,
   looseObject,
+  optionalAnyString,
   optionalArrayOf,
   optionalBoolean,
   optionalFirstString,
@@ -336,10 +337,22 @@ export const ChecksResponse = looseObject({
   ),
 });
 
+/** A page of `/parse` blocks; each box is `[x0, y0, x1, y1]` in fractions of the page. */
+const ParsePage = looseObject({
+  items: arrayOf(
+    looseObject({
+      bbox: arrayOf(z.number()),
+      content: optionalAnyString,
+      type: optionalString,
+    })
+  ),
+  pageNumber: optionalNumber,
+});
+
 /** `/parse`. */
 export const ParseResponse = looseObject({
   data: looseObject({
-    blocks: optionalArrayOf(anything),
+    blocks: optionalArrayOf(ParsePage),
     markdown: optionalString,
     metadata: looseObject(metadataShape),
     pages: optionalArrayOf(
@@ -370,6 +383,7 @@ export type ImageItemBlock = z.output<typeof ImageItem>;
 export type MonitorBlock = z.output<typeof MonitorEntry>;
 export type CheckBlock = z.output<typeof ChecksResponse>["data"][number];
 export type ParseBody = z.output<typeof ParseResponse>;
+export type ParsePageBlock = z.output<typeof ParsePage>;
 export type AgentRunBlock = z.output<typeof AgentRun>;
 export type SessionBlock = z.output<typeof Session>;
 export type ExecutionBlock = z.output<typeof Execution>;

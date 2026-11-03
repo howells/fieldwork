@@ -17,8 +17,10 @@ import { brave } from "../../src/adapters/brave.js";
 import { browserbase } from "../../src/adapters/browserbase.js";
 import { exa } from "../../src/adapters/exa.js";
 import { firecrawl } from "../../src/adapters/firecrawl.js";
+import { llamaparse } from "../../src/adapters/llamaparse.js";
 import { parallel } from "../../src/adapters/parallel.js";
 import { perplexity } from "../../src/adapters/perplexity.js";
+import { reducto } from "../../src/adapters/reducto.js";
 import { serpapi } from "../../src/adapters/serpapi.js";
 import { tavily } from "../../src/adapters/tavily.js";
 import { Fieldwork } from "../../src/index.js";
@@ -417,5 +419,36 @@ describe.skipIf(!has("BROWSERBASE_API_KEY"))("browserbase, live", () => {
   it("reports usage", async () => {
     const usage = await web().usage();
     expect(usage.raw).toBeDefined();
+  });
+});
+
+const testDocument = () => ({
+  data: readFileSync(new URL("fixtures/test-document.pdf", import.meta.url)),
+  name: "test-document.pdf",
+});
+
+describe.skipIf(!has("LLAMA_CLOUD_API_KEY"))("llamaparse, live", () => {
+  const web = lazy(() => new Fieldwork({ adapter: llamaparse() }));
+  it("parses a document with word boxes", async () => {
+    // The cheapest tier that returns boxes.
+    const document = await web().parse(testDocument(), {
+      tier: "cost_effective",
+      wordBoxes: true,
+    });
+    expect(document.markdown).toContain("Fieldwork");
+    expect(document.blocks?.some((block) => block.words !== undefined)).toBe(
+      true
+    );
+  });
+});
+
+describe.skipIf(!has("REDUCTO_API_KEY"))("reducto, live", () => {
+  const web = lazy(() => new Fieldwork({ adapter: reducto() }));
+  it("parses a document with word boxes", async () => {
+    const document = await web().parse(testDocument(), { wordBoxes: true });
+    expect(document.markdown).toContain("Fieldwork");
+    expect(document.blocks?.some((block) => block.words !== undefined)).toBe(
+      true
+    );
   });
 });

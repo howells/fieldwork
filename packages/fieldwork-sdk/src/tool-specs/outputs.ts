@@ -315,9 +315,40 @@ export const CLOSE_BROWSER_OUTPUT: FieldSchema = object(
   ["closed", "id"]
 );
 
+const box = object(
+  { height: number(), left: number(), top: number(), width: number() },
+  ["left", "top", "width", "height"],
+  "Where it sits on the page, as fractions of the page's width and height from its top-left corner."
+);
+
+const documentBlock = object(
+  {
+    box,
+    cells: list(
+      object(
+        {
+          box,
+          column: whole("The column, from 0.", 0),
+          columnSpan: whole("Columns the cell spans.", 1),
+          row: whole("The row, from 0.", 0),
+          rowSpan: whole("Rows the cell spans.", 1),
+          text: str,
+        },
+        ["row", "column", "text"]
+      )
+    ),
+    page: whole("The physical page number, starting at 1.", 1),
+    text: str,
+    type: str,
+    words: list(object({ box, text: str }, ["text", "box"])),
+  },
+  ["page", "type", "text"]
+);
+
 export const PARSE_OUTPUT: FieldSchema = object(
   {
-    blocks: list(anything()),
+    blocks: list(documentBlock),
+    id: str,
     markdown: str,
     meta,
     pageCount: whole("Pages in the file.", 0),
