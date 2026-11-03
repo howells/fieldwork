@@ -2,15 +2,10 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { documentPart, refuseLarger } from "../document.js";
-import { FieldworkError, withJob } from "../errors.js";
-import {
-  createRawClient,
-  poll,
-  readSigned,
-  requireKey,
-  segment,
-} from "../http.js";
+import { FieldworkError } from "../errors.js";
+import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
+import { runJob } from "../job.js";
 import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
 import {
   callSettings,
@@ -68,9 +63,6 @@ const startParse = async (
   o: ReductoParseOptions,
   call: CallOptions
 ) => {
-  if (o.resume !== undefined) {
-    return o.resume;
-  }
   refuseLarger(provider, document, MAX_UPLOAD_MB);
   const form = new FormData();
   form.set("file", documentPart(document), document.name);
@@ -92,14 +84,14 @@ const startParse = async (
   return requireJobId(provider, started.job_id);
 };
 
-const finished = (found: JobResponseBlock, id: string) => {
+const finished = (found: JobResponseBlock) => {
   const { error, reason, status } = found.value;
   if (status === "Failed") {
     const why = reason ?? error.message;
     throw new FieldworkError(
       "JobFailed",
       `reducto job failed${why === undefined ? "" : `: ${why}`}`,
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
   return status === "Completed" ? found : undefined;
@@ -108,7 +100,6 @@ const finished = (found: JobResponseBlock, id: string) => {
 /** The parse output, fetched from where Reducto put it when it was too large to return. */
 const outputOf = async (
   found: JobResponseBlock,
-  id: string,
   options: { fetch?: typeof fetch; signal?: AbortSignal }
 ) => {
   const output = found.value.result.result;
@@ -119,25 +110,21 @@ const outputOf = async (
     throw new FieldworkError(
       "ProviderError",
       `reducto returned a result of type ${output.type ?? "(none)"}; Fieldwork reads "full" and "url"`,
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
   if (output.url === undefined) {
     throw new FieldworkError(
       "ProviderError",
       "reducto stored the result without saying where",
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
-  try {
-    const stored = parseJson(
-      provider,
-      await readSigned(provider, output.url, options)
-    );
-    return { output: z.parse(ParseOutput, stored), stored };
-  } catch (error) {
-    throw withJob(error, id);
-  }
+  const stored = parseJson(
+    provider,
+    await readSigned(provider, output.url, options)
+  );
+  return { output: z.parse(ParseOutput, stored), stored };
 };
 
 const parse = async (
@@ -147,45 +134,54 @@ const parse = async (
   fetchImpl: typeof fetch | undefined
 ): Promise<ParsedDocument> => {
   const { call, rest: o } = callSettings(options);
-  const id = await startParse(raw, document, o, call);
-  const found = await poll(
+  return await runJob(
     provider,
-    id,
-    async (request) =>
-      finished(
-        z.parse(
-          JobResponse,
-          await raw.request("GET", `/job/${segment(id)}`, request)
+    {
+      check: async (id, request) =>
+        finished(
+          z.parse(
+            JobResponse,
+            await raw.request("GET", `/job/${segment(id)}`, request)
+          )
         ),
-        id
-      ),
-    { ...call, interval: o.interval }
+      finish: async (found, id) => {
+        const { output, stored } = await outputOf(found, {
+          fetch: fetchImpl,
+          signal: call.signal,
+        });
+        // A blank page still arrives as a chunk; a finished job with none lost its output.
+        if (output.chunks.length === 0) {
+          throw new FieldworkError(
+            "ProviderError",
+            `reducto finished job ${id} without any chunks of output`,
+            { cause: stored ?? found.original, provider }
+          );
+        }
+        const { usage } = found.value.result;
+        return compact({
+          blocks:
+            o.blocks === true || o.wordBoxes === true
+              ? documentBlocks(output)
+              : undefined,
+          id,
+          markdown: output.chunks
+            .map((chunk) => chunk.content ?? "")
+            .join("\n\n"),
+          meta: meta({
+            credits: usage.credits,
+            units: { pages: usage.num_pages },
+          }),
+          pageCount: usage.num_pages,
+          raw:
+            stored === undefined
+              ? found.original
+              : { job: found.original, stored },
+        });
+      },
+      start: async () => await startParse(raw, document, o, call),
+    },
+    { ...call, interval: o.interval, resume: o.resume }
   );
-  const { output, stored } = await outputOf(found, id, {
-    fetch: fetchImpl,
-    signal: call.signal,
-  });
-  // A blank page still arrives as a chunk; a finished job with none lost its output.
-  if (output.chunks.length === 0) {
-    throw new FieldworkError(
-      "ProviderError",
-      `reducto finished job ${id} without any chunks of output`,
-      { cause: stored ?? found.original, jobId: id, provider }
-    );
-  }
-  const { usage } = found.value.result;
-  return compact({
-    blocks:
-      o.blocks === true || o.wordBoxes === true
-        ? documentBlocks(output)
-        : undefined,
-    id,
-    markdown: output.chunks.map((chunk) => chunk.content ?? "").join("\n\n"),
-    meta: meta({ credits: usage.credits, units: { pages: usage.num_pages } }),
-    pageCount: usage.num_pages,
-    raw:
-      stored === undefined ? found.original : { job: found.original, stored },
-  });
 };
 
 /**

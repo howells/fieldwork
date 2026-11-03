@@ -307,7 +307,7 @@ export const researchResult = (
     throw new FieldworkError(
       "JobFailed",
       `exa research run ${id} ended ${status}${detail === undefined ? "" : ` (${detail})`}`,
-      { cause: entry.original, jobId: id, provider }
+      { cause: entry.original, provider }
     );
   }
   const { output } = run;

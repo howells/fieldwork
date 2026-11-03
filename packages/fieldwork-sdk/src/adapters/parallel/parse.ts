@@ -261,7 +261,7 @@ export const discovery = (
     throw new FieldworkError(
       "JobFailed",
       `parallel FindAll run ${id} ended as ${state}${reason === undefined ? "" : ` (${reason})`} without a match`,
-      { cause: entry.original, jobId: id, provider }
+      { cause: entry.original, provider }
     );
   }
   const stopReason = reason ?? state;

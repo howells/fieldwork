@@ -1,4 +1,4 @@
-import { codeForStatus, FieldworkError, withJob } from "./errors.js";
+import { codeForStatus, FieldworkError } from "./errors.js";
 import type { CallOptions } from "./types.js";
 import { record } from "./util.js";
 
@@ -47,7 +47,7 @@ export interface ClientConfig {
 /** How many times a request that can succeed on repeat is retried by default. */
 export const DEFAULT_RETRIES = 2;
 
-const sleep = async (ms: number, signal?: AbortSignal) => {
+export const sleep = async (ms: number, signal?: AbortSignal) => {
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener(
@@ -110,7 +110,7 @@ const timedOut = (signal: AbortSignal) =>
  * deadline ran out (a call's `timeout` is a deadline signal across all its
  * requests), `Aborted` when the caller cancelled.
  */
-const stopped = (
+export const stopped = (
   signal: AbortSignal,
   message: string,
   options: { cause?: unknown; jobId?: string; provider: string }
@@ -396,54 +396,6 @@ export const retryAfterSeconds = (
   return Number.isNaN(date)
     ? undefined
     : Math.max(0, Math.ceil((date - now) / 1000));
-};
-
-export interface PollOptions extends CallOptions {
-  /** Milliseconds between checks. */
-  interval?: number;
-}
-
-/**
- * Checks a job until `check` returns its result. Each check is given the
- * settings for its request: the call's signal, which carries the call's whole
- * deadline, and its retries. A check that throws, a cancellation and a
- * timeout all surface with `jobId`, so the caller can resume the job.
- */
-export const poll = async <T>(
-  provider: string,
-  jobId: string,
-  check: (request: CallOptions) => Promise<T | undefined>,
-  options: PollOptions = {}
-): Promise<T> => {
-  const interval = options.interval ?? 2000;
-  const deadline = Date.now() + (options.timeout ?? 600_000);
-  const request = { retries: options.retries, signal: options.signal };
-  for (;;) {
-    if (options.signal?.aborted === true) {
-      throw stopped(
-        options.signal,
-        `stopped waiting for ${provider} job ${jobId}; it may still be running`,
-        { jobId, provider }
-      );
-    }
-    let value: T | undefined;
-    try {
-      value = await check(request);
-    } catch (error) {
-      throw withJob(error, jobId);
-    }
-    if (value !== undefined) {
-      return value;
-    }
-    if (Date.now() + interval > deadline) {
-      throw new FieldworkError(
-        "Timeout",
-        `${provider} job ${jobId} did not finish in time; it may still be running`,
-        { jobId, provider }
-      );
-    }
-    await sleep(interval, options.signal);
-  }
 };
 
 /** An id as one path segment, so a caller's `resume` cannot reach another endpoint. */

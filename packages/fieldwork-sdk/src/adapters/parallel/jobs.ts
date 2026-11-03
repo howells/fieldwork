@@ -1,8 +1,10 @@
 import * as z from "zod/mini";
 
 import { FieldworkError, withJob } from "../../errors.js";
-import { poll, segment } from "../../http.js";
-import type { PollOptions, RawClient } from "../../http.js";
+import { segment } from "../../http.js";
+import type { RawClient } from "../../http.js";
+import { runJob } from "../../job.js";
+import type { JobSettings } from "../../job.js";
 import type { CallOptions } from "../../types.js";
 import { compact, requireJobId } from "../../util.js";
 import type { Json } from "../../util.js";
@@ -17,7 +19,7 @@ import {
   TaskRun,
   TaskStart,
 } from "./response.js";
-import type { TaskRunBlock } from "./response.js";
+import type { TaskResultBlock, TaskRunBlock } from "./response.js";
 
 export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
   const run = entry.value;
@@ -39,7 +41,6 @@ export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
   }
   return new FieldworkError("JobFailed", message, {
     cause: entry.original,
-    jobId: id,
     provider,
   });
 };
@@ -68,50 +69,51 @@ export const taskResult = async (
   }
 };
 
-export const runTask = async (
+/** Runs a task to its result, or waits for the run named by `resume`. */
+export const runTask = async <Result>(
   raw: RawClient,
   body: Json,
-  settings: PollOptions & { resume?: string }
-) => {
-  const { resume, ...wait } = settings;
-  const id =
-    resume ??
-    requireJobId(
-      raw.provider,
-      z.parse(
-        TaskStart,
-        await raw.request("POST", "/v1/tasks/runs", {
-          ...wait,
-          body,
-          creates: true,
-        })
-      ).run_id
-    );
-  const result = await poll(
-    raw.provider,
-    id,
-    async (request) => {
-      const run = z.parse(
-        TaskRun,
-        await raw.request("GET", `/v1/tasks/runs/${segment(id)}`, request)
-      );
-      const { status } = run.value;
-      if (
-        status === "failed" ||
-        status === "cancelled" ||
-        status === "action_required"
-      ) {
-        throw stoppedRun(id, run);
-      }
-      // queued, running and cancelling are still going.
-      return status === "completed"
-        ? await taskResult(raw, id, request)
-        : undefined;
+  settings: JobSettings,
+  finish: (result: TaskResultBlock, id: string) => Promise<Result>
+): Promise<Result> =>
+  await runJob(
+    provider,
+    {
+      check: async (id, request) => {
+        const run = z.parse(
+          TaskRun,
+          await raw.request("GET", `/v1/tasks/runs/${segment(id)}`, request)
+        );
+        const { status } = run.value;
+        if (
+          status === "failed" ||
+          status === "cancelled" ||
+          status === "action_required"
+        ) {
+          throw stoppedRun(id, run);
+        }
+        // queued, running and cancelling are still going.
+        return status === "completed"
+          ? await taskResult(raw, id, request)
+          : undefined;
+      },
+      finish,
+      start: async () =>
+        requireJobId(
+          provider,
+          z.parse(
+            TaskStart,
+            await raw.request("POST", "/v1/tasks/runs", {
+              body,
+              creates: true,
+              retries: settings.retries,
+              signal: settings.signal,
+            })
+          ).run_id
+        ),
     },
-    wait
+    settings
   );
-  return { id, result };
-};
 
 export const startFindAll = async (
   raw: RawClient,
@@ -171,7 +173,7 @@ export const findAllResult = async (
     throw new FieldworkError(
       "JobFailed",
       `parallel FindAll run ${id} stopped with status action_required: it is waiting for an action Fieldwork cannot take, so it will not finish on its own. Open the run in the Parallel console to see what it needs`,
-      { cause: run.original, jobId: id, provider }
+      { cause: run.original, provider }
     );
   }
   const stopped =

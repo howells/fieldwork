@@ -2,7 +2,8 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
-import { createRawClient, poll, requireKey, segment } from "../http.js";
+import { createRawClient, requireKey, segment } from "../http.js";
+import { runJob } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
@@ -327,49 +328,48 @@ export const exa = (config: ExaConfig = {}) => {
     async research<T>(question: string, options?: ExaResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
       checkResearch(o);
-      const id =
-        o.resume ??
-        requireJobId(
-          provider,
-          z.parse(
-            RunStart,
-            await raw.request("POST", "/agent/runs", {
-              creates: true,
-              ...call,
-              body: researchBody(question, o),
-            })
-          ).id
-        );
-      const run = await poll(
+      return await runJob(
         provider,
-        id,
-        async (request) => {
-          const current = z.parse(
-            RunEntry,
-            await raw.request("GET", `/agent/runs/${segment(id)}`, request)
-          );
-          const { status } = current.value;
-          return status === "completed" ||
-            status === "failed" ||
-            status === "cancelled"
-            ? current
-            : undefined;
+        {
+          check: async (id, request) => {
+            const current = z.parse(
+              RunEntry,
+              await raw.request("GET", `/agent/runs/${segment(id)}`, request)
+            );
+            const { status } = current.value;
+            return status === "completed" ||
+              status === "failed" ||
+              status === "cancelled"
+              ? current
+              : undefined;
+          },
+          finish: async (run, id) => {
+            // A resumed run echoes the request it was started with.
+            const { outputSchema } = run.value.request;
+            const structured =
+              o.schema !== undefined ||
+              (outputSchema !== undefined && outputSchema !== null);
+            const result = researchResult(id, run, structured);
+            return {
+              ...result,
+              output: await checkOutput(o.schema, result.output, { provider }),
+            };
+          },
+          start: async () =>
+            requireJobId(
+              provider,
+              z.parse(
+                RunStart,
+                await raw.request("POST", "/agent/runs", {
+                  creates: true,
+                  ...call,
+                  body: researchBody(question, o),
+                })
+              ).id
+            ),
         },
-        { ...call, interval: o.interval }
+        { ...call, interval: o.interval, resume: o.resume }
       );
-      // A resumed run echoes the request it was started with.
-      const { outputSchema } = run.value.request;
-      const structured =
-        o.schema !== undefined ||
-        (outputSchema !== undefined && outputSchema !== null);
-      const result = researchResult(id, run, structured);
-      return {
-        ...result,
-        output: await checkOutput(o.schema, result.output, {
-          jobId: id,
-          provider,
-        }),
-      };
     },
 
     async search(query, options) {

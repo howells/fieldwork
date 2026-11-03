@@ -2,7 +2,8 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
-import { createRawClient, poll, requireKey, segment } from "../http.js";
+import { createRawClient, requireKey, segment } from "../http.js";
+import { runJob } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
 import { callSettings, compact, requireJobId } from "../util.js";
@@ -231,72 +232,77 @@ export const tavily = (config: TavilyConfig = {}) => {
       if (files && files.length > 5) {
         throw invalidRequest(provider, "research takes up to 5 files");
       }
-      const id =
-        o.resume ??
-        requireJobId(
-          provider,
-          z.parse(
-            ResearchStart,
-            await raw.request("POST", "/research", {
-              creates: true,
-              ...call,
-              body: compact({
-                citation_format: o.citationFormat,
-                exclude_domains: o.excludeDomains,
-                files,
-                include_domains: o.includeDomains,
-                input: question,
-                model: o.model,
-                output_length: o.outputLength,
-                output_schema:
-                  o.schema === undefined ? undefined : jsonSchemaOf(o.schema),
-                stream: false,
-              }),
-            })
-          ).request_id
-        );
-      const { body: run, response } = await poll(
+      return await runJob(
         provider,
-        id,
-        async (request) => {
-          const current = await raw.request("GET", `/research/${segment(id)}`, {
-            ...request,
-            query: { include_usage: true },
-          });
-          const parsed = z.parse(ResearchRun, current);
-          if (parsed.status === "failed") {
-            throw new FieldworkError(
-              "JobFailed",
-              `tavily research ${id} failed`,
-              { cause: current, provider }
+        {
+          check: async (id, request) => {
+            const current = await raw.request(
+              "GET",
+              `/research/${segment(id)}`,
+              { ...request, query: { include_usage: true } }
             );
-          }
-          return parsed.status === "completed"
-            ? { body: parsed, response: current }
-            : undefined;
+            const parsed = z.parse(ResearchRun, current);
+            if (parsed.status === "failed") {
+              throw new FieldworkError(
+                "JobFailed",
+                `tavily research ${id} failed`,
+                { cause: current, provider }
+              );
+            }
+            return parsed.status === "completed"
+              ? { body: parsed, response: current }
+              : undefined;
+          },
+          finish: async ({ body: run, response }, id) => {
+            const { content } = run;
+            if (content === undefined || content === null || content === "") {
+              throw new FieldworkError(
+                "JobFailed",
+                `tavily research ${id} finished without output`,
+                { cause: response, provider }
+              );
+            }
+            return compact({
+              id,
+              meta: responseMeta(run),
+              output: await checkOutput(o.schema, content, { provider }),
+              raw: response,
+              sources: run.sources.flatMap((source) =>
+                source.url === undefined
+                  ? []
+                  : [compact({ title: source.title, url: source.url })]
+              ),
+              status: "completed" as const,
+            });
+          },
+          start: async () =>
+            requireJobId(
+              provider,
+              z.parse(
+                ResearchStart,
+                await raw.request("POST", "/research", {
+                  creates: true,
+                  ...call,
+                  body: compact({
+                    citation_format: o.citationFormat,
+                    exclude_domains: o.excludeDomains,
+                    files,
+                    include_domains: o.includeDomains,
+                    input: question,
+                    model: o.model,
+                    output_length: o.outputLength,
+                    output_schema:
+                      o.schema === undefined
+                        ? undefined
+                        : jsonSchemaOf(o.schema),
+                    stream: false,
+                  }),
+                })
+              ).request_id
+            ),
         },
-        { ...call, interval: o.interval }
+        { ...call, interval: o.interval, resume: o.resume }
       );
-      const { content } = run;
-      if (content === undefined || content === null || content === "") {
-        throw new FieldworkError(
-          "JobFailed",
-          `tavily research ${id} finished without output`,
-          { cause: response, jobId: id, provider }
-        );
-      }
-      return compact({
-        id,
-        meta: responseMeta(run),
-        output: await checkOutput(o.schema, content, { jobId: id, provider }),
-        raw: response,
-        sources: run.sources.flatMap((source) =>
-          source.url === undefined
-            ? []
-            : [compact({ title: source.title, url: source.url })]
-        ),
-        status: "completed" as const,
-      });
     },
 
     async search(query, options) {

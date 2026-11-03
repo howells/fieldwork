@@ -23,7 +23,7 @@ Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config 
 
 - A provider that lacks a capability or option is never called for it. No fallbacks and no emulation: the adapter omits the method, the types refuse the call, the runtime throws `Unsupported`, and the tool schema leaves the option out.
 - Every result keeps the provider's response in `raw`. Tools strip it; the SDK never does.
-- An error raised after a job starts carries `jobId`, and every asynchronous method accepts `resume`.
+- An error raised after a job starts carries `jobId`, and every asynchronous method accepts `resume`. Run every job through `runJob` in `src/job.ts`, which holds both; never poll by hand.
 - Zod is the only runtime dependency. Adapters still call each provider's REST API with `fetch`. Adding any other dependency needs Daniel's sign-off. Use `zod/mini` in `src`.
 - Configuration is flags and arguments; the environment holds API keys only.
 

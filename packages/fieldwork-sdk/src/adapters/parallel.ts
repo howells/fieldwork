@@ -2,7 +2,8 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
-import { createRawClient, poll, requireKey, segment } from "../http.js";
+import { createRawClient, requireKey, segment } from "../http.js";
+import { runJob } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type {
   DecisionAnswer,
@@ -241,32 +242,35 @@ export const parallel = (config: ParallelConfig = {}) => {
 
     async discover<T>(objective: string, options: ParallelDiscoverOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const id = o.resume ?? (await startFindAll(raw, objective, o, call));
-      const result = await poll(
+      return await runJob(
         provider,
-        id,
-        async (request) => await findAllResult(raw, id, request),
-        { ...call, interval: o.interval }
+        {
+          check: async (id, request) => await findAllResult(raw, id, request),
+          finish: async (result, id) => {
+            const found = discovery(id, result);
+            const entities = await Promise.all(
+              found.entities.map(
+                async ({ data, ...entity }): Promise<Entity<T>> =>
+                  data === undefined
+                    ? entity
+                    : {
+                        ...entity,
+                        data: await checkOutput(o.schema, data, { provider }),
+                      }
+              )
+            );
+            return { ...found, entities };
+          },
+          start: async () => await startFindAll(raw, objective, o, call),
+        },
+        { ...call, interval: o.interval, resume: o.resume }
       );
-      const found = discovery(id, result);
-      const entities = await Promise.all(
-        found.entities.map(async ({ data, ...entity }): Promise<Entity<T>> => {
-          if (data === undefined) {
-            return entity;
-          }
-          return {
-            ...entity,
-            data: await checkOutput(o.schema, data, { jobId: id, provider }),
-          };
-        })
-      );
-      return { ...found, entities };
     },
 
     async extract<T>(url: string, options?: ParallelExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
       const target = new URL(url);
-      const { id, result } = await runTask(
+      return await runTask(
         raw,
         compact({
           advanced_settings: nonEmpty({ location: o.country }),
@@ -289,18 +293,17 @@ export const parallel = (config: ParallelConfig = {}) => {
             output_schema: o.schema ? jsonOutput(o.schema) : { type: "auto" },
           },
         }),
-        { ...call, interval: o.interval, resume: o.resume }
+        { ...call, interval: o.interval, resume: o.resume },
+        async (result) => {
+          const { output } = result.value;
+          return compact({
+            data: await checkOutput(o.schema, output.content, { provider }),
+            fields: basis(output.basis),
+            meta: taskMeta(result),
+            raw: result.original,
+          });
+        }
       );
-      const { output } = result.value;
-      return compact({
-        data: await checkOutput(o.schema, output.content, {
-          jobId: id,
-          provider,
-        }),
-        fields: basis(output.basis),
-        meta: taskMeta(result),
-        raw: result.original,
-      });
     },
 
     async images(query, options) {
@@ -523,7 +526,7 @@ export const parallel = (config: ParallelConfig = {}) => {
 
     async research<T>(question: string, options?: ParallelResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const { id, result } = await runTask(
+      return await runTask(
         raw,
         compact({
           advanced_settings: nonEmpty({ location: o.country }),
@@ -536,23 +539,22 @@ export const parallel = (config: ParallelConfig = {}) => {
             output_schema: o.schema ? jsonOutput(o.schema) : { type: "text" },
           },
         }),
-        { ...call, interval: o.interval, resume: o.resume }
+        { ...call, interval: o.interval, resume: o.resume },
+        async (result, id) => {
+          const { output, run } = result.value;
+          const fields = basis(output.basis);
+          return compact({
+            continuationId: run.interaction_id,
+            fields,
+            id,
+            meta: taskMeta(result),
+            output: await checkOutput(o.schema, output.content, { provider }),
+            raw: result.original,
+            sources: citedBy(fields),
+            status: "completed" as const,
+          });
+        }
       );
-      const { output, run } = result.value;
-      const fields = basis(output.basis);
-      return compact({
-        continuationId: run.interaction_id,
-        fields,
-        id,
-        meta: taskMeta(result),
-        output: await checkOutput(o.schema, output.content, {
-          jobId: id,
-          provider,
-        }),
-        raw: result.original,
-        sources: citedBy(fields),
-        status: "completed" as const,
-      });
     },
 
     async search(query, options) {

@@ -2,8 +2,9 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { invalidRequest } from "../errors.js";
-import { createRawClient, poll, requireKey, segment } from "../http.js";
+import { createRawClient, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
+import { runJob } from "../job.js";
 import { checkOutput } from "../schema.js";
 import type {
   Answer,
@@ -160,9 +161,6 @@ const startResearch = async (
   o: PerplexityResearchOptions,
   call: CallOptions
 ) => {
-  if (o.resume !== undefined) {
-    return o.resume;
-  }
   const created = z.parse(
     AgentStart,
     await raw.request("POST", "/v1/agent", {
@@ -189,40 +187,45 @@ const research = async <T>(
   options: PerplexityResearchOptions<T> | undefined
 ): Promise<Research<T>> => {
   const { call, rest: o } = callSettings(options);
-  const id = await startResearch(raw, question, o, call);
-  const run = await poll(
+  return await runJob(
     provider,
-    id,
-    async (request) => {
-      const found = z.parse(
-        AgentRun,
-        await raw.request("GET", `/v1/agent/${segment(id)}`, request)
-      );
-      return TERMINAL.has(found.value.status ?? "") ? found : undefined;
+    {
+      check: async (id, request) => {
+        const found = z.parse(
+          AgentRun,
+          await raw.request("GET", `/v1/agent/${segment(id)}`, request)
+        );
+        return TERMINAL.has(found.value.status ?? "") ? found : undefined;
+      },
+      finish: async (run, id) => {
+        const { status } = run.value;
+        const read = readResponse(run.value);
+        if (status === "failed" || !read.text) {
+          throw responseError(run, id);
+        }
+        return compact({
+          continuationId: id,
+          id,
+          meta: responseMeta(run.value),
+          output: await checkOutput(
+            o.schema,
+            researchOutput(run, read.text, o.schema),
+            { provider }
+          ),
+          raw: run.original,
+          retrieved: read.retrieved.length > 0 ? read.retrieved : undefined,
+          sources: read.cited,
+          status:
+            status === "completed"
+              ? ("completed" as const)
+              : ("partial" as const),
+          stopReason: status === "completed" ? undefined : status,
+        });
+      },
+      start: async () => await startResearch(raw, question, o, call),
     },
-    { ...call, interval: o.interval }
+    { ...call, interval: o.interval, resume: o.resume }
   );
-  const { status } = run.value;
-  const read = readResponse(run.value);
-  if (status === "failed" || !read.text) {
-    throw responseError(run, id);
-  }
-  return compact({
-    continuationId: id,
-    id,
-    meta: responseMeta(run.value),
-    output: await checkOutput(
-      o.schema,
-      researchOutput(run, read.text, o.schema, id),
-      { jobId: id, provider }
-    ),
-    raw: run.original,
-    retrieved: read.retrieved.length > 0 ? read.retrieved : undefined,
-    sources: read.cited,
-    status:
-      status === "completed" ? ("completed" as const) : ("partial" as const),
-    stopReason: status === "completed" ? undefined : status,
-  });
 };
 
 const decide = async (

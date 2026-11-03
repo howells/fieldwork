@@ -2,15 +2,10 @@ import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
 import { documentPart, refuseLarger } from "../document.js";
-import { FieldworkError, withJob } from "../errors.js";
-import {
-  createRawClient,
-  poll,
-  readSigned,
-  requireKey,
-  segment,
-} from "../http.js";
+import { FieldworkError } from "../errors.js";
+import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
+import { runJob } from "../job.js";
 import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
 import {
   callSettings,
@@ -120,9 +115,6 @@ const startParse = async (
   o: LlamaParseParseOptions,
   call: CallOptions
 ) => {
-  if (o.resume !== undefined) {
-    return o.resume;
-  }
   if (document === undefined) {
     throw new FieldworkError(
       "InvalidRequest",
@@ -145,13 +137,13 @@ const startParse = async (
   return requireJobId(provider, created.id);
 };
 
-const finished = (found: JobResultBlock, id: string) => {
+const finished = (found: JobResultBlock) => {
   const { error_message: message, status } = found.value.job;
   if (status === "FAILED" || status === "CANCELLED") {
     throw new FieldworkError(
       "JobFailed",
       `llamaparse job ${status.toLowerCase()}${message === undefined ? "" : `: ${message}`}`,
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
   return status === "COMPLETED" ? found : undefined;
@@ -160,7 +152,6 @@ const finished = (found: JobResultBlock, id: string) => {
 /** The grounded items: one JSON line per page, each page's items with word and cell boxes. */
 const groundedPages = async (
   found: JobResultBlock,
-  id: string,
   options: { fetch?: typeof fetch; signal?: AbortSignal }
 ) => {
   const url = found.value.result_content_metadata.grounded_items.presigned_url;
@@ -168,18 +159,14 @@ const groundedPages = async (
     throw new FieldworkError(
       "ProviderError",
       "llamaparse finished without the word boxes it was asked for",
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
-  try {
-    const text = await readSigned(provider, url, options);
-    return text
-      .split("\n")
-      .filter((line) => line.trim() !== "")
-      .map((line) => parseJson(provider, line));
-  } catch (error) {
-    throw withJob(error, id);
-  }
+  const text = await readSigned(provider, url, options);
+  return text
+    .split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => parseJson(provider, line));
 };
 
 /** Each page's picture, keyed by page number, from the job's saved screenshots. */
@@ -195,58 +182,29 @@ const pageImageAddresses = (found: JobResultBlock, id: string) => {
     throw new FieldworkError(
       "ProviderError",
       `llamaparse job ${id} has no page pictures; only a parse started with pageImages saves them`,
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
   return addresses;
 };
 
-const parse = async (
-  raw: RawClient,
-  document: DocumentInput | undefined,
-  options: LlamaParseParseOptions | undefined,
-  fetchImpl: typeof fetch | undefined
+/** The finished job as a document, with word boxes and page pictures when they were asked for. */
+const parsedDocument = async (
+  found: JobResultBlock,
+  id: string,
+  o: LlamaParseParseOptions,
+  read: { fetch?: typeof fetch; signal?: AbortSignal }
 ): Promise<ParsedDocument> => {
-  const { call, rest: o } = callSettings(options);
-  const id = await startParse(raw, document, o, call);
-  const blocks = o.blocks === true || o.wordBoxes === true;
-  const expand = [
-    "markdown",
-    "usage",
-    ...(blocks ? ["items"] : []),
-    ...(o.pageImages === true ? ["images_content_metadata"] : []),
-  ].join(",");
-  const found = await poll(
-    provider,
-    id,
-    async (request) =>
-      finished(
-        z.parse(
-          JobResult,
-          await raw.request("GET", `/api/v2/parse/${segment(id)}`, {
-            ...request,
-            query: { expand },
-          })
-        ),
-        id
-      ),
-    { ...call, interval: o.interval }
-  );
   // A blank page still arrives as a page; a finished job with none lost its output.
   if (found.value.markdown.pages.length === 0) {
     throw new FieldworkError(
       "ProviderError",
       `llamaparse finished job ${id} without any pages of Markdown`,
-      { cause: found.original, jobId: id, provider }
+      { cause: found.original, provider }
     );
   }
   const grounded =
-    o.wordBoxes === true
-      ? await groundedPages(found, id, {
-          fetch: fetchImpl,
-          signal: call.signal,
-        })
-      : undefined;
+    o.wordBoxes === true ? await groundedPages(found, read) : undefined;
   const images =
     o.pageImages === true ? pageImageAddresses(found, id) : undefined;
   const pages = found.value.markdown.pages.flatMap((page) => {
@@ -258,7 +216,7 @@ const parse = async (
       throw new FieldworkError(
         "ProviderError",
         `llamaparse job ${id} has no picture of page ${page.page_number}`,
-        { cause: found.original, jobId: id, provider }
+        { cause: found.original, provider }
       );
     }
     return [
@@ -272,7 +230,7 @@ const parse = async (
   let laidOut;
   if (grounded !== undefined) {
     laidOut = documentBlocks(grounded.map((row) => z.parse(ItemsPage, row)));
-  } else if (blocks) {
+  } else if (o.blocks === true) {
     laidOut = documentBlocks(found.value.items.pages);
   }
   return compact({
@@ -286,6 +244,44 @@ const parse = async (
         ? found.original
         : { groundedItems: grounded, job: found.original },
   });
+};
+
+const parse = async (
+  raw: RawClient,
+  document: DocumentInput | undefined,
+  options: LlamaParseParseOptions | undefined,
+  fetchImpl: typeof fetch | undefined
+): Promise<ParsedDocument> => {
+  const { call, rest: o } = callSettings(options);
+  const blocks = o.blocks === true || o.wordBoxes === true;
+  const expand = [
+    "markdown",
+    "usage",
+    ...(blocks ? ["items"] : []),
+    ...(o.pageImages === true ? ["images_content_metadata"] : []),
+  ].join(",");
+  return await runJob(
+    provider,
+    {
+      check: async (id, request) =>
+        finished(
+          z.parse(
+            JobResult,
+            await raw.request("GET", `/api/v2/parse/${segment(id)}`, {
+              ...request,
+              query: { expand },
+            })
+          )
+        ),
+      finish: async (found, id) =>
+        await parsedDocument(found, id, o, {
+          fetch: fetchImpl,
+          signal: call.signal,
+        }),
+      start: async () => await startParse(raw, document, o, call),
+    },
+    { ...call, interval: o.interval, resume: o.resume }
+  );
 };
 
 /**

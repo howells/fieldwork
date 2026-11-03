@@ -1,4 +1,4 @@
-import { FieldworkError, invalidRequest, withJob } from "../../errors.js";
+import { FieldworkError, invalidRequest } from "../../errors.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { OutputSchema } from "../../schema.js";
 import type { Citation, DecisionQuestion } from "../../types.js";
@@ -208,8 +208,7 @@ export const researchSetup = (o: PerplexityResearchOptions) => {
 export const researchOutput = (
   run: AgentRunBlock,
   reply: string,
-  schema: OutputSchema<unknown> | undefined,
-  id: string
+  schema: OutputSchema<unknown> | undefined
 ) => {
   if (!schema) {
     return reply;
@@ -219,13 +218,13 @@ export const researchOutput = (
     return parseJson(provider, reply);
   } catch (error) {
     if (status === "completed") {
-      throw withJob(error, id);
+      throw error;
     }
     // A run cut short can leave JSON that stops mid-value: no usable output.
     throw new FieldworkError(
       "JobFailed",
       `perplexity research ended ${status} with output that is not valid JSON`,
-      { cause: run.original, jobId: id, provider }
+      { cause: run.original, provider }
     );
   }
 };
