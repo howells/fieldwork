@@ -1,0 +1,115 @@
+---
+import PageLayout from "blume/components/layout/PageLayout.astro";
+import data from "blume:data";
+
+import { GUIDE_DATE } from "../../lib/tool-guide";
+import SiteFooter from "../site-footer.astro";
+
+interface Props {
+  section: "matrix" | "choosing" | "evidence";
+  title: string;
+  lead: string;
+}
+
+const { section, title, lead } = Astro.props;
+const { config } = data;
+const pages = [
+  { href: "/tool-guide", id: "matrix", label: "Task matrix" },
+  { href: "/tool-guide/choosing", id: "choosing", label: "How to choose" },
+  { href: "/tool-guide/evidence", id: "evidence", label: "Tests and sources" },
+];
+const index = pages.findIndex((page) => page.id === section);
+const current = pages[index];
+const previous = pages[index - 1];
+const next = pages[index + 1];
+---
+
+<PageLayout
+  analytics={config.analytics}
+  appleIcon={config.appleIcon}
+  banner={config.banner}
+  favicon={config.favicon}
+  fontCssVars={data.fontCssVars}
+  lastModified="2026-11-03"
+  logo={config.logo}
+  navigation={data.navigation}
+  ogEnabled={config.og.enabled}
+  page={{ description: lead, route: current.href, title: `${current.label} · Fieldwork` }}
+  searchEnabled={config.search.enabled}
+  site={{ description: config.description, title: config.title }}
+  siteUrl={config.site}
+  themeMode={config.theme.mode}
+  ui={data.ui}
+>
+  <div class="tool-guide">
+    <header class="home-wrap pt-12 pb-10 md:pt-20 md:pb-14">
+      <div class="flex flex-wrap items-center justify-between gap-3 text-sm text-graphite"><span>Tool guide</span><time datetime={GUIDE_DATE.iso}>{GUIDE_DATE.label}</time></div>
+      <div class:list={["mt-10 grid items-end gap-8 md:mt-14", { "md:grid-cols-[1fr_280px] md:gap-16": section === "matrix" }]}>
+        <div>
+          <h1 class="guide-title max-w-3xl">{title}</h1>
+          <p class="guide-lead mt-6 max-w-3xl">{lead}</p>
+        </div>
+        {section === "matrix" && <div class="border-l-2 border-map-blue pl-5 md:pb-1">
+          <p class="m-0 text-base leading-relaxed">Choose the capability.<br />Then choose a provider.</p>
+          <p class="mt-4 mb-0 text-sm text-graphite">17 capabilities · 8 providers</p>
+        </div>}
+      </div>
+    </header>
+    <nav aria-label="Tool guide" class="guide-section-nav sticky top-16 z-20 border-y border-rule bg-paper/95 backdrop-blur">
+      <div class="home-wrap flex gap-6 overflow-x-auto md:gap-8">
+        {pages.map((page) => <a aria-current={page.id === section ? "page" : undefined} href={page.href}>{page.label}</a>)}
+      </div>
+    </nav>
+    <div class="home-wrap pt-12 pb-16 md:pt-16 md:pb-24">
+      <slot />
+      <nav aria-label="Guide pages" class="mt-12 flex flex-wrap items-center justify-between gap-x-8 gap-y-2 border-t border-rule py-5 md:mt-16">
+        {previous ? <a class="guide-text-link" href={previous.href}><span aria-hidden="true">←</span> {previous.label}</a> : <span class="text-sm text-graphite">Tool guide · 1 of 3</span>}
+        {next ? <a class="guide-text-link" href={next.href}>Next: {next.label} <span aria-hidden="true">→</span></a> : <span class="text-sm text-graphite">Tool guide · 3 of 3</span>}
+      </nav>
+      <div class="flex flex-col gap-5 border-t border-rule pt-10 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 class="m-0 text-lg font-medium">Use your chosen tool</h2><p class="mt-2 mb-0 text-sm text-graphite">Set up a client, select a provider and keep its response.</p></div>
+        <div class="flex flex-wrap gap-3"><a class="guide-action" href="/docs/installation">Get started</a><a class="guide-action guide-action-secondary" href="/docs/capabilities">Compare capabilities</a></div>
+      </div>
+    </div>
+  </div>
+  <SiteFooter slot="footer" />
+</PageLayout>
+
+<style is:global>
+  .tool-guide { color: var(--color-ink); }
+  .tool-guide [id] { scroll-margin-top: 144px; }
+  .tool-guide :is(h3, h4) { font-family: var(--blume-font-body); }
+  .guide-title { margin: 0; font-family: var(--blume-font-display); font-size: clamp(40px, 5.4vw, 76px); font-weight: 300; letter-spacing: -0.025em; line-height: 1.04; }
+  .guide-heading { margin: 0; font-family: var(--blume-font-display); font-size: clamp(32px, 3.5vw, 48px); font-weight: 300; letter-spacing: -0.02em; line-height: 1.12; }
+  .guide-subheading { margin: 0; font-size: 22px; font-weight: 500; line-height: 1.3; letter-spacing: -0.015em; }
+  .guide-lead { margin-bottom: 0; color: var(--color-graphite); font-size: 18px; line-height: 1.65; }
+  .guide-section-nav a { display: inline-flex; min-height: 56px; align-items: center; flex-shrink: 0; color: var(--color-graphite); font-size: 14px; text-decoration: none; }
+  .guide-section-nav a[aria-current="page"] { color: var(--color-ink); box-shadow: inset 0 -2px var(--color-map-blue); }
+  .guide-section-nav a:hover { color: var(--color-ink); text-decoration: underline; text-underline-offset: 6px; }
+  .guide-inline-link { display: inline-flex; min-height: 44px; align-items: center; vertical-align: middle; margin-block: -10px; color: var(--color-map-blue); text-decoration: underline; text-underline-offset: 3px; }
+  .guide-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; color: var(--color-map-blue); font-size: 14px; text-decoration: none; cursor: pointer; }
+  .guide-text-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .tool-guide :is(a, button, input, select, [tabindex]):focus-visible { outline: 2px solid var(--color-map-blue); outline-offset: 4px; }
+  .guide-evidence-section { margin-top: 56px; scroll-margin-top: 144px; }
+  .guide-results-table { margin-top: 24px; width: 100%; border-collapse: collapse; font-size: 14px; }
+  .guide-results-table th, .guide-results-table td { padding: 16px 20px 16px 0; border-bottom: 1px solid var(--color-rule); text-align: left; vertical-align: top; }
+  .guide-results-table thead th { color: var(--color-graphite); font-weight: 400; }
+  .guide-results-table tbody th { font-weight: 500; }
+  .guide-results-table .text-right { text-align: right; padding-right: 0; }
+  .guide-result-label { display: none; }
+  .guide-finding { padding-block: 24px; border-top: 1px solid var(--color-rule); scroll-margin-top: 144px; }
+  .guide-finding h3 { margin: 0; font-size: 16px; font-weight: 500; }
+  .guide-finding p { margin: 12px 0 0; color: var(--color-graphite); font-size: 14px; line-height: 1.75; }
+  .guide-action { display: inline-flex; min-height: 48px; justify-content: center; align-items: center; padding: 12px 18px; border: 1px solid var(--color-ink); border-radius: 6px; background: var(--color-ink); color: var(--color-paper); font-size: 14px; text-decoration: none; }
+  .guide-action:hover { opacity: .85; }
+  .guide-action-secondary { border-color: var(--color-rule); background: var(--color-paper); color: var(--color-ink); }
+  @media (max-width: 767px) {
+    .guide-results-table, .guide-results-table tbody { display: block; }
+    .guide-results-table tr { display: grid; grid-template-columns: 1fr 1fr; gap: 20px 24px; padding-block: 28px; border-bottom: 1px solid var(--color-rule); }
+    .guide-results-table th, .guide-results-table td { display: block; padding: 0; border: 0; }
+    .guide-results-table tbody th { grid-column: 1 / -1; font-size: 16px; }
+    .guide-results-table .text-right { text-align: left; }
+    .guide-result-label { display: block; margin-bottom: 6px; color: var(--color-graphite); font-size: 13px; }
+  }
+  @media (prefers-reduced-motion: no-preference) { .guide-action { transition: opacity 150ms ease; } }
+</style>

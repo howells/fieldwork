@@ -51,7 +51,8 @@
   },
   "dependencies": {
     "@howells/fieldwork-sdk": "workspace:^",
-    "@modelcontextprotocol/server": "^2.4.0"
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@howells/lint": "catalog:",

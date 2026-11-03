@@ -1,0 +1,65 @@
+---
+import { EVIDENCE_COPY, FAMILY_FINDINGS, PRODUCT_RESULTS, STUDIES, SYNTHESIS_RESULTS } from "../../lib/tool-guide-evidence";
+
+const copy = EVIDENCE_COPY;
+---
+
+<section aria-label="Tests and sources" id="tests-and-sources">
+
+  <div id="evidence-products">
+    <div class="grid gap-5 md:grid-cols-[1fr_1fr] md:gap-20">
+      <h2 class="guide-subheading">{copy.products.title}</h2>
+      <p class="m-0 text-sm leading-relaxed text-graphite">{copy.products.detail}</p>
+    </div>
+    <div aria-label="Correct product checks out of 108 and median response time" class="mt-8 border-t border-rule" role="group">
+      {PRODUCT_RESULTS.map((result) => (
+        <div class="grid gap-4 border-b border-rule py-6 md:grid-cols-[260px_1fr_110px] md:items-center md:gap-8">
+          <div><p class="m-0 text-base font-medium">{result.mode}</p><p class="mt-2 mb-0 text-sm text-graphite">{result.grounding}</p></div>
+          <div><p class="mt-0 mb-3 text-sm tabular-nums">{result.score}/108 checks</p><div aria-hidden="true" class="h-1.5 w-full bg-wash"><div class="h-full bg-map-blue" style={`width: ${(result.score / 108) * 100}%`}></div></div></div>
+          <div class="md:text-right"><p class="m-0 text-base tabular-nums">{result.time}</p><p class="mt-1 mb-0 text-sm text-graphite">Median time</p></div>
+        </div>
+      ))}
+    </div>
+    <p class="mt-5 mb-0 text-base font-medium">{copy.products.summary}</p>
+    <p class="mt-3 mb-0 max-w-4xl text-sm leading-relaxed text-graphite">{copy.products.caveat}</p>
+  </div>
+
+  <div class="guide-evidence-section" id="evidence-synthesis">
+    <h2 class="guide-subheading">{copy.synthesis.title}</h2>
+    <p class="mt-3 max-w-3xl text-sm leading-relaxed text-graphite">{copy.synthesis.detail}</p>
+      <table class="guide-results-table">
+        <thead class="max-md:sr-only"><tr><th scope="col">Mode</th><th scope="col">Cases with all facts</th><th scope="col">Exact quotes</th><th scope="col">Built-in field citations</th><th class="text-right" scope="col">Median time</th></tr></thead>
+        <tbody>{SYNTHESIS_RESULTS.map((result) => <tr><th scope="row">{result.mode}</th><td><span class="guide-result-label">Cases with all facts</span>{result.facts}</td><td><span class="guide-result-label">Exact quotes</span>{result.quotes}</td><td><span class="guide-result-label">Built-in field citations</span>{result.grounding}</td><td class="text-right tabular-nums"><span class="guide-result-label">Median time</span>{result.time}</td></tr>)}</tbody>
+      </table>
+    <p class="mt-5 mb-0 max-w-4xl text-sm leading-relaxed text-graphite">{copy.synthesis.caveat}</p>
+  </div>
+
+  <div class="guide-evidence-section">
+    <h2 class="guide-subheading">{copy.families.title}</h2>
+    <p class="mt-3 max-w-3xl text-sm leading-relaxed text-graphite">{copy.families.detail}</p>
+    <div class="mt-8 grid gap-x-12 md:grid-cols-2">
+      {FAMILY_FINDINGS.map((finding) => (
+        <article class="guide-finding" id={finding.id}><h3>{finding.title}</h3>{finding.paragraphs.map((paragraph) => <p>{paragraph}</p>)}</article>
+      ))}
+    </div>
+    <div class="mt-8 border-l-2 border-map-blue pl-5">
+      <p class="m-0 text-base font-medium">{copy.spend.title}</p>
+      <p class="mt-2 mb-0 max-w-4xl text-sm leading-relaxed text-graphite">{copy.spend.detail}</p>
+    </div>
+  </div>
+
+  <div class="guide-evidence-section" id="studies">
+    <h2 class="guide-subheading">{copy.studies.title}</h2>
+    <p class="mt-3 max-w-3xl text-sm leading-relaxed text-graphite">{copy.studies.detail}</p>
+    <ul class="mt-8 grid list-none gap-x-12 p-0 md:grid-cols-2">
+      {STUDIES.map((study) => (
+        <li class="border-t border-rule py-6">
+          <p class="m-0 text-sm text-graphite">{study.topic} · {study.year}</p>
+          <a class="guide-text-link mt-1 text-base" href={study.href} rel="noreferrer" target="_blank">{study.name} <span aria-hidden="true">↗</span><span class="sr-only"> (opens in a new tab)</span></a>
+          <p class="mt-2 mb-0 text-sm leading-relaxed text-graphite">{study.lesson}</p>
+        </li>
+      ))}
+    </ul>
+    <p class="mt-5 mb-0 max-w-4xl text-sm leading-relaxed text-graphite">{copy.studies.caveat}</p>
+  </div>
+</section>

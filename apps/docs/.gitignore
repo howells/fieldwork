@@ -4,3 +4,5 @@
 /dist/
 /.vercel/
 .env*
+.blume-verify/
+.vercel/

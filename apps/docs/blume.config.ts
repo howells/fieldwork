@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 
 import { defineConfig } from "blume";
+import { vercel } from "blume/deploy";
 
 import { fieldworkLight } from "./lib/shiki-theme";
 
@@ -42,6 +43,20 @@ const blumeTypescriptExternal = {
   Parameters<typeof defineConfig>[0]["integrations"]
 >[number];
 
+const gatewayRoutes = {
+  hooks: {
+    "astro:config:setup": ({ injectRoute }) => {
+      const entrypoint = new URL("endpoints/gateway.ts", import.meta.url);
+      for (const pattern of ["/api/v1/[...path]", "/mcp"]) {
+        injectRoute({ entrypoint, pattern, prerender: false });
+      }
+    },
+  },
+  name: "fieldwork:gateway",
+} satisfies NonNullable<
+  Parameters<typeof defineConfig>[0]["integrations"]
+>[number];
+
 export default defineConfig({
   agents: {
     llmsTxt: {
@@ -54,7 +69,7 @@ export default defineConfig({
     root: ".",
   },
   // The canonical origin, for the sitemap, canonical tags and absolute llms.txt links.
-  deployment: { site: "https://fieldwork-sdk.dev" },
+  deployment: vercel({ maxDuration: 60, site: "https://fieldwork-sdk.dev" }),
   description:
     "One TypeScript API for web search, page reading, extraction, crawling, answers, research, monitors and remote browsers across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase.",
   footer: {
@@ -74,20 +89,23 @@ export default defineConfig({
     owner: "howells",
     repo: "fieldwork",
   },
-  integrations: [blumeTypescriptExternal],
+  integrations: [blumeTypescriptExternal, gatewayRoutes],
   logo: { image: "/logo.svg", text: "Fieldwork" },
   markdown: {
     code: { theme: { dark: fieldworkLight, light: fieldworkLight } },
   },
   navigation: {
     actions: [
-      { href: "/docs", label: "Docs" },
       { href: "/docs/capabilities", label: "Providers" },
       { href: "/docs/agent-tools", label: "Agent tools" },
       { href: "/docs/mcp-server", label: "MCP server" },
       { href: "https://github.com/howells/fieldwork", label: "GitHub" },
     ],
     cta: { href: "/docs/installation", label: "Get started" },
+    tabs: [
+      { href: "/docs", label: "Docs", path: "/docs" },
+      { href: "/tool-guide", label: "Tool guide", path: "/tool-guide" },
+    ],
   },
   theme: {
     accent: "#1F3FD1",

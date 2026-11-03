@@ -71,6 +71,9 @@ importers:
 
   apps/docs:
     dependencies:
+      '@howells/fieldwork-mcp':
+        specifier: workspace:*
+        version: link:../../packages/fieldwork-mcp
       '@howells/fieldwork-sdk':
         specifier: workspace:*
         version: link:../../packages/fieldwork-sdk
@@ -99,6 +102,9 @@ importers:
       '@modelcontextprotocol/server':
         specifier: ^2.4.0
         version: 2.4.0
+      zod:
+        specifier: 'catalog:'
+        version: 4.6.7
     devDependencies:
       '@howells/lint':
         specifier: 'catalog:'

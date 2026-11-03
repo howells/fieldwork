@@ -171,3 +171,17 @@ pre,
 [data-blume-header] a.bg-accent svg {
   display: none;
 }
+
+/* Keep the shared navigation usable by touch on every site page. */
+[data-blume-header] :is(a, button),
+[data-blume-nav-drawer] a {
+  min-height: 44px;
+}
+
+[data-blume-header] button {
+  min-width: 44px;
+}
+
+[data-blume-header] a[aria-current="page"] {
+  color: var(--color-map-blue);
+}

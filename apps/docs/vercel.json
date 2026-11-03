@@ -4,6 +4,5 @@
   "cleanUrls": true,
   "framework": null,
   "installCommand": "true",
-  "outputDirectory": "dist",
   "trailingSlash": false
 }

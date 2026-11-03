@@ -11,6 +11,7 @@
     "deploy:production": "vercel build --prod --yes && vercel deploy --prebuilt --prod"
   },
   "dependencies": {
+    "@howells/fieldwork-mcp": "workspace:*",
     "@howells/fieldwork-sdk": "workspace:*",
     "blume": "catalog:"
   },
