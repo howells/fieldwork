@@ -5,6 +5,7 @@ import type { AnyAdapter, Fieldwork } from "@howells/fieldwork-sdk";
 import { toolError } from "@howells/fieldwork-sdk/tools";
 import type { ToolsOptions } from "@howells/fieldwork-sdk/tools";
 
+import { VERSION } from "../version.js";
 import { agentAuthenticator } from "./auth.js";
 import type { GatewayAgent } from "./auth.js";
 import { GatewayRejectionError, gatewayBody } from "./body.js";
@@ -12,7 +13,7 @@ import { gatewayCatalog } from "./catalog.js";
 import type { GatewayDefaults } from "./catalog.js";
 import { gatewayExecutor } from "./execute.js";
 import type { CallContext, GatewayCall } from "./execute.js";
-import { GATEWAY_VERSION, serveGatewayMcp } from "./mcp.js";
+import { serveGatewayMcp } from "./mcp.js";
 
 export interface FieldworkGatewayOptions extends ToolsOptions {
   agents: readonly GatewayAgent[];
@@ -98,7 +99,7 @@ const responseHeaders = (response: Response, requestId: string): Response => {
   headers.set("cache-control", "no-store");
   headers.set("x-content-type-options", "nosniff");
   headers.set("x-request-id", requestId);
-  headers.set("x-fieldwork-version", GATEWAY_VERSION);
+  headers.set("x-fieldwork-version", VERSION);
   if (response.status === 401) {
     headers.set("www-authenticate", 'Bearer realm="fieldwork"');
   }
@@ -114,7 +115,7 @@ const serveApi = async (
   maxBytes: number
 ): Promise<Response> => {
   if (request.method === "GET" && path === "/tools") {
-    return Response.json({ tools: catalog.tools, version: GATEWAY_VERSION });
+    return Response.json({ tools: catalog.tools, version: VERSION });
   }
   const match = /^\/tools\/(?<name>[a-z_]+)$/u.exec(path);
   if (request.method !== "POST") {

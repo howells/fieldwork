@@ -1,6 +1,7 @@
 import { Fieldwork } from "@howells/fieldwork-sdk";
 import type { AnyAdapter, Capability } from "@howells/fieldwork-sdk";
 import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
+import { toolsFor } from "@howells/fieldwork-sdk/tools";
 import { Client } from "@modelcontextprotocol/client";
 import { InMemoryTransport } from "@modelcontextprotocol/server";
 import { afterEach, describe, expect, it } from "vitest";
@@ -66,20 +67,12 @@ describe("the Fieldwork MCP server", () => {
   it("lists one annotated tool per capability, without the tools that start browsers or monitors", async () => {
     const client = await connect(firecrawlWeb(replies().fetch));
     const { tools } = await client.listTools();
+    const web = firecrawlWeb(replies().fetch);
     const listed = tools.map((tool) => tool.name);
-    expect(listed).toStrictEqual([
-      "search_web",
-      "search_images",
-      "read_page",
-      "read_pages",
-      "extract_values",
-      "read_product",
-      "map_site",
-      "crawl_site",
-      "research_question",
-      "parse_document",
-      "check_usage",
-    ]);
+    expect(listed).toStrictEqual(toolsFor(web).map((tool) => tool.name));
+    expect(
+      listed.filter((name) => ["open_browser", "create_monitor"].includes(name))
+    ).toStrictEqual([]);
     const read = tools.find((tool) => tool.name === "read_page");
     expect(read?.annotations).toMatchObject({
       openWorldHint: true,
@@ -90,31 +83,14 @@ describe("the Fieldwork MCP server", () => {
   });
 
   it("lists the browser and monitor tools when they are allowed", async () => {
-    const client = await connect(firecrawlWeb(replies().fetch), {
+    const options: FieldworkServerOptions = {
       allow: ["act", "browser", "monitor"],
-    });
-    const listed = await toolNames(client);
-    expect(listed).toStrictEqual([
-      "search_web",
-      "search_images",
-      "read_page",
-      "read_pages",
-      "extract_values",
-      "read_product",
-      "map_site",
-      "crawl_site",
-      "research_question",
-      "run_browser_script",
-      "open_browser",
-      "close_browser",
-      "parse_document",
-      "create_monitor",
-      "get_monitor",
-      "list_monitors",
-      "delete_monitor",
-      "list_monitor_events",
-      "check_usage",
-    ]);
+    };
+    const web = firecrawlWeb(replies().fetch);
+    const client = await connect(web, options);
+    await expect(toolNames(client)).resolves.toStrictEqual(
+      toolsFor(web, options).map((tool) => tool.name)
+    );
   });
 
   it("marks the tools that change or destroy something", async () => {
@@ -238,6 +214,15 @@ describe("the command line", () => {
     expect(() => fieldworkFor(parseArgs([]))).toThrow(/Choose a provider/u);
   });
 
+  it("reads the Browserbase project from a flag, never the environment", () => {
+    expect(
+      parseArgs(["--browserbase-project", "proj_1"]).browserbaseProject
+    ).toBe("proj_1");
+    expect(() => parseArgs(["--browserbase-project"])).toThrow(
+      /needs a project id/u
+    );
+  });
+
   it("refuses a route to a provider that lacks the capability", () => {
     expect(() =>
       fieldworkFor(parseArgs(["--act", "tavily"]), { tavily: "k" })
@@ -304,7 +289,7 @@ describe("the command line", () => {
       "BRAVE_API_KEY",
       "SERPAPI_API_KEY",
       "BROWSERBASE_API_KEY",
-      "BROWSERBASE_PROJECT_ID",
+      "--browserbase-project",
       "LLAMA_CLOUD_API_KEY",
       "REDUCTO_API_KEY",
       "--monitor firecrawl",

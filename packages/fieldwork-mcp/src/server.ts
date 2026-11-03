@@ -1,35 +1,12 @@
-import type { AnyAdapter, Fieldwork, JsonSchema } from "@howells/fieldwork-sdk";
-import { toolError, toolsFor } from "@howells/fieldwork-sdk/tools";
-import type { ToolArguments, ToolsOptions } from "@howells/fieldwork-sdk/tools";
+import type { AnyAdapter, Fieldwork } from "@howells/fieldwork-sdk";
+import { toolsFor } from "@howells/fieldwork-sdk/tools";
+import type { ToolsOptions } from "@howells/fieldwork-sdk/tools";
 import { McpServer } from "@modelcontextprotocol/server";
-import type { StandardSchemaWithJSON } from "@modelcontextprotocol/server";
 
-export interface FieldworkServerOptions extends ToolsOptions {
-  /** Reported to clients as the server's version. */
-  version?: string;
-}
+import { registerTool } from "./register.js";
+import { VERSION } from "./version.js";
 
-const isArguments = (value: unknown): value is ToolArguments =>
-  typeof value === "object" && value !== null && !Array.isArray(value);
-
-/**
- * Advertises a Fieldwork JSON Schema to MCP clients and passes every input
- * object through: the tool's own `execute` checks it, and its errors name the
- * field, the problem and the inputs the provider accepts.
- */
-const schemaOf = (
-  schema: JsonSchema
-): StandardSchemaWithJSON<ToolArguments> => ({
-  "~standard": {
-    jsonSchema: { input: () => schema, output: () => schema },
-    validate: (value) =>
-      isArguments(value)
-        ? { value }
-        : { issues: [{ message: "input must be a JSON object" }] },
-    vendor: "fieldwork",
-    version: 1,
-  },
-});
+export type FieldworkServerOptions = ToolsOptions;
 
 /**
  * An MCP server with one tool per capability, or per method of a group
@@ -44,39 +21,26 @@ export const createFieldworkServer = (
   const server = new McpServer({
     name: "fieldwork",
     title: "Fieldwork",
-    version: options.version ?? "0.0.0",
+    version: VERSION,
   });
   for (const tool of toolsFor(web, options)) {
-    server.registerTool(
-      tool.name,
+    registerTool(
+      server,
       {
-        _meta: {
+        annotations: tool.annotations,
+        description: tool.description,
+        inputSchema: tool.inputSchema,
+        meta: {
           "fieldwork/capability": tool.capability,
           "fieldwork/method": tool.method,
           "fieldwork/provider": tool.provider,
         },
-        annotations: tool.annotations,
-        description: tool.description,
-        inputSchema: schemaOf(tool.inputSchema),
-        outputSchema: schemaOf(tool.outputSchema),
-        title: tool.annotations.title,
+        name: tool.name,
+        outputSchema: tool.outputSchema,
       },
-      async (input, context) => {
-        try {
-          const result = await tool.execute(input, {
-            signal: context.mcpReq.signal,
-          });
-          return {
-            content: [{ text: JSON.stringify(result), type: "text" }],
-            structuredContent: result,
-          };
-        } catch (error) {
-          return {
-            content: [{ text: JSON.stringify(toolError(error)), type: "text" }],
-            isError: true,
-          };
-        }
-      }
+      async (input, signal) => ({
+        result: await tool.execute(input, { signal }),
+      })
     );
   }
   return server;

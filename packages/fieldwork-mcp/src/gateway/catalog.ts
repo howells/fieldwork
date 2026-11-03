@@ -9,7 +9,9 @@ import { toolsFor } from "@howells/fieldwork-sdk/tools";
 import type { FieldworkTool, ToolsOptions } from "@howells/fieldwork-sdk/tools";
 import * as z from "zod/mini";
 
-export type GatewayDefaults = Partial<Record<Capability, string>>;
+import type { Provider } from "../config.js";
+
+export type GatewayDefaults = Partial<Record<Capability, Provider>>;
 
 export interface GatewayTool {
   annotations: FieldworkTool["annotations"];

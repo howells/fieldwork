@@ -10,6 +10,8 @@ export interface GatewayCall {
   agentId: string;
   durationMs: number;
   errorCode?: string;
+  /** The redacted message of an unexpected error whose details the client never sees. */
+  errorDetail?: string;
   jobId?: string;
   outcome: "success" | "error";
   provider?: string;
@@ -29,6 +31,14 @@ interface GatewayResult {
   result: ToolOutput;
 }
 
+const redact = (message: string, secrets: readonly string[]): string => {
+  let redacted = message;
+  for (const secret of secrets) {
+    redacted = redacted.replaceAll(secret, "[redacted]");
+  }
+  return redacted;
+};
+
 const safeError = (
   error: Error | null,
   secrets: readonly string[]
@@ -40,11 +50,7 @@ const safeError = (
       { retryable: false }
     );
   }
-  let { message } = error;
-  for (const secret of secrets) {
-    message = message.replaceAll(secret, "[redacted]");
-  }
-  return new FieldworkError(error.code, message, {
+  return new FieldworkError(error.code, redact(error.message, secrets), {
     jobId: error.jobId,
     provider: error.provider,
     retryAfter: error.retryAfter,
@@ -128,15 +134,26 @@ export const gatewayExecutor =
         throw error;
       }
       entry.outcome = "success";
-      entry.usage = z.parse(Usage, result).meta?.usage;
+      // A result without readable usage is still a completed, billed call.
+      const usage = z.safeParse(Usage, result);
+      entry.usage = usage.success ? usage.data.meta?.usage : undefined;
       return { provider: tool.provider, result };
     } catch (error) {
       const detail = toolError(error);
       entry.errorCode = detail.code;
       entry.jobId = "jobId" in detail ? detail.jobId : undefined;
+      if (!(error instanceof FieldworkError)) {
+        entry.errorDetail = redact(detail.message, secrets);
+      }
       throw safeError(error instanceof Error ? error : null, secrets);
     } finally {
       entry.durationMs = Date.now() - started;
-      onCall?.(entry);
+      if (onCall !== undefined) {
+        onCall(entry);
+      } else if (entry.errorDetail !== undefined) {
+        process.stderr.write(
+          `fieldwork-gateway: ${entry.tool} failed: ${entry.errorDetail}\n`
+        );
+      }
     }
   };

@@ -1,5 +1,7 @@
-import { fieldworkFor, PROVIDERS } from "../config.js";
-import type { ApiKeys, Provider } from "../config.js";
+import { Fieldwork } from "@howells/fieldwork-sdk";
+
+import { adapterFor, PROVIDERS } from "../config.js";
+import type { Provider } from "../config.js";
 import type { GatewayAgent } from "./auth.js";
 import type { GatewayDefaults } from "./catalog.js";
 import type { GatewayCall } from "./execute.js";
@@ -58,19 +60,14 @@ export const gatewayFromEnvironment = (
   environment: NodeJS.ProcessEnv,
   onCall?: (entry: GatewayCall) => void
 ) => {
-  const keys: ApiKeys = {};
+  const keys: string[] = [];
   const clients = PROVIDERS.flatMap((provider) => {
     const apiKey = environment[KEY_NAMES[provider]];
     if (apiKey === undefined || apiKey === "") {
       return [];
     }
-    keys[provider] = apiKey;
-    return [
-      fieldworkFor(
-        { allow: [], help: false, provider, routes: {}, version: false },
-        keys
-      ),
-    ];
+    keys.push(apiKey);
+    return [new Fieldwork({ adapter: adapterFor(provider, apiKey) })];
   });
   const agents = agentsFrom(environment);
   return createFieldworkGateway({
@@ -78,6 +75,6 @@ export const gatewayFromEnvironment = (
     clients,
     defaults: DEFAULTS,
     onCall,
-    secrets: [...Object.values(keys), ...agents.map((agent) => agent.apiKey)],
+    secrets: [...keys, ...agents.map((agent) => agent.apiKey)],
   });
 };

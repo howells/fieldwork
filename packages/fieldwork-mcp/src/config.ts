@@ -38,6 +38,8 @@ export interface ServerConfig {
   allow: Capability[];
   help: boolean;
   maxCharacters?: number;
+  /** The Browserbase project new sessions belong to. */
+  browserbaseProject?: string;
   /** One provider for every capability it offers. */
   provider?: Provider;
   /** A provider per capability, which builds a router. */
@@ -59,8 +61,7 @@ Choose providers with one of:
 Providers: ${PROVIDERS.join(", ")}.
 Keys come from EXA_API_KEY, FIRECRAWL_API_KEY, TAVILY_API_KEY,
 PARALLEL_API_KEY, PERPLEXITY_API_KEY, BRAVE_API_KEY, SERPAPI_API_KEY,
-BROWSERBASE_API_KEY, LLAMA_CLOUD_API_KEY and REDUCTO_API_KEY. Browserbase also
-reads BROWSERBASE_PROJECT_ID, which is optional.
+BROWSERBASE_API_KEY, LLAMA_CLOUD_API_KEY and REDUCTO_API_KEY.
 
 Tools that start remote browsers or create lasting, billed resources are off
 unless you ask for them:
@@ -76,6 +77,8 @@ unless you ask for them:
 
 Other options:
   --max-characters <n>         Long text one result may return. Default 20000.
+  --browserbase-project <id>   The Browserbase project new sessions belong to.
+                               Without it, Browserbase uses the key's project.
   --help                       Show this text.
   --version                    Show the version.`;
 
@@ -108,6 +111,12 @@ const readFlag = (config: ServerConfig, flag: string, args: string[]) => {
     config.allow = [...new Set([...config.allow, allowed])];
   } else if (flag === "--provider") {
     config.provider = providerFrom(args.shift(), flag);
+  } else if (flag === "--browserbase-project") {
+    const value = args.shift();
+    if (value === undefined || value === "" || value.startsWith("--")) {
+      throw invalid("--browserbase-project needs a project id");
+    }
+    config.browserbaseProject = value;
   } else if (flag === "--max-characters") {
     const value = Number(args.shift());
     if (!Number.isInteger(value) || value < 1) {
@@ -136,9 +145,15 @@ export const parseArgs = (argv: readonly string[]): ServerConfig => {
   return config;
 };
 
+/** Settings one provider's adapter takes from the flags. */
+export interface AdapterSettings {
+  browserbaseProject?: string;
+}
+
 const FACTORIES = {
   brave: (apiKey: string | undefined) => brave({ apiKey }),
-  browserbase: (apiKey: string | undefined) => browserbase({ apiKey }),
+  browserbase: (apiKey: string | undefined, settings: AdapterSettings) =>
+    browserbase({ apiKey, projectId: settings.browserbaseProject }),
   exa: (apiKey: string | undefined) => exa({ apiKey }),
   firecrawl: (apiKey: string | undefined) => firecrawl({ apiKey }),
   llamaparse: (apiKey: string | undefined) => llamaparse({ apiKey }),
@@ -147,10 +162,17 @@ const FACTORIES = {
   reducto: (apiKey: string | undefined) => reducto({ apiKey }),
   serpapi: (apiKey: string | undefined) => serpapi({ apiKey }),
   tavily: (apiKey: string | undefined) => tavily({ apiKey }),
-} satisfies Record<Provider, (apiKey: string | undefined) => AnyAdapter>;
+} satisfies Record<
+  Provider,
+  (apiKey: string | undefined, settings: AdapterSettings) => AnyAdapter
+>;
 
-const adapterFor = (name: Provider, keys: ApiKeys): AnyAdapter =>
-  FACTORIES[name](keys[name]);
+/** One provider's adapter; without `apiKey` it reads the key from the environment. */
+export const adapterFor = (
+  name: Provider,
+  apiKey?: string,
+  settings: AdapterSettings = {}
+): AnyAdapter => FACTORIES[name](apiKey, settings);
 
 /**
  * Builds the Fieldwork instance the configuration names. A route to a
@@ -167,7 +189,9 @@ export const fieldworkFor = (
     throw invalid("Use --provider or per-capability options, not both");
   }
   if (config.provider !== undefined) {
-    return new Fieldwork({ adapter: adapterFor(config.provider, keys) });
+    return new Fieldwork({
+      adapter: adapterFor(config.provider, keys[config.provider], config),
+    });
   }
   if (routed.length === 0) {
     throw invalid("Choose a provider");
@@ -177,7 +201,8 @@ export const fieldworkFor = (
   for (const capability of routed) {
     const name = config.routes[capability];
     if (name !== undefined) {
-      const adapter = adapters.get(name) ?? adapterFor(name, keys);
+      const adapter =
+        adapters.get(name) ?? adapterFor(name, keys[name], config);
       adapters.set(name, adapter);
       routes[capability] = adapter;
     }

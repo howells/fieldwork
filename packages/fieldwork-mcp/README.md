@@ -36,7 +36,7 @@ Each provider reads its key from the environment.
 | `perplexity` | `PERPLEXITY_API_KEY` | `search`, `answer`, `research`, `decide` |
 | `brave` | `BRAVE_API_KEY` | `search`, `images`, `answer` |
 | `serpapi` | `SERPAPI_API_KEY` | `search`, `images`, `usage` |
-| `browserbase` | `BROWSERBASE_API_KEY`, and optionally `BROWSERBASE_PROJECT_ID` | `search`, `read`, `browser`, `usage` |
+| `browserbase` | `BROWSERBASE_API_KEY`; the project comes from `--browserbase-project` when the key has several | `search`, `read`, `browser`, `usage` |
 | `llamaparse` | `LLAMA_CLOUD_API_KEY` | `parse` |
 | `reducto` | `REDUCTO_API_KEY` | `parse` |
 
