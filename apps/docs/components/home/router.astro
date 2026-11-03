@@ -21,6 +21,10 @@ const DOT_X = 96;
 const BOX_X = 410;
 const rowY = (index: number) => 20 + index * 40;
 const providerY = (label: string) => PROVIDERS.find((provider) => provider.label === label)?.y ?? 0;
+// The order routes draw in on first view, and the first route to reach each
+// provider, which sets when that provider's box lights.
+const ROUTED = CAPABILITIES.filter((name) => ROUTES.has(name));
+const arrival = (label: string) => ROUTED.findIndex((name) => ROUTES.get(name) === label);
 const curve = (y1: number, y2: number) =>
   `M${DOT_X} ${y1}C${DOT_X + 170} ${y1} ${BOX_X - 150} ${y2} ${BOX_X} ${y2}`;
 ---
@@ -30,7 +34,7 @@ const curve = (y1: number, y2: number) =>
     <h2 class="type-heading md:max-w-[520px]">One provider for each capability.</h2>
     <div class="mt-10 flex flex-col gap-12 md:mt-16 lg:flex-row lg:items-center lg:justify-between lg:gap-16">
       <Panel class="lg:w-[616px] lg:shrink-0" code={ROUTER_SAMPLE} file="router.ts" tone="light" />
-      <figure class="m-0 hidden md:block lg:w-[520px]">
+      <figure class="m-0 hidden md:block lg:w-[520px]" data-reveal="">
         <svg class="h-auto w-full max-w-[520px]" fill="none" role="img" viewBox="0 0 520 360">
           <title>search goes to Parallel, read and product to Firecrawl, research to Exa; extract, map, crawl, act and parse have no route</title>
           {CAPABILITIES.map((name, index) => {
@@ -39,7 +43,7 @@ const curve = (y1: number, y2: number) =>
             return (
               <g>
                 {target !== undefined && (
-                  <path d={curve(y, providerY(target))} stroke="var(--color-map-blue)" stroke-width="1.2" />
+                  <path class="route" d={curve(y, providerY(target))} pathLength="1" stroke="var(--color-map-blue)" stroke-width="1.2" style={`--i: ${ROUTED.indexOf(name)}`} />
                 )}
                 <text
                   class="font-mono"
@@ -52,14 +56,14 @@ const curve = (y1: number, y2: number) =>
                 {target === undefined ? (
                   <circle cx={DOT_X} cy={y} fill="var(--color-paper)" r="2.6" stroke="#B4B8BE" />
                 ) : (
-                  <circle cx={DOT_X} cy={y} fill="var(--color-map-blue)" r="3" />
+                  <circle class="route-start" cx={DOT_X} cy={y} fill="var(--color-map-blue)" r="3" style={`--i: ${ROUTED.indexOf(name)}`} />
                 )}
               </g>
             );
           })}
           {PROVIDERS.map((provider) => (
             <g>
-              <rect fill="var(--color-paper)" height="42" rx="6" stroke="var(--color-ink)" width={provider.width} x={BOX_X} y={provider.y - 21} />
+              <rect class="route-end" fill="var(--color-paper)" height="42" rx="6" stroke="var(--color-ink)" style={`--i: ${arrival(provider.label)}`} width={provider.width} x={BOX_X} y={provider.y - 21} />
               <text fill="var(--color-ink)" font-family="var(--blume-font-body)" font-size="14" x={BOX_X + 18} y={provider.y + 5}>{provider.label}</text>
             </g>
           ))}
@@ -68,3 +72,45 @@ const curve = (y1: number, y2: number) =>
     </div>
   </div>
 </section>
+
+<style>
+  /* On first view each route draws from its capability to its provider, one
+     after another, and the provider's box darkens as the route arrives. */
+  .route {
+    stroke-dasharray: 1;
+    transition: stroke-dashoffset 700ms var(--ease-out-quint) calc(var(--i) * 90ms + 150ms);
+  }
+
+  .route-start {
+    transform-box: fill-box;
+    transform-origin: center;
+    transition: transform 250ms var(--ease-out-quint) calc(var(--i) * 90ms);
+  }
+
+  .route-end {
+    transition: stroke 200ms ease calc(var(--i) * 90ms + 600ms);
+  }
+
+  [data-reveal="waiting"] .route {
+    stroke-dashoffset: 1;
+  }
+
+  [data-reveal="waiting"] .route-start {
+    transform: scale(0.4);
+  }
+
+  [data-reveal="waiting"] .route-end {
+    stroke: var(--color-rule);
+  }
+
+  [data-reveal="waiting"] :is(.route, .route-start, .route-end) {
+    transition: none;
+  }
+</style>
+
+<script>
+  import { bindReveals } from "../../lib/reveal";
+
+  bindReveals();
+  document.addEventListener("astro:page-load", bindReveals);
+</script>

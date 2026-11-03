@@ -9,9 +9,11 @@ interface Props {
   file: string;
   tone?: "dark" | "light";
   class?: string;
+  /** A line to underline as a type error, drawn in on first view. */
+  fault?: string;
 }
 
-const { caption, class: className, code, file, tone = "dark" } = Astro.props;
+const { caption, class: className, code, fault, file, tone = "dark" } = Astro.props;
 const dark = tone === "dark";
 ---
 
@@ -21,6 +23,7 @@ const dark = tone === "dark";
     dark ? "bg-ink" : "hero-panel border border-rule bg-paper",
     className,
   ]}
+  data-reveal={fault === undefined ? undefined : ""}
 >
   <figcaption
     class:list={[
@@ -32,6 +35,13 @@ const dark = tone === "dark";
     <span class:list={["type-small font-mono", dark ? "text-[#9298A1]" : "text-graphite"]}>{file}</span>
   </figcaption>
   <div class="px-6 pt-6 pb-7">
-    <Code code={code} tone={tone} />
+    <Code code={code} fault={fault} tone={tone} />
   </div>
 </figure>
+
+<script>
+  import { bindReveals } from "../../lib/reveal";
+
+  bindReveals();
+  document.addEventListener("astro:page-load", bindReveals);
+</script>

@@ -12,7 +12,10 @@
   --color-wash: #f5f6f3;
   --color-map-blue: #1f3fd1;
   --color-contour: #dce3fb;
+  --color-fault: #e5484d;
+  /* Motion: entrances and exits, and movement between two places. */
   --ease-out-quint: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out-quart: cubic-bezier(0.77, 0, 0.175, 1);
 }
 
 :root {
@@ -251,10 +254,115 @@ details[open] > summary .disclosure-chevron {
   transform: rotate(180deg);
 }
 
+/* Disclosures open to their height instead of jumping, where the browser
+   can animate to auto. Elsewhere they open as before. */
+@supports (interpolate-size: allow-keywords) {
+  :is(.disclosure, .guide-task) {
+    interpolate-size: allow-keywords;
+  }
+
+  :is(.disclosure, .guide-task)::details-content {
+    block-size: 0;
+    overflow: clip;
+    opacity: 0;
+    transition:
+      block-size 220ms var(--ease-out-quint),
+      opacity 160ms ease-out,
+      content-visibility 220ms allow-discrete;
+  }
+
+  :is(.disclosure, .guide-task)[open]::details-content {
+    block-size: auto;
+    opacity: 1;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .disclosure-chevron {
     transition: none;
   }
+
+  :is(.disclosure, .guide-task)::details-content {
+    transition:
+      opacity 160ms ease-out,
+      content-visibility 160ms allow-discrete;
+  }
+}
+
+/* Press: a button gives slightly under the finger, quickly, and returns a
+   little slower. */
+.press {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    transform 160ms var(--ease-out-quint);
+}
+
+.press:active {
+  transform: scale(0.97);
+  transition-duration: 160ms, 160ms, 160ms, 100ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .press:active {
+    transform: none;
+  }
+}
+
+/* The selected tab's highlight, one shape that slides between tabs. Until the
+   script places it, each selected tab draws its own. */
+.tab-indicator {
+  position: absolute;
+  top: 0;
+  left: 0;
+  border-radius: 6px;
+  background: var(--color-paper);
+  box-shadow: 0 0 0 1px var(--color-rule);
+  opacity: 0;
+  transition:
+    transform 220ms var(--ease-in-out-quart),
+    width 220ms var(--ease-in-out-quart);
+}
+
+[data-tabs-ready] .tab-indicator {
+  opacity: 1;
+}
+
+[data-tabs-ready] [role="tab"][aria-selected="true"] {
+  background: transparent;
+  box-shadow: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tab-indicator {
+    transition: none;
+  }
+}
+
+/* A type error in a code sample: a wavy underline that draws in from the
+   left on first view. */
+.code-fault {
+  position: relative;
+}
+
+.code-fault::after {
+  position: absolute;
+  right: 0;
+  bottom: -2px;
+  left: 0;
+  height: 4px;
+  background-color: var(--color-fault);
+  clip-path: inset(0);
+  content: "";
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='6' height='4'%3E%3Cpath d='M0 3Q1.5 0 3 3T6 3' fill='none' stroke='%23000' stroke-width='1.2'/%3E%3C/svg%3E")
+    repeat-x 0 0 / 6px 4px;
+  transition: clip-path 450ms var(--ease-out-quint) 350ms;
+}
+
+[data-reveal="waiting"] .code-fault::after {
+  clip-path: inset(0 100% 0 0);
+  transition: none;
 }
 
 /* Geist Mono's ligatures join across Shiki's token spans; keep code literal. */
