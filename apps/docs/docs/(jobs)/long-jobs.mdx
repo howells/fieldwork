@@ -37,8 +37,12 @@ try {
 
 An error with a `jobId` is never `retryable`, because repeating the call would start, and charge for, a second job.
 
-## What resuming can return
+<Accordion>
+<AccordionItem title="What resuming can return">
 
 - The finished result, when the job completed while you were away.
 - `status: "partial"` with `stopReason`, when the job stopped early on a credit, time or step limit but produced output.
 - `JobFailed`, when the job ended with no usable output. Resuming again fails the same way, so start a new job if you still need one.
+
+</AccordionItem>
+</Accordion>

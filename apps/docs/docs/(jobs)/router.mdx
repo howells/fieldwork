@@ -23,7 +23,8 @@ const web = new Fieldwork({
 });
 ```
 
-## What the router checks
+<Accordion>
+<AccordionItem title="What the router checks">
 
 - A capability without a route is unsupported. `web.supports("crawl")` is `false` above, and calling it throws `Unsupported`.
 - A route to an adapter that lacks the capability is a type error, and throws when the router is built.
@@ -31,7 +32,8 @@ const web = new Fieldwork({
 
 `web.providerFor("research")` names the provider behind a route, here `"exa"`.
 
-## Routes from configuration
+</AccordionItem>
+<AccordionItem title="Routes from configuration">
 
 For routes known only at run time, such as from flags or configuration, use `runtimeRouter(routes)`. It makes the same check when it is called and throws `Unsupported` for a route to an adapter that lacks the capability.
 
@@ -41,6 +43,10 @@ import { runtimeRouter } from "@howells/fieldwork-sdk";
 const web = new Fieldwork({ adapter: runtimeRouter(routesFromConfig) });
 ```
 
-## The raw API on a router
+</AccordionItem>
+<AccordionItem title="The raw API on a router">
 
 On a router, `web.raw` is keyed by provider name, so `web.raw.firecrawl.request(...)` reaches Firecrawl's own API. See [The provider's own API](/docs/provider-api).
+
+</AccordionItem>
+</Accordion>

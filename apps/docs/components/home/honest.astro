@@ -24,16 +24,21 @@ const PRINCIPLES = [
 
 <section class="border-t border-rule bg-wash">
   <div class="home-wrap py-16 md:py-[120px]">
-    <h2 class="home-heading max-w-[640px]">A call the provider can't serve doesn't compile.</h2>
+    <h2 class="type-heading max-w-[640px]">A call the provider can't serve doesn't compile.</h2>
     <div class="mt-10 flex flex-col-reverse gap-12 md:mt-16 lg:flex-row lg:items-start lg:gap-16">
-      <dl class="m-0 grid gap-x-12 gap-y-8 sm:grid-cols-2 lg:w-[568px] lg:shrink-0">
+      <ul class="m-0 list-none border-t border-ink p-0 lg:w-[480px] lg:shrink-0">
         {PRINCIPLES.map((principle) => (
-          <div class="border-t border-ink pt-6">
-            <dt class="text-[16px] leading-6 font-medium text-ink">{principle.title}</dt>
-            <dd class="m-0 mt-2 text-[14px] leading-[22px] text-graphite">{principle.body}</dd>
-          </div>
+          <li class="border-b border-rule">
+            <details class="disclosure">
+              <summary>
+                <span class="type-body flex-1 font-medium text-ink">{principle.title}</span>
+                <svg aria-hidden="true" class="disclosure-chevron" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 16 16" width="16"><path d="m4 6 4 4 4-4" /></svg>
+              </summary>
+              <p class="type-small m-0 pb-5 text-graphite">{principle.body}</p>
+            </details>
+          </li>
         ))}
-      </dl>
+      </ul>
       <Panel caption="Tavily" class="lg:flex-1" code={HONEST_SAMPLE} file="honest.ts" />
     </div>
   </div>

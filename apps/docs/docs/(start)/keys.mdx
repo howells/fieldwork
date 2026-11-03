@@ -18,7 +18,8 @@ Each adapter reads its key from the environment when you construct it.
 
 A missing key throws `Unauthorized` when the adapter is built, before any request.
 
-## Pass a key in code
+<Accordion>
+<AccordionItem title="Pass a key in code">
 
 Pass `apiKey` to use a key from somewhere other than the environment, and Browserbase's `projectId` the same way:
 
@@ -28,7 +29,8 @@ const web = new Fieldwork({
 });
 ```
 
-## Supply your own fetch
+</AccordionItem>
+<AccordionItem title="Supply your own fetch">
 
 Pass `fetch` to send requests through your own implementation, for logging, proxies or tests:
 
@@ -36,6 +38,10 @@ Pass `fetch` to send requests through your own implementation, for logging, prox
 const web = new Fieldwork({ adapter: exa({ fetch: loggedFetch }) });
 ```
 
-## Where the key goes
+</AccordionItem>
+<AccordionItem title="Where the key goes">
 
 Requests follow redirects only within the provider's origin. A redirect to any other host, scheme or port fails before the key is sent there.
+
+</AccordionItem>
+</Accordion>

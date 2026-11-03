@@ -3,46 +3,11 @@ title: MCP server
 description: Run @howells/fieldwork-mcp to give Claude, Cursor, Codex or any MCP client Fieldwork's capabilities as tools, one provider per capability.
 ---
 
-`@howells/fieldwork-mcp` serves the [agent tools](/docs/agent-tools) over stdio, so any MCP client can search, read, extract, crawl, answer, research and more.
-
 ```sh
 npx -y @howells/fieldwork-mcp --provider firecrawl
 ```
 
 Node 22 or later.
-
-## Choose providers
-
-Use one provider for everything it offers:
-
-```sh
-fieldwork-mcp --provider tavily
-```
-
-Or one provider per capability. A capability without a provider has no tool, and nothing falls back to another provider:
-
-```sh
-fieldwork-mcp --search brave --read firecrawl --product firecrawl --research exa \
-  --monitor firecrawl --browser browserbase --allow-monitor --allow-browser
-```
-
-Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error.
-
-Each provider reads its key from the environment; see [Keys](/docs/keys).
-
-## Options
-
-| Option | Effect |
-| --- | --- |
-| `--provider <name>` | One provider for every capability it offers. |
-| `--<capability> <name>` | One provider for one capability, for example `--monitor firecrawl` or `--browser browserbase`. |
-| `--allow-act` | Adds `run_browser_script`, which runs code in a remote browser. Off by default. |
-| `--allow-browser` | Adds `open_browser` and `close_browser`, which keep a remote browser open until it is closed or expires. Off by default. |
-| `--allow-monitor` | Adds `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. A monitor keeps running, and billing, until it is deleted. Off by default. |
-| `--max-characters <n>` | The long text one result may return. Default 20,000. |
-| `--help`, `--version` | Show the usage text or the version. |
-
-The three `--allow-*` options are separate on purpose. Each tool group starts remote browsers or creates a lasting, billed resource, so a client gets it only when you ask.
 
 ## Configure a client
 
@@ -80,7 +45,43 @@ For Claude Desktop, Cursor and other clients that take a JSON file:
   </Tab>
 </Tabs>
 
-## Tools and providers
+<Accordion>
+<AccordionItem title="Choose providers">
+
+Use one provider for everything it offers:
+
+```sh
+fieldwork-mcp --provider tavily
+```
+
+Or one provider per capability. A capability without a provider has no tool, and nothing falls back to another provider:
+
+```sh
+fieldwork-mcp --search brave --read firecrawl --product firecrawl --research exa \
+  --monitor firecrawl --browser browserbase --allow-monitor --allow-browser
+```
+
+Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error.
+
+Each provider reads its key from the environment; see [Keys](/docs/keys).
+
+</AccordionItem>
+<AccordionItem title="Options">
+
+| Option | Effect |
+| --- | --- |
+| `--provider <name>` | One provider for every capability it offers. |
+| `--<capability> <name>` | One provider for one capability, for example `--monitor firecrawl` or `--browser browserbase`. |
+| `--allow-act` | Adds `run_browser_script`, which runs code in a remote browser. Off by default. |
+| `--allow-browser` | Adds `open_browser` and `close_browser`, which keep a remote browser open until it is closed or expires. Off by default. |
+| `--allow-monitor` | Adds `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. A monitor keeps running, and billing, until it is deleted. Off by default. |
+| `--max-characters <n>` | The long text one result may return. Default 20,000. |
+| `--help`, `--version` | Show the usage text or the version. |
+
+The three `--allow-*` options are separate on purpose. Each tool group starts remote browsers or creates a lasting, billed resource, so a client gets it only when you ask.
+
+</AccordionItem>
+<AccordionItem title="Tools and providers">
 
 Each tool serves one capability, or one method of `browser` or `monitor`.
 
@@ -109,13 +110,15 @@ Each tool serves one capability, or one method of `browser` or `monitor`.
 
 Every tool's input schema lists only the options its provider supports, so a client is never offered an option that would be ignored.
 
-## Results and errors
+</AccordionItem>
+<AccordionItem title="Results and errors">
 
 Results come back as `structuredContent`, without the provider's own response. Lists come back as an object (`list_monitors` returns `{ "monitors": [...] }`), and `delete_monitor` and `close_browser` return `{ "deleted": true, "id": … }` and `{ "closed": true, "id": … }`.
 
 Failures come back as results with `isError: true` and a JSON body: `code`, `message`, `retryable`, `retryAfter`, and `jobId` for a job that may still be running. Pass a `jobId` back as `resume` to collect the job instead of starting another.
 
-## Embed the server
+</AccordionItem>
+<AccordionItem title="Embed the server">
 
 ```ts
 import { Fieldwork } from "@howells/fieldwork-sdk";
@@ -128,3 +131,6 @@ const server = createFieldworkServer(new Fieldwork({ adapter: firecrawl() }), {
 ```
 
 `allow` names capabilities that are left out by default (`act`, `browser`, `monitor`) to include as well. `server` is an `McpServer` from `@modelcontextprotocol/server`; connect it to any transport.
+
+</AccordionItem>
+</Accordion>

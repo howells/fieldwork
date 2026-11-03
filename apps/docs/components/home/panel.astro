@@ -28,8 +28,8 @@ const dark = tone === "dark";
       dark ? "border-[#2A2D32]" : "border-rule bg-wash",
     ]}
   >
-    <span class:list={["text-[14px] leading-[18px]", dark ? "text-[#A9ADB3]" : "text-graphite"]}>{caption}</span>
-    <span class:list={["font-mono text-[13px] leading-4", dark ? "text-[#9298A1]" : "text-graphite"]}>{file}</span>
+    <span class:list={["type-small", dark ? "text-[#A9ADB3]" : "text-graphite"]}>{caption}</span>
+    <span class:list={["type-small font-mono", dark ? "text-[#9298A1]" : "text-graphite"]}>{file}</span>
   </figcaption>
   <div class="px-6 pt-6 pb-7">
     <Code code={code} tone={tone} />

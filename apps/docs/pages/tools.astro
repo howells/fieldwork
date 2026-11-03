@@ -1,0 +1,50 @@
+---
+import PageLayout from "blume/components/layout/PageLayout.astro";
+import data from "blume:data";
+
+import Choosing from "../components/guide/choosing.astro";
+import TaskMatrix from "../components/guide/task-matrix.astro";
+import SiteFooter from "../components/site-footer.astro";
+
+const { config } = data;
+const title = "Choose the right tool for the job.";
+const lead = "The provider to start with for each task.";
+---
+
+<PageLayout
+  analytics={config.analytics}
+  appleIcon={config.appleIcon}
+  banner={config.banner}
+  favicon={config.favicon}
+  fontCssVars={data.fontCssVars}
+  lastModified="2026-11-03"
+  logo={config.logo}
+  navigation={data.navigation}
+  ogEnabled={config.og.enabled}
+  page={{ description: lead, route: "/tools", title: "Provider guide · Fieldwork" }}
+  searchEnabled={config.search.enabled}
+  site={{ description: config.description, title: config.title }}
+  siteUrl={config.site}
+  themeMode={config.theme.mode}
+  ui={data.ui}
+>
+  <div class="tool-guide">
+    <header class="home-wrap pt-12 pb-10 md:pt-20 md:pb-14">
+      <h1 class="type-display max-w-4xl">{title}</h1>
+      <p class="type-lead mt-6 mb-0 max-w-3xl text-graphite">{lead}</p>
+    </header>
+    <div class="home-wrap flex flex-col gap-16 pb-20 md:gap-24 md:pb-28">
+      <TaskMatrix />
+      <Choosing />
+    </div>
+  </div>
+  <SiteFooter slot="footer" />
+</PageLayout>
+
+<style is:global>
+  .tool-guide { color: var(--color-ink); }
+  .tool-guide [id] { scroll-margin-top: 96px; }
+  .guide-text-link { display: inline-flex; min-height: 44px; align-items: center; gap: 8px; color: var(--color-map-blue); text-decoration: none; cursor: pointer; }
+  .guide-text-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+  .tool-guide :is(a, button, input, select, summary):focus-visible { outline: 2px solid var(--color-map-blue); outline-offset: 4px; }
+</style>

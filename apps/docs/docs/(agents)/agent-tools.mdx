@@ -3,7 +3,7 @@ title: Agent tools
 description: Turn a Fieldwork instance into tool definitions for a model, with JSON Schema inputs that list only the options its provider supports.
 ---
 
-`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method. The definitions are plain JSON Schema with MCP annotations, so they work with the AI SDK, MCP servers and any framework that accepts JSON Schema tools.
+One tool per capability, from `@howells/fieldwork-sdk/tools`. The definitions are plain JSON Schema with MCP annotations, so they work with the AI SDK, MCP servers and any framework that accepts JSON Schema tools.
 
 ## With the AI SDK
 
@@ -24,7 +24,8 @@ const tools = Object.fromEntries(
 );
 ```
 
-## What each tool has
+<Accordion>
+<AccordionItem title="What each tool has">
 
 - a description that says when to use it and which tool to use instead;
 - a JSON Schema input that lists only the options its provider supports;
@@ -33,7 +34,8 @@ const tools = Object.fromEntries(
 
 `execute(input)` checks the input, calls the capability, and returns the result without `raw`, with long text cut to a shared budget of 20,000 characters. Bad input throws `InvalidRequest`.
 
-## The tools
+</AccordionItem>
+<AccordionItem title="The tools">
 
 | Tool | Capability |
 | --- | --- |
@@ -57,7 +59,8 @@ const tools = Object.fromEntries(
 
 `toolsFor` makes a tool only for the capabilities the instance supports. On a [router](/docs/router), each tool is served by the provider its capability routes to.
 
-## Tools left out by default
+</AccordionItem>
+<AccordionItem title="Tools left out by default">
 
 Tools that start remote browsers or create lasting, billed resources are left out unless you allow them:
 
@@ -70,7 +73,8 @@ toolsFor(web, { allow: ["act", "browser", "monitor"] });
   name="ToolsOptions"
 />
 
-## Errors for a model
+</AccordionItem>
+<AccordionItem title="Errors for a model">
 
 `toolError(error)` formats an error for a model: the code, the message, whether repeating can succeed, and the `jobId` of a job that may still be running, without the provider's response.
 
@@ -83,6 +87,9 @@ try {
   return toolError(error);
 }
 ```
+
+</AccordionItem>
+</Accordion>
 
 ## Over MCP
 

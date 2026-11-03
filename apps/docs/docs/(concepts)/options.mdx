@@ -25,15 +25,16 @@ Options are typed per provider, so your editor offers only the options the provi
 ```ts
 const web = new Fieldwork({ adapter: firecrawl() });
 
-const { results } = await web.search("porcelain tile suppliers", {
+const { results } = await web.search("repairable laptops", {
   limit: 10,
-  includeDomains: ["tilebar.com"],
+  includeDomains: ["ifixit.com"],
   recency: "month",
   country: "GB",
 });
 ```
 
-## Settings every call accepts
+<Accordion>
+<AccordionItem title="Settings every call accepts">
 
 Every method takes these, whatever the provider:
 
@@ -44,10 +45,15 @@ Every method takes these, whatever the provider:
 
 [Errors and retries](/docs/errors#retries) explains when a request is repeated.
 
-## Options only one provider has
+</AccordionItem>
+<AccordionItem title="Options only one provider has">
 
 An option only one provider has keeps that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. It appears in the types only for that provider's adapter.
 
-## Refused combinations
+</AccordionItem>
+<AccordionItem title="Refused combinations">
 
 A combination a provider would reject or silently ignore throws `InvalidRequest` before anything is sent. For example, Parallel refuses `includeDomains` together with `excludeDomains`, and Firecrawl refuses `recency` together with `publishedAfter` or `publishedBefore`. The message names the options that clashed.
+
+</AccordionItem>
+</Accordion>

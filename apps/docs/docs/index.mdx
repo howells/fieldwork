@@ -3,7 +3,7 @@ title: Introduction
 description: Fieldwork is one TypeScript API for searching the web, reading pages, extracting values, crawling sites, answering and researching questions, watching for changes and driving a browser, across eight providers.
 ---
 
-Fieldwork puts Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase behind the same methods. You pick a provider by passing its adapter, and the instance you get back has exactly the methods that provider offers.
+Pick a provider by passing its adapter. The instance you get back has exactly the methods that provider offers.
 
 ```ts
 import { Fieldwork } from "@howells/fieldwork-sdk";
@@ -12,20 +12,42 @@ import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
 // Reads FIRECRAWL_API_KEY
 const web = new Fieldwork({ adapter: firecrawl() });
 
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
+const { results } = await web.search("Framework Laptop 13 specs");
 const page = await web.read(results[0].url);
 const product = await web.product(page.url); // variants, without a model
 ```
 
-Swap the adapter to switch providers. Everything below the constructor stays the same, as long as the new provider offers the capability.
+Swap the adapter to switch providers; the calls stay the same.
 
 ## How it behaves
 
-- **A call goes to the provider you chose, or it doesn't go.** Nothing falls back to another provider and nothing is emulated. A provider without an answer endpoint has no `answer`, even though search plus a model could imitate one.
-- **The types refuse what the provider can't serve.** `new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
-- **Every result keeps the provider's response.** Results are normalized into shared shapes, and the provider's own response stays on each one as `raw`.
-- **Every failure is one error type.** A `FieldworkError` carries a code, whether repeating can succeed, and the id of any job that had already started.
-- **Long jobs can be collected later.** A research run or crawl that outlasts your timeout keeps running on the provider. Pass its id back as `resume` instead of paying for a second job.
+<Accordion>
+<AccordionItem title="A call goes to the provider you chose, or it doesn't go">
+
+Nothing falls back to another provider and nothing is emulated. A provider without an answer endpoint has no `answer`, even though search plus a model could imitate one.
+
+</AccordionItem>
+<AccordionItem title="The types refuse what the provider can't serve">
+
+`new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
+
+</AccordionItem>
+<AccordionItem title="Every result keeps the provider's response">
+
+Results are normalized into shared shapes, and the provider's own response stays on each one as `raw`.
+
+</AccordionItem>
+<AccordionItem title="Every failure is one error type">
+
+A `FieldworkError` carries a code, whether repeating can succeed, and the id of any job that had already started.
+
+</AccordionItem>
+<AccordionItem title="Long jobs can be collected later">
+
+A research run or crawl that outlasts your timeout keeps running on the provider. Pass its id back as `resume` instead of paying for a second job.
+
+</AccordionItem>
+</Accordion>
 
 ## Packages
 
@@ -35,8 +57,6 @@ Swap the adapter to switch providers. Everything below the constructor stays the
 | `@howells/fieldwork-mcp` | An MCP server over stdio that serves those tools to Claude, Cursor, Codex and other MCP clients. |
 
 ## Where to go next
-
-The [tool guide](/tool-guide) compares starting choices for common tasks, with checks, live results and research sources.
 
 <CardGroup cols={2}>
   <Card title="Installation" href="/docs/installation" icon="download">

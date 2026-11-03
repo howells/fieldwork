@@ -96,16 +96,11 @@ export default defineConfig({
   },
   navigation: {
     actions: [
-      { href: "/docs/capabilities", label: "Providers" },
-      { href: "/docs/agent-tools", label: "Agent tools" },
-      { href: "/docs/mcp-server", label: "MCP server" },
+      { href: "/docs", label: "Docs" },
+      { href: "/tools", label: "Provider guide" },
       { href: "https://github.com/howells/fieldwork", label: "GitHub" },
     ],
     cta: { href: "/docs/installation", label: "Get started" },
-    tabs: [
-      { href: "/docs", label: "Docs", path: "/docs" },
-      { href: "/tool-guide", label: "Tool guide", path: "/tool-guide" },
-    ],
   },
   theme: {
     accent: "#1F3FD1",

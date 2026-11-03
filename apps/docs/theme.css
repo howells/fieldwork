@@ -47,31 +47,114 @@
   }
 }
 
-@utility home-heading {
-  margin: 0;
-  color: var(--color-ink);
+/*
+ * The type case. Every piece of site text takes exactly one of these six
+ * roles; nothing else sets size, leading, tracking or family. Signifier is
+ * for the two large roles only, display and heading. Allowed beside a role:
+ * font-medium (emphasis), font-mono (a literal value) and tabular-nums.
+ * scripts/check-typography.mjs enforces this.
+ */
+@utility type-display {
   font-family: var(--blume-font-display);
-  font-size: 36px;
+  font-size: clamp(2.75rem, 1.8rem + 4vw, 5.5rem);
+  font-weight: 300;
+  letter-spacing: -0.025em;
+  line-height: 1.05;
+}
+
+@utility type-heading {
+  font-family: var(--blume-font-display);
+  font-size: 2.25rem;
   font-weight: 300;
   letter-spacing: -0.02em;
-  line-height: 40px;
+  line-height: 2.5rem;
 
   @variant md {
-    font-size: 48px;
-    line-height: 54px;
+    font-size: 3rem;
+    line-height: 3.375rem;
   }
 }
 
-@utility home-lead {
-  margin: 0;
-  color: var(--color-graphite);
-  font-size: 16px;
-  line-height: 26px;
+@utility type-title {
+  font-family: var(--blume-font-body);
+  font-size: 1.375rem;
+  font-weight: 500;
+  letter-spacing: -0.015em;
+  line-height: 1.75rem;
+}
+
+@utility type-lead {
+  font-family: var(--blume-font-body);
+  font-size: 1.125rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.75rem;
 
   @variant md {
-    font-size: 20px;
-    line-height: 31px;
+    font-size: 1.25rem;
+    line-height: 1.875rem;
   }
+}
+
+@utility type-body {
+  font-family: var(--blume-font-body);
+  font-size: 1rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.5rem;
+}
+
+@utility type-small {
+  font-family: var(--blume-font-body);
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  line-height: 1.375rem;
+}
+
+/* Blume sets every heading in the display face. Headings take their role
+   instead, so the serif appears only where a role asks for it. In the base
+   layer, so a role class on the heading still wins. */
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    font-family: var(--blume-font-body);
+    letter-spacing: 0;
+  }
+}
+
+/* Docs pages: the page title is the one serif moment; section headings and
+   prose map onto the same case. */
+.prose > h1 {
+  @apply type-heading;
+}
+
+.prose > p.text-lg {
+  @apply type-lead;
+}
+
+.prose h2 {
+  @apply type-title;
+}
+
+.prose :is(h3, h4) {
+  @apply type-body font-medium;
+}
+
+.prose :is(p, li, td, blockquote) {
+  @apply type-small;
+}
+
+.prose th {
+  @apply type-small font-medium;
+}
+
+.prose strong {
+  @apply font-medium;
 }
 
 .hero-panel {
@@ -131,17 +214,40 @@
   opacity: 1;
 }
 
-/* Docs pages: Signifier Light for the page title and section headings, as in
-   the design; smaller headings stay in Inter so they read as labels. */
-.prose :where(h1, h2) {
-  font-weight: 300;
-  letter-spacing: -0.02em;
+/* Disclosure: a row that names a thing and opens to its detail. One pattern
+   for the home page, the provider guide and its task rows. */
+.disclosure > summary {
+  display: flex;
+  min-height: 56px;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  list-style: none;
 }
 
-.prose :where(h3, h4) {
-  font-family: var(--blume-font-body);
-  font-weight: 600;
-  letter-spacing: -0.005em;
+.disclosure > summary::-webkit-details-marker {
+  display: none;
+}
+
+.disclosure > summary:hover .type-body {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.disclosure-chevron {
+  flex-shrink: 0;
+  color: var(--color-graphite);
+  transition: transform 150ms ease-out;
+}
+
+details[open] > summary .disclosure-chevron {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .disclosure-chevron {
+    transition: none;
+  }
 }
 
 /* Geist Mono's ligatures join across Shiki's token spans; keep code literal. */
@@ -176,10 +282,27 @@ pre,
 [data-blume-header] :is(a, button),
 [data-blume-nav-drawer] a {
   min-height: 44px;
+  align-items: center;
 }
 
 [data-blume-header] button {
   min-width: 44px;
+}
+
+/* Phones: Blume hides every header link below sm, and with no tabs there is
+   no drawer to hold them. Keep the two places on the site, leaving out Docs
+   where the menu already opens the docs. Get started is the Docs page's first
+   card and GitHub is in the footer. */
+@media (width < 40rem) {
+  [data-blume-header] :is(a[href="/docs"], a[href="/tools"]) {
+    display: inline-flex;
+    padding-inline: 0.5rem;
+  }
+
+  [data-blume-header] a.bg-accent,
+  [data-blume-header]:has([data-blume-nav-toggle]) a[href="/docs"] {
+    display: none;
+  }
 }
 
 [data-blume-header] a[aria-current="page"] {

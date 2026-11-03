@@ -1,83 +1,54 @@
 ---
-import { GUIDE_PROVIDERS, GUIDE_TASKS, MATRIX_NOTE, TASK_GROUPS } from "../../lib/tool-guide";
+import { GUIDE_PROVIDERS, GUIDE_TASKS, TASK_GROUPS } from "../../lib/tool-guide";
 ---
 
-<section aria-labelledby="matrix-heading" class="scroll-mt-36" data-guide-matrix id="matrix">
+<section aria-labelledby="matrix-heading" data-guide-matrix id="matrix">
   <div class="flex flex-wrap items-end justify-between gap-4">
-    <h2 class="guide-heading" id="matrix-heading">Find your task</h2>
-    <p aria-live="polite" class="m-0 text-sm text-graphite" data-task-count role="status">{GUIDE_TASKS.length} tasks</p>
+    <h2 class="type-title" id="matrix-heading">Find your task</h2>
+    <p aria-live="polite" class="type-small m-0 text-graphite" data-task-count role="status">{GUIDE_TASKS.length} tasks</p>
   </div>
 
-  <div class="mt-8 flex flex-col gap-5">
-    <div class="grid gap-3 sm:grid-cols-[1fr_240px]">
-      <label class="flex flex-col gap-2 text-sm text-graphite">
-        Search tasks
-        <input class="guide-input" data-task-search placeholder="Try dimensions, PDF or citations" type="search" />
-      </label>
-      <label class="flex flex-col gap-2 text-sm text-graphite">
-        Starting provider
-        <select class="guide-input" data-task-provider>
-          <option value="">All providers</option>
-          {GUIDE_PROVIDERS.map((provider) => <option value={provider}>{provider}</option>)}
-        </select>
-      </label>
+  <div class="mt-6 flex flex-col gap-3">
+    <div class="grid gap-3 sm:grid-cols-[1fr_220px]">
+      <label class="sr-only" for="task-search">Search tasks</label>
+      <input class="type-small guide-input" data-task-search id="task-search" placeholder="Search tasks" type="search" />
+      <label class="sr-only" for="task-provider">Starting provider</label>
+      <select class="type-small guide-input" data-task-provider id="task-provider">
+        <option value="">All providers</option>
+        {GUIDE_PROVIDERS.map((provider) => <option value={provider}>{provider}</option>)}
+      </select>
     </div>
     <div aria-label="Task type" class="-mx-1 flex gap-1 overflow-x-auto px-1 pb-1" role="group">
       {TASK_GROUPS.map((group) => (
-        <button aria-controls="task-table" aria-pressed={group.id === "all" ? "true" : "false"} class="guide-filter shrink-0" data-task-group={group.id} type="button">{group.label}</button>
+        <button aria-controls="task-list" aria-pressed={group.id === "all" ? "true" : "false"} class="type-small guide-filter shrink-0" data-task-group={group.id} type="button">{group.label}</button>
       ))}
     </div>
   </div>
 
-  <table class="mt-6 w-full border-collapse text-left" id="task-table">
-    <caption class="sr-only">Starting tools for each task, checks before using them, and supporting evidence. Provider filters show starting recommendations, not every supported provider.</caption>
-    <thead class="max-lg:sr-only">
-      <tr class="border-b border-ink text-sm font-normal text-graphite">
-        <th class="w-[22%] pb-4 font-normal" scope="col">Task</th>
-        <th class="w-[11%] pb-4 font-normal" scope="col">Capability</th>
-        <th class="w-[23%] pb-4 font-normal" scope="col">Start with</th>
-        <th class="w-[29%] pb-4 font-normal" scope="col">Check before using</th>
-        <th class="w-[15%] pb-4 font-normal" scope="col">Evidence</th>
-      </tr>
-    </thead>
-    <tbody>
-      {GUIDE_TASKS.map((task) => (
-        <tr class="guide-task border-b border-rule" data-group={task.group} data-providers={task.providers.join("|")} data-task-row id={`task-${task.id}`}>
-          <th class="guide-cell guide-task-name" scope="row">
-            <a class="guide-task-link" href={`#task-${task.id}`}>{task.title}</a>
-            <span class="mt-2 block text-sm leading-relaxed font-normal text-graphite">{task.description}</span>
-          </th>
-          <td class="guide-cell">
-            <span class="guide-mobile-label">Capability</span>
-            <div class="flex flex-wrap gap-x-2 gap-y-1 lg:flex-col">
-              {task.capabilities.map((capability) => <a class="guide-method" href="/docs/capabilities"><code>{capability}</code></a>)}
-            </div>
-          </td>
-          <td class="guide-cell">
-            <span class="guide-mobile-label">Start with</span>
-            {task.choices.map((choice) => <span class="block leading-relaxed text-ink">{choice}</span>)}
-            <p class="mt-2 mb-0 text-sm leading-relaxed text-graphite">{task.note}</p>
-          </td>
-          <td class="guide-cell">
-            <span class="guide-mobile-label">Check before using</span>
-            <p class="m-0 text-sm leading-relaxed text-graphite">{task.check}</p>
-          </td>
-          <td class="guide-cell">
-            <a class:list={["guide-evidence-link", { "text-graphite": task.docsOnly }]} href={task.evidenceHref.startsWith("#") ? `/tool-guide/evidence${task.evidenceHref}` : task.evidenceHref}>{task.evidence}</a>
-          </td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-  <div class="border-b border-rule py-12 text-center" data-no-tasks hidden>
-    <p class="m-0 text-graphite">No tasks match these filters.</p>
-    <button class="guide-text-link mt-3" data-clear-filters type="button">Clear filters</button>
+  <div class="mt-6 border-t border-ink" id="task-list">
+    {GUIDE_TASKS.map((task) => (
+        <details class="guide-task border-b border-rule" data-group={task.group} data-providers={task.providers.join("|")} data-task-row id={`task-${task.id}`}>
+          <summary class="guide-task-summary">
+            <span class="type-body font-medium text-ink">{task.title}</span>
+            <span class="type-small font-mono text-map-blue">{task.capabilities.join(" · ")}</span>
+            <span class="type-small text-ink">{task.choices.join(", ")}</span>
+            <svg aria-hidden="true" class="disclosure-chevron" fill="none" height="16" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" viewBox="0 0 16 16" width="16"><path d="m4 6 4 4 4-4" /></svg>
+          </summary>
+          <div class="guide-task-detail">
+            <p class="type-small m-0 max-w-2xl text-graphite">{task.why}</p>
+            <a class="type-small guide-text-link" href={task.docs}>Read the docs →</a>
+          </div>
+        </details>
+    ))}
   </div>
-  <p class="mt-5 mb-0 max-w-3xl text-sm leading-relaxed text-graphite">{MATRIX_NOTE.before}<a class="guide-inline-link" href={MATRIX_NOTE.link.href}>{MATRIX_NOTE.link.label}</a>{MATRIX_NOTE.after}</p>
+  <div class="border-b border-rule py-12 text-center" data-no-tasks hidden>
+    <p class="type-small m-0 text-graphite">No tasks match these filters.</p>
+    <button class="type-small guide-text-link mt-3" data-clear-filters type="button">Clear filters</button>
+  </div>
 </section>
 
 <script>
-  const matchesTask = (row: HTMLTableRowElement, group: string, query: string, provider: string) => {
+  const matchesTask = (row: HTMLDetailsElement, group: string, query: string, provider: string) => {
     const matchesGroup = group === "all" || row.dataset.group === group;
     const matchesProvider = provider === "" || (row.dataset.providers ?? "").split("|").includes(provider);
     const matchesQuery = (row.textContent ?? "").toLowerCase().includes(query);
@@ -94,7 +65,7 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, MATRIX_NOTE, TASK_GROUPS } from "../../li
     }
     root.dataset.bound = "";
     const buttons = [...root.querySelectorAll<HTMLButtonElement>("[data-task-group]")];
-    const rows = [...root.querySelectorAll<HTMLTableRowElement>("[data-task-row]")];
+    const rows = [...root.querySelectorAll<HTMLDetailsElement>("[data-task-row]")];
     let group = "all";
     const update = () => {
       let visible = 0;
@@ -142,33 +113,23 @@ import { GUIDE_PROVIDERS, GUIDE_TASKS, MATRIX_NOTE, TASK_GROUPS } from "../../li
 </script>
 
 <style>
-  .guide-input { min-height: 48px; width: 100%; border: 1px solid var(--color-rule); border-radius: 6px; background: var(--color-paper); padding: 10px 14px; color: var(--color-ink); font-size: 14px; }
+  .guide-input { min-height: 44px; width: 100%; border: 1px solid var(--color-rule); border-radius: 6px; background: var(--color-paper); padding: 10px 14px; color: var(--color-ink); }
   .guide-input::placeholder { color: var(--color-graphite); }
-  .guide-filter { min-height: 44px; padding: 10px 14px; border-radius: 6px; background: transparent; color: var(--color-graphite); font-size: 14px; cursor: pointer; }
+  .guide-filter { min-height: 44px; padding: 10px 14px; border-radius: 6px; background: transparent; color: var(--color-graphite); cursor: pointer; }
   .guide-filter[aria-pressed="true"], .guide-filter:hover { background: var(--color-wash); color: var(--color-ink); }
-  .guide-cell { padding: 26px 20px 26px 0; vertical-align: top; font-size: 14px; }
-  .guide-cell:last-child { padding-right: 0; }
-  .guide-task-name { font-size: 16px; font-weight: 500; }
-  .guide-task-link { display: inline-flex; min-height: 44px; align-items: center; color: var(--color-ink); text-decoration: none; }
-  .guide-task-link:hover { text-decoration: underline; text-underline-offset: 4px; }
-  .guide-method { display: inline-flex; min-height: 44px; min-width: 44px; align-items: center; color: var(--color-map-blue); font-size: 13px; }
-  .guide-evidence-link { display: inline-flex; min-height: 44px; align-items: flex-start; color: var(--color-map-blue); font-size: 13px; line-height: 1.7; text-underline-offset: 4px; }
-  .guide-evidence-link:hover { text-decoration: underline; }
-  .guide-mobile-label { display: none; }
+  .guide-task-summary { display: grid; grid-template-columns: minmax(0, 1fr) 16px; align-items: center; gap: 4px 16px; min-height: 64px; padding-block: 16px; cursor: pointer; list-style: none; }
+  .guide-task-summary::-webkit-details-marker { display: none; }
+  .guide-task-summary > :nth-child(1) { grid-column: 1; }
+  .guide-task-summary > :nth-child(2), .guide-task-summary > :nth-child(3) { grid-column: 1; }
+  .guide-task-summary > .disclosure-chevron { grid-column: 2; grid-row: 1 / span 3; }
+  .guide-task-summary:hover > :first-child { text-decoration: underline; text-underline-offset: 4px; }
+  .guide-task-detail { padding: 0 0 16px; }
   [data-task-row][hidden], [data-no-tasks][hidden] { display: none; }
-  [data-task-row] { scroll-margin-top: 140px; }
-  @media (max-width: 1023px) {
-    table, tbody { display: block; }
-    .guide-task { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 24px; padding-block: 28px; }
-    .guide-cell { display: block; padding: 12px 0 0; }
-    .guide-task-name { grid-column: 1 / -1; padding: 0 0 8px; font-size: 18px; }
-    .guide-cell:nth-child(4), .guide-cell:nth-child(5) { grid-column: 1 / -1; }
-    .guide-mobile-label { display: block; margin-bottom: 6px; color: var(--color-graphite); font-size: 13px; }
-    .guide-evidence-link { min-height: 44px; align-items: center; }
-    .guide-method { min-height: 44px; }
-  }
-  @media (max-width: 479px) {
-    .guide-task { grid-template-columns: minmax(0, 1fr); }
-    .guide-task-name, .guide-cell:nth-child(4), .guide-cell:nth-child(5) { grid-column: auto; }
+  [data-task-row] { scroll-margin-top: 96px; }
+  @media (min-width: 1024px) {
+    .guide-task-summary { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) 16px; gap: 24px; }
+    .guide-task-summary > :nth-child(2) { grid-column: 2; }
+    .guide-task-summary > :nth-child(3) { grid-column: 3; }
+    .guide-task-summary > .disclosure-chevron { grid-column: 4; grid-row: 1; }
   }
 </style>

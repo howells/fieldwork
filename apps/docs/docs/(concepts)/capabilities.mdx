@@ -5,7 +5,7 @@ description: Which of Fieldwork's 17 capabilities each of the eight providers of
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
 
-Use the [tool guide](/tool-guide) to choose a capability and starting provider for your task, with test results and checks for each recommendation.
+Not sure which to use? See the [provider guide](/tools).
 
 | Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
@@ -27,7 +27,8 @@ Use the [tool guide](/tool-guide) to choose a capability and starting provider f
 | `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | ● | ● |  | ● |  |  |  |  |
 | `usage()` |  | ● | ● |  |  |  | ● | ● |
 
-## What each one does
+<Accordion>
+<AccordionItem title="What each one does">
 
 - `search` returns ranked pages for a query, and `images` returns images with the page each appears on.
 - `read` returns one page as Markdown. `readMany` reads several in one call and lists the ones it could not read.
@@ -41,7 +42,8 @@ Use the [tool guide](/tool-guide) to choose a capability and starting provider f
 - `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
 - `usage` reports the account's credits used and remaining.
 
-## Check at run time
+</AccordionItem>
+<AccordionItem title="Check at run time">
 
 `web.capabilities` and `web.supports()` report the same table for the instance you have. `web.providerFor()` names the provider that serves a capability, which matters on a [router](/docs/router).
 
@@ -54,6 +56,5 @@ web.capabilities.extract; // false
 web.providerFor("search"); // "tavily"
 ```
 
-## Nothing falls back
-
-A capability the provider lacks is never served by another provider, and never imitated. A provider without an answer endpoint has no `answer`, even though search plus a model could imitate one. To use different providers for different capabilities, say so with a [router](/docs/router).
+</AccordionItem>
+</Accordion>

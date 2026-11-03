@@ -4,29 +4,24 @@ import { CAPABILITY_ROWS, PROVIDERS } from "../../lib/capabilities";
 
 <section class="border-t border-rule">
   <div class="home-wrap py-16 md:py-[120px]">
-    <div class="flex flex-col gap-5 md:flex-row md:items-start md:justify-between md:gap-14">
-      <h2 class="home-heading md:max-w-[520px]">Change the provider.<br />Keep every call.</h2>
-      <p class="home-lead md:max-w-[520px] md:pt-3">
-        Each provider is its own import. A method exists on an instance only when its provider offers it, so the table below is also what your editor will autocomplete.
-      </p>
-    </div>
+    <h2 class="type-heading md:max-w-[520px]">Change the provider.<br />Keep every call.</h2>
 
     <table class="mt-10 hidden w-full border-collapse text-left md:mt-16 lg:table">
       <caption class="sr-only">Which capabilities each provider offers</caption>
       <thead>
         <tr class="border-b border-ink">
-          <th class="pb-4 text-[14px] leading-[18px] font-normal text-graphite" scope="col">Method</th>
+          <th class="type-small pb-4 text-graphite" scope="col">Method</th>
           <th class="pb-4" scope="col"><span class="sr-only">What it does</span></th>
           {PROVIDERS.map((provider) => (
-            <th class="w-[100px] pb-4 text-center text-[14px] leading-[18px] font-medium text-ink" scope="col">{provider.label}</th>
+            <th class="type-small w-[100px] pb-4 text-center font-medium text-ink" scope="col">{provider.label}</th>
           ))}
         </tr>
       </thead>
       <tbody>
         {CAPABILITY_ROWS.map((row) => (
           <tr class="border-b border-rule">
-            <th class="h-[52px] w-[116px] font-mono text-[14px] font-normal text-ink" scope="row">{row.name}</th>
-            <td class="text-[14px] text-graphite">{row.summary}</td>
+            <th class="type-small h-[52px] w-[116px] font-mono text-ink" scope="row">{row.name}</th>
+            <td class="type-small text-graphite">{row.summary}</td>
             {PROVIDERS.map((provider) => (
               <td class="text-center">
                 {provider.supports[row.name] ? (
@@ -44,20 +39,16 @@ import { CAPABILITY_ROWS, PROVIDERS } from "../../lib/capabilities";
     <dl class="mt-8 lg:hidden">
       {CAPABILITY_ROWS.map((row) => (
         <div class="flex flex-col gap-1 border-b border-rule py-3.5">
-          <dt class="font-mono text-[14px] leading-[22px] text-ink">{row.name}</dt>
-          <dd class="m-0 text-[14px] leading-[22px] text-graphite">
+          <dt class="type-small font-mono text-ink">{row.name}</dt>
+          <dd class="type-small m-0 text-graphite">
             {row.providers.length === PROVIDERS.length ? "All eight" : row.providers.join(", ")}
           </dd>
         </div>
       ))}
     </dl>
 
-    <div class="mt-10 flex flex-col gap-3 border-t border-rule pt-7 sm:flex-row sm:items-center sm:justify-between">
-      <div>
-        <h3 class="m-0 text-[18px] font-medium text-ink">Choose a tool for your task</h3>
-        <p class="mt-2 mb-0 text-[14px] leading-[22px] text-graphite">Starting choices, checks and results from our tests.</p>
-      </div>
-      <a class="inline-flex min-h-11 shrink-0 items-center gap-3 text-[14px] text-map-blue underline-offset-4 hover:underline" href="/tool-guide">Open the tool guide <span aria-hidden="true">↗</span></a>
+    <div class="mt-8 flex justify-end">
+      <a class="type-small inline-flex min-h-11 items-center gap-2 text-map-blue underline-offset-4 hover:underline" href="/tools">Which provider for which task <span aria-hidden="true">→</span></a>
     </div>
   </div>
 </section>

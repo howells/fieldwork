@@ -16,9 +16,9 @@ export interface HeroSample {
 export const HERO_SAMPLES: HeroSample[] = [
   {
     code: `${imports("exa")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
+const { results } = await web.search("Framework Laptop 13 specs");
 const page = await web.read(results[0].url);
-const report = await web.research("Is Portmore Aqua frost-proof?");
+const report = await web.research("Does the Framework Laptop 13 support USB4?");
 
 page.markdown;     // the page as Markdown
 report.sources;    // the pages the report cites
@@ -27,7 +27,7 @@ report.raw;        // Exa's own response`,
   },
   {
     code: `${imports("firecrawl")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
+const { results } = await web.search("Framework Laptop 13 specs");
 const page = await web.read(results[0].url);
 const product = await web.product(page.url);
 
@@ -38,9 +38,9 @@ product.raw;       // Firecrawl's own response`,
   },
   {
     code: `${imports("tavily")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
-const site = await web.map("https://www.tilebar.com");
-const reply = await web.answer("Is Portmore Aqua frost-proof?");
+const { results } = await web.search("Framework Laptop 13 specs");
+const site = await web.map("https://frame.work");
+const reply = await web.answer("Does the Framework Laptop 13 support USB4?");
 
 site.links;        // every URL on the site
 reply.citations;   // the sources the answer cites
@@ -49,9 +49,9 @@ reply.raw;         // Tavily's own response`,
   },
   {
     code: `${imports("parallel")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
+const { results } = await web.search("Framework Laptop 13 specs");
 const page = await web.read(results[0].url);
-const reply = await web.answer("Is Portmore Aqua frost-proof?");
+const reply = await web.answer("Does the Framework Laptop 13 support USB4?");
 
 page.markdown;     // the page as Markdown
 reply.citations;   // the sources the answer cites
@@ -60,9 +60,9 @@ reply.raw;         // Parallel's own response`,
   },
   {
     code: `${imports("perplexity")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
-const reply = await web.answer("Is Portmore Aqua frost-proof?");
-const report = await web.research("Which porcelain survives frost?");
+const { results } = await web.search("Framework Laptop 13 specs");
+const reply = await web.answer("Does the Framework Laptop 13 support USB4?");
+const report = await web.research("Which repairable laptops support USB4?");
 
 reply.citations;   // the sources the answer cites
 report.sources;    // the pages the report cites
@@ -71,9 +71,9 @@ report.raw;        // Perplexity's own response`,
   },
   {
     code: `${imports("brave")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
-const images = await web.images("Portmore Aqua tile");
-const reply = await web.answer("Is Portmore Aqua frost-proof?");
+const { results } = await web.search("Framework Laptop 13 specs");
+const images = await web.images("Framework Laptop 13");
+const reply = await web.answer("Does the Framework Laptop 13 support USB4?");
 
 images.results;    // each image and the page it is on
 reply.citations;   // the sources the answer cites
@@ -82,8 +82,8 @@ reply.raw;         // Brave's own response`,
   },
   {
     code: `${imports("serpapi")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
-const images = await web.images("Portmore Aqua tile");
+const { results } = await web.search("Framework Laptop 13 specs");
+const images = await web.images("Framework Laptop 13");
 const usage = await web.usage();
 
 results[0].kind;   // "web", "shopping", "place" and so on
@@ -93,7 +93,7 @@ usage.raw;         // SerpApi's own response`,
   },
   {
     code: `${imports("browserbase")}
-const { results } = await web.search("TileBar Portmore Aqua 3x8");
+const { results } = await web.search("Framework Laptop 13 specs");
 const page = await web.read(results[0].url);
 const session = await web.browser.open();
 
@@ -111,7 +111,7 @@ const web = new Fieldwork({ adapter: tavily() });
 await web.act(script);
 
 try {
-  await web.crawl("https://tilebar.com");
+  await web.crawl("https://frame.work");
 } catch (error) {
   if (error instanceof FieldworkError) {
     error.code;       // "RateLimited"
@@ -145,7 +145,7 @@ try {
 export const CODE_SURFACE_SAMPLE = `
 const { output, sources } =
   await web.research(
-    "Is Portmore Aqua frost-proof?"
+    "Does Framework 13 have USB4?"
   );`;
 
 export const TOOLS_SURFACE_SAMPLE = `

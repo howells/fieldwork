@@ -3,9 +3,23 @@ title: Results and meta
 description: The normalized shape each method returns, the provider's own response in raw, and the request id, usage and warnings in meta.
 ---
 
-Every result is normalized and keeps the provider's response in `raw`. Most also carry `meta`: the provider's request id, what the call cost, and any warnings, when the provider returns them.
+Alongside `raw`, most results carry `meta` when the provider sends one.
 
-## What each method returns
+## The provider's response
+
+`raw` holds exactly what the provider sent, so nothing is lost by normalizing it. Reach for it when you need a field Fieldwork doesn't map.
+
+```ts
+const page = await web.read("https://frame.work/laptop13");
+
+page.markdown; // the page as Markdown
+page.raw; // the provider's own response
+```
+
+[Agent tools](/docs/agent-tools) strip `raw` before a model sees a result. The SDK never does.
+
+<Accordion>
+<AccordionItem title="What each method returns">
 
 - `search` returns `{ results, answer, images, meta, raw }`. Each result has `url`, `title`, `snippet` and, when the provider has them, `content`, `publishedAt`, `author`, `image`, `favicon` and `score`. Shopping, place, news, scholar and patent results set `kind` and carry `price`, `rating`, `reviewCount` and `place`.
 - `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them.
@@ -16,28 +30,18 @@ Every result is normalized and keeps the provider's response in `raw`. Most also
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
 
-## Pages that don't exist
+</AccordionItem>
+<AccordionItem title="Pages that don't exist">
 
 A page that answered 404 or 410 is not returned. `read` throws `NotFound` on every provider, and `readMany` lists the URL in `failed`.
 
-## Jobs that stop early
+</AccordionItem>
+<AccordionItem title="Jobs that stop early">
 
 A job that stopped early but produced output, for example on a credit or step limit, returns `status: "partial"` with `stopReason`. A job with no usable output throws `JobFailed`.
 
-## The provider's response
-
-`raw` holds exactly what the provider sent, so nothing is lost by normalizing it. Reach for it when you need a field Fieldwork doesn't map.
-
-```ts
-const page = await web.read("https://www.tilebar.com/portmore-aqua");
-
-page.markdown; // the page as Markdown
-page.raw; // the provider's own response
-```
-
-[Agent tools](/docs/agent-tools) strip `raw` before a model sees a result. The SDK never does.
-
-## Meta
+</AccordionItem>
+<AccordionItem title="Meta">
 
 <AutoTypeTable path="../../packages/fieldwork-sdk/src/types.ts" name="Meta" />
 
@@ -45,13 +49,18 @@ page.raw; // the provider's own response
 
 <AutoTypeTable path="../../packages/fieldwork-sdk/src/types.ts" name="Usage" />
 
-## Page
+</AccordionItem>
+<AccordionItem title="Page">
 
 <AutoTypeTable path="../../packages/fieldwork-sdk/src/types.ts" name="Page" />
 
-## Search result
+</AccordionItem>
+<AccordionItem title="Search result">
 
 <AutoTypeTable
   path="../../packages/fieldwork-sdk/src/types.ts"
   name="SearchResult"
 />
+
+</AccordionItem>
+</Accordion>

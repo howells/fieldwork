@@ -3,22 +3,13 @@ title: Errors and retries
 description: The one error type, its nine codes and what to do about each, and when Fieldwork repeats a failed request for you.
 ---
 
-Every failure is a `FieldworkError`. It carries:
-
-- `code`, one of the codes below;
-- `provider` and the HTTP `status`;
-- `retryable`: whether repeating the same call can succeed;
-- `retryAfter`, in seconds, when the provider sent one;
-- `jobId`, when a job had already started;
-- the provider's response, as `cause`.
-
-`error.toJSON()` returns these fields without the provider's response.
+Every failure is a `FieldworkError`, with a `code` from the table below and whether repeating can succeed.
 
 ```ts
 import { FieldworkError } from "@howells/fieldwork-sdk";
 
 try {
-  await web.crawl("https://www.tilebar.com");
+  await web.crawl("https://frame.work");
 } catch (error) {
   if (error instanceof FieldworkError) {
     error.code; // "RateLimited"
@@ -44,7 +35,20 @@ try {
 
 An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job. Pass the id as `resume` instead; see [Long jobs](/docs/long-jobs).
 
-## Retries
+<Accordion>
+<AccordionItem title="What it carries">
+
+- `code`, one of the codes above;
+- `provider` and the HTTP `status`;
+- `retryable`: whether repeating the same call can succeed;
+- `retryAfter`, in seconds, when the provider sent one;
+- `jobId`, when a job had already started;
+- the provider's response, as `cause`.
+
+`error.toJSON()` returns these fields without the provider's response.
+
+</AccordionItem>
+<AccordionItem title="Retries">
 
 Fieldwork repeats a request that fails in a way that can succeed on repeat, twice by default, before throwing: a rate limit, a 5xx or a dropped connection. It waits as long as the provider's `retry-after` asks, up to 30 seconds, or backs off from half a second with jitter. A provider that asks for a longer wait gets the `RateLimited` error at once, with `retryAfter` set.
 
@@ -56,9 +60,13 @@ Set `retries` on the adapter for every call, or on one call:
 
 ```ts
 const web = new Fieldwork({ adapter: exa({ retries: 4 }) }); // every call
-await web.search("tiles", { retries: 0 }); // this call only
+await web.search("laptops", { retries: 0 }); // this call only
 ```
 
-## For a model
+</AccordionItem>
+<AccordionItem title="For a model">
 
 `toolError(error)` from `@howells/fieldwork-sdk/tools` formats any error for a model: the code, the message, whether to retry, and the `jobId` to resume. See [Agent tools](/docs/agent-tools).
+
+</AccordionItem>
+</Accordion>

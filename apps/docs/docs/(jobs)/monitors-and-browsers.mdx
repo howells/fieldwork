@@ -11,7 +11,7 @@ A monitor repeats a search or a page check on a schedule and reports what change
 
 ```ts
 const watch = await web.monitor.create({
-  urls: ["https://www.tilebar.com/portmore-aqua"],
+  urls: ["https://frame.work/laptop13"],
   query: "price or stock changes",
   schedule: { every: "day" },
   webhookUrl: "https://example.com/hooks/fieldwork",
@@ -48,7 +48,8 @@ await web.browser.close(session.id);
 
 A session also carries `liveViewUrl`, where a person can watch it, and `expiresAt`, when the provider will close it, when the provider returns them.
 
-## Run one script
+<Accordion>
+<AccordionItem title="Run one script">
 
 `act(code)` runs one script in a fresh browser session and returns what it printed and returned. Firecrawl offers it.
 
@@ -59,6 +60,10 @@ run.stdout; // what the script printed
 run.result; // the value it returned
 ```
 
-## For agents
+</AccordionItem>
+<AccordionItem title="For agents">
 
 [Agent tools](/docs/agent-tools) leave monitors and browsers out unless you allow them, because each starts a remote browser or creates a lasting, billed resource.
+
+</AccordionItem>
+</Accordion>

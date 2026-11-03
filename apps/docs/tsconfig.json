@@ -4,5 +4,11 @@
     "ignoreDeprecations": "6.0",
     "types": ["node"]
   },
-  "include": ["*.ts", "docs/**/*.ts", "endpoints/**/*.ts", "lib/**/*.ts"]
+  "include": [
+    "*.ts",
+    "docs/**/*.ts",
+    "endpoints/**/*.ts",
+    "lib/**/*.ts",
+    "scripts/**/*.ts"
+  ]
 }

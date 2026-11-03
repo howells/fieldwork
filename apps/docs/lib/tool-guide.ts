@@ -11,248 +11,174 @@ type TaskGroup = Exclude<(typeof TASK_GROUPS)[number]["id"], "all">;
 export interface GuideTask {
   id: string;
   title: string;
-  description: string;
   group: TaskGroup;
   capabilities: string[];
   providers: string[];
   choices: string[];
-  note: string;
-  check: string;
-  evidence: string;
-  evidenceHref: string;
-  docsOnly?: boolean;
+  why: string;
+  docs: string;
 }
 
 export const GUIDE_TASKS: GuideTask[] = [
   {
     capabilities: ["search"],
-    check: "Check the exact name, version and date on the official page.",
     choices: ["Parallel · fast"],
-    description: "A release, date or named document.",
-    evidence: "Live tests · Exact lookup",
-    evidenceHref: "#evidence-search",
+    docs: "/docs/capabilities",
     group: "find",
     id: "exact-source",
-    note: "Begin with up to five results and confirm the official page.",
     providers: ["Parallel"],
     title: "Find an exact source",
+    why: "Parallel's fast mode puts the official page in the first few results.",
   },
   {
     capabilities: ["search"],
-    check:
-      "Check that the results address the question. Split it up or use research if relevant sources are missing.",
     choices: ["Exa · auto", "Parallel · advanced"],
-    description: "A broad question or several constraints.",
-    evidence: "Live tests + studies · Broad search",
-    evidenceHref: "#evidence-search",
+    docs: "/docs/capabilities",
     group: "find",
     id: "broad-question",
-    note: "Search in plain language. Check relevance in the first five results.",
     providers: ["Exa", "Parallel"],
     title: "Find sources for a broad question",
+    why: "Both rank by meaning, so a question in plain words finds relevant pages.",
   },
   {
     capabilities: ["read", "readMany"],
-    check:
-      "Check for missing or cut-off text before asking the agent to interpret it.",
     choices: ["Exa · read"],
-    description: "Prose, code or a few selected URLs.",
-    evidence: "Live tests · Single-page content",
-    evidenceHref: "#evidence-reading",
+    docs: "/docs/results",
     group: "read",
     id: "known-page",
-    note: "Use readMany for a chosen set of URLs. Batch reading wasn't tested here.",
     providers: ["Exa"],
     title: "Read a known page",
+    why: "Exa returns clean, complete page text. Use readMany for a set of URLs.",
   },
   {
     capabilities: ["extract", "research"],
-    check:
-      "Check the selected variant, units and document. Leave unsupported values unknown.",
     choices: ["Firecrawl · JSON", "Parallel Task · base"],
-    description: "Actual dimensions, ratings and source documents.",
-    evidence: "Product tests · 54 jobs",
-    evidenceHref: "#evidence-products",
+    docs: "/docs/structured-output",
     group: "read",
-    id: "technical-facts",
-    note: "Firecrawl for speed; Task for accuracy with field-level source links and excerpts.",
+    id: "structured-fields",
     providers: ["Firecrawl", "Parallel"],
-    title: "Extract technical facts",
+    title: "Extract structured fields",
+    why: "Firecrawl is fastest. Parallel's Task links every field to its source.",
   },
   {
     capabilities: ["product"],
-    check:
-      "Check the variant list and technical fields. Use extract for missing fields and verify which product they describe.",
     choices: ["Firecrawl"],
-    description: "Names and listed variants.",
-    docsOnly: true,
-    evidence: "Docs only · Check variant coverage",
-    evidenceHref: "/docs/capabilities",
+    docs: "/docs/capabilities",
     group: "read",
     id: "product-details",
-    note: "Available through Firecrawl only.",
     providers: ["Firecrawl"],
     title: "Read product details",
+    why: "Firecrawl reads every variant from the page's structured data, without a model.",
   },
   {
     capabilities: ["answer"],
-    check:
-      "Check each citation and preserve conditions and exceptions. Open the source section if they don't match.",
     choices: ["Exa · fast", "Parallel · low"],
-    description: "A short answer backed by a primary source.",
-    evidence: "Live tests · Answers and citations",
-    evidenceHref: "#evidence-answers",
+    docs: "/docs/capabilities",
     group: "reason",
     id: "precise-answer",
-    note: "Use Exa for speed; Parallel to restrict sources. Check every citation.",
     providers: ["Exa", "Parallel"],
     title: "Answer a precise question",
+    why: "Exa answers fastest. Parallel lets you limit which sites it cites.",
   },
   {
     capabilities: ["research"],
-    check:
-      "Increase effort only when the sources are complete and the answer misses a relationship.",
     choices: ["Exa Agent · low", "Parallel Task · base"],
-    description: "Rules, exceptions and facts that affect each other.",
-    evidence: "Live tests + studies · Two-page comparison",
-    evidenceHref: "#evidence-synthesis",
+    docs: "/docs/long-jobs",
     group: "reason",
     id: "compare-sources",
-    note: "Exa for short comparisons; Task for built-in source excerpts per field. Check quoted wording.",
     providers: ["Exa", "Parallel"],
     title: "Compare a few sources",
+    why: "Exa suits short comparisons. Parallel's Task quotes its source for each field.",
   },
   {
     capabilities: ["read", "parse"],
-    check:
-      "Check table rows, columns, reading order and page references against the original PDF.",
     choices: ["Exa · read", "Firecrawl · parse"],
-    description: "Tables, formulas, scans and page-specific facts.",
-    evidence: "Live tests + studies · PDF reading",
-    evidenceHref: "#evidence-pdf",
+    docs: "/docs/capabilities",
     group: "read",
-    id: "technical-pdf",
-    note: "All four readers kept this PDF's table. The parse operation wasn't tested.",
+    id: "pdf",
     providers: ["Exa", "Firecrawl"],
-    title: "Read a technical PDF",
+    title: "Read a PDF",
+    why: "Read a PDF at a URL with Exa. Parse a file you hold with Firecrawl.",
   },
   {
     capabilities: ["map"],
-    check:
-      "Check that the URL limit hasn't hidden pages you need. Report any missing coverage.",
     choices: ["Firecrawl"],
-    description: "List URLs before fetching page text.",
-    evidence: "Live tests · Site URLs",
-    evidenceHref: "#evidence-crawl",
+    docs: "/docs/capabilities",
     group: "explore",
     id: "site-urls",
-    note: "Set the URL limit and allowed section. Tavily missed this target.",
     providers: ["Firecrawl"],
     title: "Find pages within a site",
+    why: "Firecrawl lists a site's URLs quickly, limited to the section you name.",
   },
   {
     capabilities: ["crawl"],
-    check:
-      "Check which required pages were fetched and whether they stayed within the allowed section. List missing pages.",
     choices: ["Firecrawl"],
-    description: "A tutorial, docs section or other linked pages.",
-    evidence: "Live tests · Site map and crawl",
-    evidenceHref: "#evidence-crawl",
+    docs: "/docs/long-jobs",
     group: "explore",
     id: "site-section",
-    note: "Set paths, page limit and depth. Tavily missed required pages in this test.",
     providers: ["Firecrawl"],
     title: "Collect pages from one section",
+    why: "Firecrawl stays inside the paths, depth and page limit you set.",
   },
   {
     capabilities: ["browser", "act"],
-    check:
-      "Check the inputs, permission to act and final page state. A readable page alone needs no browser.",
-    choices: ["Firecrawl / Browserbase"],
-    description: "A result that depends on a form or filter.",
-    docsOnly: true,
-    evidence: "Docs + routing check · No browser test",
-    evidenceHref: "#evidence-browser",
+    choices: ["Firecrawl", "Browserbase"],
+    docs: "/docs/monitors-and-browsers",
     group: "explore",
     id: "interactive-page",
-    note: "Use browser or act when clicking or typing changes the result.",
     providers: ["Firecrawl", "Browserbase"],
     title: "Use an interactive page",
+    why: "Use a browser only when clicking or typing changes what the page shows.",
   },
   {
     capabilities: ["images"],
-    check:
-      "Check image coverage, metadata and usage rights. A link doesn't grant permission to use an image.",
-    choices: ["Brave / SerpApi", "Firecrawl / Tavily / Parallel"],
-    description: "Images and the pages they appear on.",
-    docsOnly: true,
-    evidence: "Docs only",
-    evidenceHref: "/docs/capabilities",
+    choices: ["Brave", "SerpApi"],
+    docs: "/docs/capabilities",
     group: "find",
     id: "find-images",
-    note: "Available in the SDK; not live-tested in this pilot.",
-    providers: ["Brave", "SerpApi", "Firecrawl", "Tavily", "Parallel"],
+    providers: ["Brave", "SerpApi"],
     title: "Find images",
+    why: "Both return each image with the page it appears on.",
   },
   {
     capabilities: ["decide"],
-    check:
-      "Supply the facts and allowed choices. Check that the chosen label matches the evidence.",
-    choices: ["Parallel / Perplexity"],
-    description: "A yes/no answer, a choice or a score.",
-    docsOnly: true,
-    evidence: "Docs only",
-    evidenceHref: "/docs/capabilities",
+    choices: ["Parallel", "Perplexity"],
+    docs: "/docs/capabilities",
     group: "reason",
     id: "classify-facts",
-    note: "Available in the SDK; not live-tested in this pilot.",
     providers: ["Parallel", "Perplexity"],
     title: "Classify supplied facts",
+    why: "Give the facts and the allowed answers; each answer comes back with a probability.",
   },
   {
     capabilities: ["discover"],
-    check:
-      "Set the criteria and result limit. Allow for separate discovery and enrichment costs.",
     choices: ["Parallel · FindAll"],
-    description: "Companies or products that meet your criteria.",
-    docsOnly: true,
-    evidence: "Docs only",
-    evidenceHref: "/docs/capabilities",
+    docs: "/docs/capabilities",
     group: "find",
     id: "matching-entities",
-    note: "Available in the SDK; not live-tested in this pilot.",
     providers: ["Parallel"],
     title: "Find matching entities",
+    why: "FindAll returns the companies or products that meet all your conditions.",
   },
   {
     capabilities: ["monitor"],
-    check:
-      "Set the frequency, scope and owner before starting a monitor. Check the source when it changes.",
-    choices: ["Exa / Firecrawl / Parallel"],
-    description: "A repeated search or page check.",
-    docsOnly: true,
-    evidence: "Docs only",
-    evidenceHref: "/docs/monitors-and-browsers",
+    choices: ["Exa", "Firecrawl", "Parallel"],
+    docs: "/docs/monitors-and-browsers",
     group: "explore",
     id: "watch-changes",
-    note: "Available in the SDK; not live-tested in this pilot.",
     providers: ["Exa", "Firecrawl", "Parallel"],
     title: "Watch for changes",
+    why: "Exa and Parallel watch a query. Firecrawl also watches specific pages.",
   },
   {
     capabilities: ["usage"],
-    check:
-      "Check credit and the expected cost before starting. A working key doesn't confirm either.",
-    choices: ["Firecrawl / Tavily", "SerpApi / Browserbase"],
-    description: "Account credits used and remaining.",
-    docsOnly: true,
-    evidence: "Docs only",
-    evidenceHref: "/docs/provider-api",
+    choices: ["Firecrawl", "Tavily", "SerpApi", "Browserbase"],
+    docs: "/docs/capabilities",
     group: "explore",
     id: "check-quota",
-    note: "Available in the SDK; not live-tested in this pilot.",
     providers: ["Firecrawl", "Tavily", "SerpApi", "Browserbase"],
-    title: "Check quota",
+    title: "Check credits",
+    why: "These four report credits used and remaining before you start a large job.",
   },
 ];
 
@@ -263,88 +189,22 @@ export const GUIDE_PROVIDERS = [
 export const GUIDE_RULES = [
   {
     detail:
-      "Search finds links. Read gets page text. Extract gets fields. Answer and research combine evidence into answers.",
-    question: "Links, page text, fields or an answer?",
+      "Search finds links. Read gets page text. Extract gets fields. Answer and research return an answer with its sources.",
     title: "Choose the output",
   },
   {
     detail:
-      "Use read for known pages, map to list URLs, crawl for a site section, parse for documents, and browser or act for interaction.",
-    question: "A known URL, linked pages or an interactive page?",
+      "Read a known page, map a site's URLs, crawl a section, parse a file, or use a browser when the page needs clicks.",
     title: "Choose how to reach the source",
   },
   {
     detail:
-      "Use extract for fields in a schema. Use research for scattered facts, unclear scope or conflicting claims. Check that the source text is complete first.",
-    question: "One fact, a relationship or several sources to compare?",
-    title: "Choose the reasoning level",
+      "Extract for fields on one page. Answer for one question. Research when facts are scattered across sources.",
+    title: "Choose how much reasoning",
   },
   {
     detail:
-      "Check actual versus nominal sizes, the selected variant and any missing values. Open each citation and confirm it supports the wording.",
-    question: "Which error would change your decision?",
-    title: "Decide what must be checked",
-  },
-  {
-    detail:
-      "Use a provider that supports the capability and options. Set page, depth and effort limits. Choose a cheaper call when it meets the same checks.",
-    question: "Freshness, time, budget and supported options.",
+      "Set page, depth and effort limits, and take the cheaper call when it does the job.",
     title: "Set the limits",
   },
-  {
-    detail:
-      "Report what's missing. Choose the next step and its budget explicitly. Keep the provider, mode and job ID, and resume an interrupted job.",
-    question: "A missing source, missing field or conflicting claim.",
-    title: "Act on a specific failure",
-  },
 ];
-
-export const ACCESS_CASES = [
-  {
-    capabilities: "read / search",
-    detail: "A public documentation page, a known URL or a literal table cell.",
-    label: "Easy access · simple answer",
-    title: "Read the page",
-  },
-  {
-    capabilities: "parse / browser / act",
-    detail: "For scans, rendered content or answers that need form input.",
-    label: "Harder access · simple answer",
-    title: "Parse the file or use a browser",
-  },
-  {
-    capabilities: "extract / research",
-    detail:
-      "Two public pages may disagree or contain rules that depend on each other.",
-    label: "Easy access · complex answer",
-    title: "Compare the sources",
-  },
-  {
-    capabilities: "read / browser → research",
-    detail:
-      "Collect the required pages or documents first. Compare their evidence and check the answer against them.",
-    label: "Harder access · complex answer",
-    title: "Get the sources, then compare",
-  },
-];
-
-export const GUIDE_DATE = { iso: "2026-11-02", label: "2 November 2026" };
-
-export const MATRIX_NOTE = {
-  after: ".",
-  before:
-    "Starting recommendations, 2 November 2026. These small tests cover selected tasks. Keep provider selection explicit and check each provider's ",
-  link: { href: "/docs/options", label: "supported options" },
-};
-
-export const CHOOSING_COPY = {
-  accessLead:
-    "A hard-to-reach page may contain a simple fact. Two public pages may need careful comparison. Choose how to get the source and how to interpret it separately.",
-  accessTitle: "Access and reasoning",
-  lead: "Choose a capability for the output you need. Then compare providers for access, reasoning, source support, speed and cost.",
-  note: "Fieldwork rejects unsupported capabilities and options. Report a failed check, then choose any next step explicitly. These recommendations change no service defaults. Site-specific scrapers remain outside Fieldwork.",
-  routerLink: {
-    href: "/docs/router",
-    label: "Use different providers in one client",
-  },
-};

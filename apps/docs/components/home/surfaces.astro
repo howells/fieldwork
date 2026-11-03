@@ -4,7 +4,6 @@ import Code from "./code.astro";
 
 const SURFACES = [
   {
-    body: "Typed methods for TypeScript and JavaScript. ESM, Node 22 or later, and Zod as the one dependency.",
     code: CODE_SURFACE_SAMPLE,
     href: "/docs/installation",
     pkg: "@howells/fieldwork-sdk",
@@ -12,7 +11,6 @@ const SURFACES = [
     tone: "light" as const,
   },
   {
-    body: "One tool per capability, with a JSON Schema input that lists only the options its provider supports.",
     code: TOOLS_SURFACE_SAMPLE,
     href: "/docs/agent-tools",
     pkg: "@howells/fieldwork-sdk/tools",
@@ -20,7 +18,6 @@ const SURFACES = [
     tone: "light" as const,
   },
   {
-    body: "The same tools over stdio for Claude, Cursor and any other MCP client, one provider per capability.",
     code: MCP_SURFACE_SAMPLE,
     href: "/docs/mcp-server",
     pkg: "@howells/fieldwork-mcp",
@@ -32,14 +29,13 @@ const SURFACES = [
 
 <section class="border-t border-rule bg-wash">
   <div class="home-wrap py-16 md:py-[120px]">
-    <h2 class="home-heading max-w-[760px]">The same methods in your code, your agents and your MCP client.</h2>
+    <h2 class="type-heading max-w-[760px]">The same methods in your code, your agents and your MCP client.</h2>
     <div class="mt-10 grid gap-10 md:mt-16 lg:grid-cols-3 lg:gap-8">
       {SURFACES.map((surface) => (
-        <div class="flex min-w-0 flex-col gap-5 border-t border-ink pt-6">
-          <h3 class="m-0 font-sans text-[16px] leading-6 font-medium tracking-normal text-ink">
-            <a class="hover:text-map-blue" href={surface.href}>{surface.title}</a>
+        <div class="flex min-w-0 flex-col gap-3 border-t border-ink pt-3">
+          <h3 class="type-body m-0 font-medium text-ink">
+            <a class="inline-flex min-h-11 items-center hover:text-map-blue" href={surface.href}>{surface.title}</a>
           </h3>
-          <p class="m-0 text-[14px] leading-[22px] text-graphite lg:min-h-[66px]">{surface.body}</p>
           <div
             class:list={[
               "flex min-h-[148px] flex-col justify-center overflow-hidden rounded-[12px] px-5 py-5",
@@ -48,7 +44,7 @@ const SURFACES = [
           >
             <Code code={surface.code} size="sm" tone={surface.tone} />
           </div>
-          <p class="m-0 font-mono text-[13px] leading-4 text-graphite">{surface.pkg}</p>
+          <p class="type-small m-0 font-mono text-graphite">{surface.pkg}</p>
         </div>
       ))}
     </div>

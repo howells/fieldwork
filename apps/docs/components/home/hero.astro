@@ -19,34 +19,34 @@ const initial = HERO_SAMPLES.findIndex((sample) => sample.label === "Firecrawl")
   <Contours class="top-[-30px] left-[37.5%] hidden md:block" />
   <div class="home-wrap relative pt-12 pb-14 md:pt-[104px] md:pb-24">
     <a
-      class="group inline-flex items-baseline gap-2.5 text-[14px] leading-[18px]"
-      href="/docs/capabilities"
+      class="type-small group inline-flex min-h-11 items-center gap-2.5"
+      href="/docs/errors#retries"
     >
-      <span class="font-medium text-map-blue">0.3</span>
-      <span class="text-graphite group-hover:text-ink">Answers, monitors, browsers and three more providers</span>
+      <span class="font-medium text-map-blue">0.4</span>
+      <span class="text-graphite group-hover:text-ink">Failed requests now retry by default</span>
       <span aria-hidden="true" class="text-ink transition-transform group-hover:translate-x-0.5">→</span>
     </a>
-    <h1 class="mt-6 max-w-[1180px] font-display text-[48px] leading-[52px] font-light tracking-[-0.025em] text-ink md:mt-7 md:text-[72px] md:leading-[78px] xl:text-[88px] xl:leading-[92px]">
+    <h1 class="type-display mt-6 max-w-[1180px] text-ink md:mt-7">
       Search, read and research the web through one API.
     </h1>
 
     <div class="mt-8 flex flex-col gap-12 md:mt-[52px] lg:flex-row lg:items-start lg:justify-between lg:gap-14">
       <div class="flex flex-col gap-8 pt-2 lg:w-[520px] lg:shrink-0 lg:gap-10">
-        <p class="text-[16px] leading-[26px] text-graphite md:text-[20px] md:leading-[31px]">
-          Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi and Browserbase behind the same methods. Each instance has only the methods its provider offers, and every result keeps the provider's own response.
+        <p class="type-lead text-graphite">
+          Eight providers behind the same methods.
         </p>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-center">
           <InstallCommand />
           <a
-            class="inline-flex h-12 items-center justify-center rounded-[6px] border border-rule bg-paper px-[18px] text-[14px] font-medium text-ink transition-colors hover:border-[#c9cbc6]"
+            class="type-small inline-flex h-12 items-center justify-center rounded-[6px] border border-rule bg-paper px-[18px] font-medium text-ink transition-colors hover:border-[#c9cbc6]"
             href="/docs"
           >Read the docs</a>
         </div>
         <dl class="grid grid-cols-2 gap-y-6 border-t border-rule pt-6 sm:grid-cols-4">
           {STATS.map((stat) => (
             <div class="flex flex-col-reverse gap-1">
-              <dt class="text-[14px] leading-[18px] text-graphite">{stat.label}</dt>
-              <dd class="m-0 font-display text-[48px] leading-[52px] font-light tracking-[-0.02em] text-ink">{stat.value}</dd>
+              <dt class="type-small text-graphite">{stat.label}</dt>
+              <dd class="type-heading m-0 text-ink">{stat.value}</dd>
             </div>
           ))}
         </dl>
@@ -58,7 +58,7 @@ const initial = HERO_SAMPLES.findIndex((sample) => sample.label === "Firecrawl")
             <button
               aria-controls={`hero-sample-${index}`}
               aria-selected={index === initial ? "true" : "false"}
-              class="provider-tab h-9 shrink-0 rounded-[6px] px-2.5 text-[14px] leading-[18px] text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
+              class="type-small provider-tab h-9 shrink-0 rounded-[6px] px-2.5 text-graphite transition-colors hover:text-ink aria-selected:bg-paper aria-selected:font-medium aria-selected:text-ink aria-selected:shadow-[0_0_0_1px_var(--color-rule)]"
               id={`hero-tab-${index}`}
               role="tab"
               tabindex={index === initial ? 0 : -1}
