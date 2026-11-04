@@ -201,6 +201,9 @@ describe("the private gateway HTTP API", () => {
     await expect(response.json()).resolves.toMatchObject({
       error: { code: "NotFound" },
     });
+    expect(response.headers.get("link")).toBe(
+      '<https://fieldwork-sdk.dev/docs/http-gateway#errors>; rel="help"'
+    );
   });
 
   it("describes itself in OpenAPI without a key", async () => {

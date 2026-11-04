@@ -12,6 +12,8 @@ description: Serve Fieldwork's tools over HTTP and remote MCP from one handler, 
 | `/api/v1/tools/{name}` | `POST` | Runs one tool. The JSON body is the tool's input. |
 | `/mcp` | `POST` | The same tools as an MCP server. |
 
+The [API reference](/reference) renders the description of this site's own gateway, one page per tool.
+
 ## Call it
 
 ```sh
@@ -64,7 +66,7 @@ Every failure has the same body, and every response carries `x-request-id`:
 }
 ```
 
-Branch on `error.code`, which is one of the [error codes](/docs/errors). `retryAfter`, `provider` and `jobId` appear when they apply, and a rate limit also sets `Retry-After`.
+Branch on `error.code`, which is one of the [error codes](/docs/errors). `retryAfter`, `provider` and `jobId` appear when they apply, and a rate limit also sets `Retry-After`. Every error response links here with `Link: <…>; rel="help"`.
 
 | Status | Codes |
 | --- | --- |

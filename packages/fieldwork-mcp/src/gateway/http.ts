@@ -30,6 +30,9 @@ export interface FieldworkGatewayOptions extends ToolsOptions {
   secrets?: readonly string[];
 }
 
+/** What each code means and what to do, for an agent that reads headers. */
+const ERRORS_DOC = "https://fieldwork-sdk.dev/docs/http-gateway#errors";
+
 const statusFor = (error: FieldworkError): number => {
   if (error.code === "Timeout") {
     return 504;
@@ -106,6 +109,9 @@ const responseHeaders = (response: Response, requestId: string): Response => {
   headers.set("x-fieldwork-version", VERSION);
   if (response.status === 401) {
     headers.set("www-authenticate", 'Bearer realm="fieldwork"');
+  }
+  if (response.status >= 400) {
+    headers.set("link", `<${ERRORS_DOC}>; rel="help"`);
   }
   return new Response(response.body, { headers, status: response.status });
 };

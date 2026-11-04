@@ -88,10 +88,22 @@ export const gatewayOpenApi = (
 ) => ({
   components: {
     responses: {
-      Error: json(
-        ERROR,
-        "A refusal or a failed call. Branch on error.code; never parse the message."
-      ),
+      Error: {
+        ...json(
+          ERROR,
+          "A refusal or a failed call. Branch on error.code; never parse the message."
+        ),
+        headers: {
+          Link: {
+            description: "rel=help: what each code means and what to do.",
+            schema: { type: "string" },
+          },
+          "Retry-After": {
+            description: "Seconds to wait, after a rate limit.",
+            schema: { type: "integer" },
+          },
+        },
+      },
     },
     securitySchemes: {
       bearer: {
@@ -116,6 +128,7 @@ export const gatewayOpenApi = (
         responses: { "200": json({ type: "object" }, "This document.") },
         security: [],
         summary: "This description",
+        tags: ["gateway"],
       },
     },
     [`${paths.apiPath}/tools`]: {
@@ -136,6 +149,7 @@ export const gatewayOpenApi = (
           default: errorResponse,
         },
         summary: "List the tools",
+        tags: ["gateway"],
       },
     },
     ...Object.fromEntries(
@@ -158,6 +172,7 @@ export const gatewayOpenApi = (
           default: errorResponse,
         },
         summary: "MCP",
+        tags: ["gateway"],
       },
     },
   },

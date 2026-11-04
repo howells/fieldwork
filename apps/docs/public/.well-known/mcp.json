@@ -1,0 +1,9 @@
+{
+  "servers": [
+    {
+      "name": "Fieldwork",
+      "transport": "streamable-http",
+      "url": "https://fieldwork-sdk.dev/mcp"
+    }
+  ]
+}

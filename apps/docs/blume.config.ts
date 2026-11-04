@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { defineConfig } from "blume";
 import { vercel } from "blume/deploy";
+import { openapi } from "blume/reference";
 
 import { fieldworkLight } from "./lib/shiki-theme";
 
@@ -90,6 +91,8 @@ export default defineConfig({
     repo: "fieldwork",
   },
   integrations: [blumeTypescriptExternal, gatewayRoutes],
+  // Each page's date comes from the last commit that touched it.
+  lastModified: "git",
   logo: { image: "/logo.svg", text: "Fieldwork" },
   markdown: {
     code: { theme: { dark: fieldworkLight, light: fieldworkLight } },
@@ -102,6 +105,14 @@ export default defineConfig({
     ],
     cta: { href: "/docs/installation", label: "Get started" },
   },
+  // The deployed gateway describes itself; the reference renders that
+  // description, so the build reads the live site and fails if it is down.
+  reference: [
+    openapi({
+      route: "/reference",
+      spec: "https://fieldwork-sdk.dev/api/v1/openapi.json",
+    }),
+  ],
   seo: {
     // The site has one light scheme, so the phone's status bar and browser
     // chrome take the header's paper white in every mode.
