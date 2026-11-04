@@ -68,5 +68,7 @@ await web.search("laptops", { retries: 0 }); // this call only
 
 `toolError(error)` from `@howells/fieldwork-sdk/tools` formats any error for a model: the code, the message, whether to retry, and the `jobId` to resume. See [Agent tools](/docs/agent-tools).
 
+The [HTTP gateway](/docs/http-gateway) sends the same fields as `error` in a JSON body, with the HTTP status each code maps to.
+
 </AccordionItem>
 </Accordion>

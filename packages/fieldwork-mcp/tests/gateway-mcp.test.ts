@@ -48,4 +48,45 @@ describe("remote MCP", () => {
       await client.close();
     }
   });
+
+  it("answers server/discover as the 2026-07-28 revision requires", async () => {
+    const { handle } = fixture();
+    const response = await handle(
+      new Request("https://fieldwork.test/mcp", {
+        body: JSON.stringify({
+          id: 1,
+          jsonrpc: "2.0",
+          method: "server/discover",
+          params: {
+            _meta: {
+              "io.modelcontextprotocol/clientCapabilities": {},
+              "io.modelcontextprotocol/clientInfo": {
+                name: "discover-test",
+                version: "1.0.0",
+              },
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+            },
+          },
+        }),
+        headers: {
+          accept: "application/json, text/event-stream",
+          authorization: `Bearer ${ACCESS_KEY}`,
+          "content-type": "application/json",
+          "mcp-method": "server/discover",
+          "mcp-protocol-version": "2026-07-28",
+        },
+        method: "POST",
+      })
+    );
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      result: {
+        _meta: {
+          "io.modelcontextprotocol/serverInfo": { name: "fieldwork" },
+        },
+        capabilities: { tools: {} },
+        supportedVersions: expect.arrayContaining(["2026-07-28"]),
+      },
+    });
+  });
 });

@@ -1,0 +1,96 @@
+---
+title: HTTP gateway
+description: Serve Fieldwork's tools over HTTP and remote MCP from one handler, behind a bearer key per agent, with an OpenAPI description agents can read without a key.
+---
+
+`@howells/fieldwork-mcp` also exports a gateway: one web-standard `fetch` handler that serves every tool as a JSON API and as MCP over Streamable HTTP. Provider keys stay on the server, and each agent gets its own key.
+
+| Route | Method | What it does |
+| --- | --- | --- |
+| `/api/v1/openapi.json` | `GET` | OpenAPI 3.1 for this gateway: only the tools and providers it serves. No key needed. |
+| `/api/v1/tools` | `GET` | Each tool's name, providers, input schema and output schema. |
+| `/api/v1/tools/{name}` | `POST` | Runs one tool. The JSON body is the tool's input. |
+| `/mcp` | `POST` | The same tools as an MCP server. |
+
+## Call it
+
+```sh
+curl https://example.com/api/v1/tools/search_web \
+  -H "authorization: Bearer $FIELDWORK_AGENT_KEY" \
+  -H "content-type: application/json" \
+  -d '{"query": "framework laptop 13 review", "limit": 5}'
+```
+
+```json
+{ "requestId": "…", "provider": "exa", "result": { "results": [] } }
+```
+
+Each tool has a default provider. Set `provider` in the body to choose another one that serves the tool; the gateway never switches providers after an error. `timeout` caps the wait in milliseconds, at 45 seconds. A long job that outlasts it fails with `Timeout` and a `jobId`; send the `jobId` back as `resume` to collect it.
+
+For an MCP client:
+
+```sh
+claude mcp add --transport http fieldwork https://example.com/mcp \
+  --header "Authorization: Bearer $FIELDWORK_AGENT_KEY"
+```
+
+## Keys
+
+Every request except `openapi.json` needs `Authorization: Bearer <key>`. A missing or wrong key gets a `401` with `WWW-Authenticate: Bearer`, before any provider is called.
+
+`gatewayFromEnvironment` reads the keys from the environment:
+
+| Variable                         | Agent id in the call log              |
+| -------------------------------- | ------------------------------------- |
+| `FIELDWORK_API_KEY`              | `owner`                               |
+| `FIELDWORK_AGENT_<NAME>_API_KEY` | `<name>`, lower-cased with `_` as `-` |
+
+Keys are at least 32 characters, and each agent's key must be distinct. The gateway compares hashes in constant time, and removes every key from error messages. To revoke a key, remove its variable and redeploy; the other agents keep their access. Provider keys use the names in [Keys](/docs/keys), and only providers with a key are served.
+
+Every call is logged with the agent id, tool, provider, outcome and duration, never the input, the result or a key.
+
+## Errors
+
+Every failure has the same body, and every response carries `x-request-id`:
+
+```json
+{
+  "error": {
+    "code": "Unauthorized",
+    "message": "A valid Fieldwork bearer key is required",
+    "retryable": false
+  },
+  "requestId": "…"
+}
+```
+
+Branch on `error.code`, which is one of the [error codes](/docs/errors). `retryAfter`, `provider` and `jobId` appear when they apply, and a rate limit also sets `Retry-After`.
+
+| Status | Codes |
+| --- | --- |
+| `400` | `InvalidRequest`, `Unsupported`: a query string, invalid JSON, or input the tool refuses. |
+| `401` | `Unauthorized`: no key, or a wrong one. |
+| `403` | `Unauthorized`: a cross-origin browser request. |
+| `404` | `NotFound`: an unknown route, or a page or job the provider cannot find. |
+| `405`, `413`, `415` | `InvalidRequest`: the wrong method, a body over 2 MB, or a body that is not `application/json`. |
+| `429` | `RateLimited`: wait `retryAfter` seconds. |
+| `502` | `ProviderError`, `JobFailed`, `Aborted`, or `Unauthorized` from the provider: the gateway's provider key failed, not yours. |
+| `504` | `Timeout`. |
+
+<Accordion>
+<AccordionItem title="Host your own">
+
+```ts
+import { gatewayFromEnvironment } from "@howells/fieldwork-mcp";
+
+const handle = gatewayFromEnvironment(process.env, (call) => {
+  console.log(JSON.stringify(call));
+});
+
+export default { fetch: handle };
+```
+
+`createFieldworkGateway` takes the same parts as code: `agents`, the `clients` to serve, a default provider per capability, and the `apiPath` and `mcpPath` to mount at.
+
+</AccordionItem>
+</Accordion>

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as z from "zod/mini";
 
 import { createFieldworkGateway } from "../src/gateway/http.js";
 import { ACCESS_KEY, SECOND_KEY, fixture, request } from "./gateway-helpers.js";
@@ -17,6 +18,9 @@ describe("the private gateway HTTP API", () => {
       );
       expect(response.status).toBe(401);
       expect(response.headers.get("www-authenticate")).toContain("Bearer");
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "Unauthorized", retryable: false },
+      });
       expect(requests).toHaveLength(0);
       expect(log).toHaveLength(0);
     }
@@ -118,33 +122,40 @@ describe("the private gateway HTTP API", () => {
 
   it.each([
     {
+      code: "Unauthorized",
       headers: { origin: "https://hostile.test" },
       path: "/api/v1/tools/read_page",
       status: 403,
     },
     {
+      code: "InvalidRequest",
       headers: {},
       path: "/api/v1/tools/read_page?api_key=anything",
       status: 400,
     },
     {
+      code: "InvalidRequest",
       headers: { "content-type": "text/plain" },
       path: "/api/v1/tools/read_page",
       status: 415,
     },
     {
+      code: "InvalidRequest",
       headers: { "content-length": "3000000" },
       path: "/api/v1/tools/read_page",
       status: 413,
     },
   ])(
     "refuses the request at the transport boundary: $status",
-    async ({ headers, path, status }) => {
+    async ({ code, headers, path, status }) => {
       const { handle, requests } = fixture();
       const response = await handle(
         request(path, { url: "https://example.test/page" }, headers)
       );
       expect(response.status).toBe(status);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code },
+      });
       expect(requests).toHaveLength(0);
     }
   );
@@ -179,5 +190,41 @@ describe("the private gateway HTTP API", () => {
     );
     expect(revoked.status).toBe(401);
     expect(retained.status).toBe(200);
+  });
+
+  it("reports an unknown route as NotFound", async () => {
+    const { handle } = fixture();
+    const response = await handle(
+      request("/api/v1/nowhere", { url: "https://example.test/page" })
+    );
+    expect(response.status).toBe(404);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "NotFound" },
+    });
+  });
+
+  it("describes itself in OpenAPI without a key", async () => {
+    const { handle, requests } = fixture();
+    const response = await handle(
+      new Request("https://fieldwork.test/api/v1/openapi.json")
+    );
+    expect(response.status).toBe(200);
+    const spec = z.parse(
+      z.object({ paths: z.record(z.string(), z.json()) }),
+      await response.clone().json()
+    );
+    await expect(response.json()).resolves.toMatchObject({
+      components: {
+        securitySchemes: { bearer: { scheme: "bearer", type: "http" } },
+      },
+      openapi: "3.1.0",
+      paths: {
+        "/api/v1/tools/read_page": { post: { operationId: "read_page" } },
+        "/mcp": { post: { operationId: "mcp" } },
+      },
+      servers: [{ url: "https://fieldwork.test" }],
+    });
+    expect(Object.keys(spec.paths)).not.toContain("/api/v1/tools/open_browser");
+    expect(requests).toHaveLength(0);
   });
 });

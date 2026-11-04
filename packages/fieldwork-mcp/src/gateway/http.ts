@@ -14,6 +14,7 @@ import type { GatewayDefaults } from "./catalog.js";
 import { gatewayExecutor } from "./execute.js";
 import type { CallContext, GatewayCall } from "./execute.js";
 import { serveGatewayMcp } from "./mcp.js";
+import { gatewayOpenApi } from "./openapi.js";
 
 export interface FieldworkGatewayOptions extends ToolsOptions {
   agents: readonly GatewayAgent[];
@@ -47,7 +48,7 @@ const errorResponse = (error: Error | null, requestId: string): Response => {
     return Response.json(
       {
         error: {
-          code: "InvalidRequest",
+          code: error.code,
           message: error.message,
           retryable: false,
         },
@@ -75,6 +76,7 @@ const protect = (
   if (agent === undefined) {
     throw new GatewayRejectionError(
       401,
+      "Unauthorized",
       "A valid Fieldwork bearer key is required"
     );
   }
@@ -82,12 +84,14 @@ const protect = (
   if (origin !== null && origin !== new URL(request.url).origin) {
     throw new GatewayRejectionError(
       403,
+      "Unauthorized",
       "Cross-origin browser requests are not enabled"
     );
   }
   if (new URL(request.url).search !== "") {
     throw new GatewayRejectionError(
       400,
+      "InvalidRequest",
       "Use JSON input; query parameters are not accepted"
     );
   }
@@ -121,12 +125,13 @@ const serveApi = async (
   if (request.method !== "POST") {
     throw new GatewayRejectionError(
       405,
+      "InvalidRequest",
       "Use GET for /tools and POST for /tools/{name}"
     );
   }
   const name = match?.groups?.name;
   if (name === undefined) {
-    throw new GatewayRejectionError(404, "Gateway route not found");
+    throw new GatewayRejectionError(404, "NotFound", "Gateway route not found");
   }
   const input = await gatewayBody(request, maxBytes);
   const result = await execute(name, input, context);
@@ -154,13 +159,27 @@ export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
   );
   return async (request: Request): Promise<Response> => {
     const requestId = randomUUID();
+    const url = new URL(request.url);
+    const path = url.pathname.replace(/\/$/u, "");
+    if (request.method === "GET" && path === `${apiPath}/openapi.json`) {
+      // Public, so an agent can learn the API before it holds a key.
+      return responseHeaders(
+        Response.json(
+          gatewayOpenApi(catalog.tools, {
+            apiPath,
+            mcpPath,
+            origin: url.origin,
+          })
+        ),
+        requestId
+      );
+    }
     try {
       const context = {
         agentId: protect(request, authenticate),
         requestId,
         signal: request.signal,
       };
-      const path = new URL(request.url).pathname.replace(/\/$/u, "");
       let response: Response;
       if (path === mcpPath) {
         const body =
@@ -185,7 +204,11 @@ export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
           maxBytes
         );
       } else {
-        throw new GatewayRejectionError(404, "Gateway route not found");
+        throw new GatewayRejectionError(
+          404,
+          "NotFound",
+          "Gateway route not found"
+        );
       }
       return responseHeaders(response, requestId);
     } catch (error) {

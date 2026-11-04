@@ -1,14 +1,17 @@
 import { FieldworkError } from "@howells/fieldwork-sdk";
+import type { FieldworkErrorCode } from "@howells/fieldwork-sdk";
 import * as z from "zod/mini";
 
 /** A transport refusal, before an SDK operation is dispatched. */
 export class GatewayRejectionError extends Error {
   override readonly name = "GatewayRejectionError";
   readonly status: number;
+  readonly code: FieldworkErrorCode;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, code: FieldworkErrorCode, message: string) {
     super(message);
     this.status = status;
+    this.code = code;
   }
 }
 
@@ -19,11 +22,16 @@ export const gatewayBody = async (request: Request, maxBytes: number) => {
     ?.split(";")[0]
     ?.trim();
   if (contentType !== "application/json") {
-    throw new GatewayRejectionError(415, "Use Content-Type: application/json");
+    throw new GatewayRejectionError(
+      415,
+      "InvalidRequest",
+      "Use Content-Type: application/json"
+    );
   }
   if (Number(request.headers.get("content-length") ?? 0) > maxBytes) {
     throw new GatewayRejectionError(
       413,
+      "InvalidRequest",
       `Request body exceeds ${maxBytes} bytes`
     );
   }
@@ -35,6 +43,7 @@ export const gatewayBody = async (request: Request, maxBytes: number) => {
         if (received > maxBytes) {
           throw new GatewayRejectionError(
             413,
+            "InvalidRequest",
             `Request body exceeds ${maxBytes} bytes`
           );
         }
