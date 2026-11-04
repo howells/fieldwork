@@ -224,6 +224,15 @@ describe("reducto parse", () => {
     expect(document.id).toBe("job-7");
   });
 
+  it("resumes a job from its id alone", async () => {
+    const { web, calls } = client({ body: completed() });
+    const document = await web.parse({ resume: "job-7" });
+    expect(
+      calls.map((call) => `${call.method} ${call.url.pathname}`)
+    ).toStrictEqual(["GET /job/job-7"]);
+    expect(document.id).toBe("job-7");
+  });
+
   it("refuses a file over 100 MB before sending it", async () => {
     const { web, calls } = client();
     const big = new Blob([new Uint8Array(100 * 1024 * 1024 + 1)]);

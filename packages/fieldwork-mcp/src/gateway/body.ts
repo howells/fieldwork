@@ -26,11 +26,15 @@ export class GatewayRejectionError extends Error {
  * Reads the body as JSON. It must be `application/json` (415). A declared
  * `Content-Length` over the limit is refused at once (413); the bytes that
  * arrive are counted too, so a missing or false length cannot get past
- * (413). Reading must finish within 5 seconds. Invalid JSON throws
- * `InvalidRequest`. Any JSON value comes back; the executor checks that it is
- * an object.
+ * (413). Reading must finish within `readTimeout` milliseconds, 5 seconds
+ * unless a test sets it (408 `Timeout`). Invalid JSON throws `InvalidRequest`.
+ * Any JSON value comes back; the executor checks that it is an object.
  */
-export const gatewayBody = async (request: Request, maxBytes: number) => {
+export const gatewayBody = async (
+  request: Request,
+  maxBytes: number,
+  readTimeout = 5000
+) => {
   const contentType = request.headers
     .get("content-type")
     ?.split(";")[0]
@@ -50,6 +54,7 @@ export const gatewayBody = async (request: Request, maxBytes: number) => {
     );
   }
   let received = 0;
+  const deadline = AbortSignal.timeout(readTimeout);
   const bounded = request.body?.pipeThrough(
     new TransformStream<Uint8Array, Uint8Array>({
       transform: (chunk, controller) => {
@@ -64,9 +69,21 @@ export const gatewayBody = async (request: Request, maxBytes: number) => {
         controller.enqueue(chunk);
       },
     }),
-    { signal: AbortSignal.any([request.signal, AbortSignal.timeout(5000)]) }
+    { signal: AbortSignal.any([request.signal, deadline]) }
   );
-  const text = await new Response(bounded).text();
+  let text: string;
+  try {
+    text = await new Response(bounded).text();
+  } catch (error) {
+    if (!(error instanceof GatewayRejectionError) && deadline.aborted) {
+      throw new GatewayRejectionError(
+        408,
+        "Timeout",
+        `Request body did not arrive within ${readTimeout} ms`
+      );
+    }
+    throw error;
+  }
   try {
     return z.parse(z.json(), JSON.parse(text));
   } catch {

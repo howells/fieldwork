@@ -495,7 +495,9 @@ const checkEvent = (entry: CheckBlock): MonitorEvent => {
 
 /**
  * One page of a monitor's checks; the caller adds `raw`. The cursor is the
- * offset of the next page, set only when this page is full.
+ * offset of the next page, set only when this page is full. Firecrawl caps a
+ * page at 100 and reports no total, so when the checks end exactly on a page
+ * boundary the cursor leads to an empty page.
  */
 export const monitorEvents = (
   checks: readonly CheckBlock[],

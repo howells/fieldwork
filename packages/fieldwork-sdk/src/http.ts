@@ -71,9 +71,12 @@ export const DEFAULT_RETRIES = 2;
 /**
  * Waits `ms`. When `signal` aborts it resolves early rather than rejecting, so
  * the caller checks the signal afterwards. A signal already aborted on entry
- * does not cut the wait short.
+ * returns at once.
  */
 export const sleep = async (ms: number, signal?: AbortSignal) => {
+  if (signal?.aborted === true) {
+    return;
+  }
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener(

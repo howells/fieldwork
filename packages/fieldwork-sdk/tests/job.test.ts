@@ -35,6 +35,25 @@ describe("running an asynchronous job", () => {
     expect(checks).toBe(2);
   });
 
+  it("stops at once when cancelled during a check, keeping the job id", async () => {
+    const controller = new AbortController();
+    const started = Date.now();
+    await expect(
+      runJob(
+        "test",
+        {
+          check: async () => {
+            controller.abort();
+          },
+          finish: () => done,
+          start: async () => "job-3",
+        },
+        { interval: 60_000, signal: controller.signal }
+      )
+    ).rejects.toMatchObject({ code: "Aborted", jobId: "job-3" });
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+
   it("waits for the resumed job without starting another", async () => {
     const start = vi.fn<() => Promise<string>>(async () => "new-job");
     const result = await runJob(

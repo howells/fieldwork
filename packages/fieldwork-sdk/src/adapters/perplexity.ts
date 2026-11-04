@@ -72,8 +72,8 @@ export type {
 
 /**
  * `/search`. The query and any `queries` go in one request and come back as one
- * flat list. Refuses more than five queries in all, and a `limit` over 20 unless
- * `searchType` is "people".
+ * flat list. Refuses more than five queries in all, and a `limit` over 20, or
+ * over 50 when `searchType` is "people".
  */
 const search = async (
   raw: RawClient,
@@ -88,10 +88,11 @@ const search = async (
       `search takes at most ${MAX_QUERIES} queries in one request, got ${queries.length}`
     );
   }
-  if (o.limit !== undefined && o.limit > 20 && o.searchType !== "people") {
+  const maxResults = o.searchType === "people" ? 50 : 20;
+  if (o.limit !== undefined && o.limit > maxResults) {
     throw invalidRequest(
       provider,
-      'search returns at most 20 results unless searchType is "people"'
+      'search returns at most 20 results, or 50 when searchType is "people"'
     );
   }
   const response = await raw.request("POST", "/search", {

@@ -47,9 +47,9 @@ Every request except `openapi.json` needs `Authorization: Bearer <key>`. A missi
 | `FIELDWORK_API_KEY`              | `owner`                               |
 | `FIELDWORK_AGENT_<NAME>_API_KEY` | `<name>`, lower-cased with `_` as `-` |
 
-Keys are at least 32 characters, and each agent's key must be distinct. The gateway compares hashes in constant time, and removes every key from error messages. To revoke a key, remove its variable and redeploy; the other agents keep their access. Provider keys use the names in [Keys](/docs/keys), and only providers with a key are served.
+Keys are at least 32 characters, and each agent's key must be distinct. The gateway compares hashes in constant time and removes every agent key from error messages; `gatewayFromEnvironment` removes the provider keys too. To revoke a key, remove its variable and redeploy; the other agents keep their access. Provider keys use the names in [Keys](/docs/keys), and only providers with a key are served.
 
-Every call is logged with the agent id, tool, provider, outcome and duration, never the input, the result or a key.
+Each tool call's log entry goes to `onCall`: the agent id, request id, tool, provider, outcome, duration, error code, `jobId` and reported usage, never the input, the result or a key. This site writes every entry to its logs. A failing `onCall` never changes the response, and an unexpected error's message goes only to stderr: the caller sees a fixed 500.
 
 ## Errors
 
@@ -73,10 +73,12 @@ Branch on `error.code`, which is one of the [error codes](/docs/errors). `retryA
 | `400` | `InvalidRequest`, `Unsupported`: a query string, invalid JSON, or input the tool refuses. |
 | `401` | `Unauthorized`: no key, or a wrong one. |
 | `403` | `Unauthorized`: a cross-origin browser request. |
-| `404` | `NotFound`: an unknown route, or a page or job the provider cannot find. |
+| `404` | `NotFound`: an unknown route or tool, or a page or job the provider cannot find. |
+| `408` | `Timeout`: the body did not arrive within 5 seconds. |
 | `405`, `413`, `415` | `InvalidRequest`: the wrong method, a body over 2 MB, or a body that is not `application/json`. |
 | `429` | `RateLimited`: wait `retryAfter` seconds. |
 | `502` | `ProviderError`, `JobFailed`, `Aborted`, or `Unauthorized` from the provider: the gateway's provider key failed, not yours. |
+| `500` | `ProviderError`: an unexpected failure in the gateway. |
 | `504` | `Timeout`. |
 
 <Accordion>

@@ -546,7 +546,11 @@ export interface MonitorEvent {
 /** What `monitor.events` returns: one page of events. */
 export interface MonitorEvents {
   events: MonitorEvent[];
-  /** Pass as `cursor` for the next page. */
+  /**
+   * Pass as `cursor` for the next page. Absent when there are no more events.
+   * A provider that reports no total sets it on every full page, so the page
+   * it leads to can be empty.
+   */
   next?: string;
   raw: unknown;
 }

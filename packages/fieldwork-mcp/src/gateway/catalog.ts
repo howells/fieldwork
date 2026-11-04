@@ -118,8 +118,9 @@ const describe = (
  * provider.
  *
  * `select` returns the tool for a call's `provider`, or the default. It throws
- * `Unsupported`, naming the providers that serve the tool, when there is none.
- * It never substitutes another provider.
+ * `NotFound` for a tool this gateway does not serve, and `Unsupported`, naming
+ * the providers that serve the tool, when the provider is not one of them. It
+ * never substitutes another provider.
  */
 export const gatewayCatalog = (
   clients: readonly Fieldwork<AnyAdapter>[],
@@ -144,9 +145,15 @@ export const gatewayCatalog = (
   );
   const select = (name: string, provider?: string): FieldworkTool => {
     const variants = entries.get(name);
+    if (variants === undefined) {
+      throw new FieldworkError(
+        "NotFound",
+        `${name} is not a tool this gateway serves; GET the tool list for the ones it does`
+      );
+    }
     const advertised = tools.find((tool) => tool.name === name);
     const selected = provider ?? advertised?.defaultProvider;
-    const tool = selected === undefined ? undefined : variants?.get(selected);
+    const tool = selected === undefined ? undefined : variants.get(selected);
     if (tool === undefined) {
       throw new FieldworkError(
         "Unsupported",

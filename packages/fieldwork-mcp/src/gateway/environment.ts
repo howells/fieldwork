@@ -100,6 +100,6 @@ export const gatewayFromEnvironment = (
     clients,
     defaults: DEFAULTS,
     onCall,
-    secrets: [...keys, ...agents.map((agent) => agent.apiKey)],
+    secrets: keys,
   });
 };

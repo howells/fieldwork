@@ -94,7 +94,6 @@ describe("the private gateway HTTP API", () => {
       input: { timeout: 0, url: "https://example.test/page" },
       name: "read_page",
     },
-    { input: { url: "https://example.test/page" }, name: "run_browser_script" },
   ])(
     "refuses unsupported or invalid calls before sending: $name $input",
     async ({ input, name }) => {
@@ -225,7 +224,7 @@ describe("the private gateway HTTP API", () => {
         "/api/v1/tools/read_page": { post: { operationId: "read_page" } },
         "/mcp": { post: { operationId: "mcp" } },
       },
-      servers: [{ url: "https://fieldwork.test" }],
+      servers: [{ url: "/" }],
     });
     expect(Object.keys(spec.paths)).not.toContain("/api/v1/tools/open_browser");
     expect(requests).toHaveLength(0);

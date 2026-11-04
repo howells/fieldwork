@@ -149,6 +149,14 @@ describe("perplexity search", () => {
     });
   });
 
+  it("refuses more than 50 results for people search", async () => {
+    const { web, calls } = client();
+    await expect(
+      web.search("head of design", { limit: 51, searchType: "people" })
+    ).rejects.toMatchObject({ code: "InvalidRequest" });
+    expect(calls).toHaveLength(0);
+  });
+
   it("refuses a date that is not YYYY-MM-DD", async () => {
     const { web } = client();
     await expect(

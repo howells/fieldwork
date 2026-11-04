@@ -88,13 +88,14 @@ const toolOperation = (tool: GatewayTool) => ({
  * The OpenAPI 3.1 description of one running gateway: only the tools it serves.
  *
  * It is served without a key. It holds tool names, providers and schemas,
- * never an input, a result or a key, and `servers` is the request's own
- * origin. Its `/openapi.json` operation sets `security: []`; everything else
- * needs the bearer key.
+ * never an input, a result or a key. `servers` is `/`, which OpenAPI resolves
+ * against wherever the document was fetched, so no request header is echoed.
+ * Its `/openapi.json` operation sets `security: []`; everything else needs the
+ * bearer key.
  */
 export const gatewayOpenApi = (
   tools: readonly GatewayTool[],
-  paths: { apiPath: string; mcpPath: string; origin: string }
+  paths: { apiPath: string; mcpPath: string }
 ) => ({
   components: {
     responses: {
@@ -187,5 +188,5 @@ export const gatewayOpenApi = (
     },
   },
   security: [{ bearer: [] }],
-  servers: [{ url: paths.origin }],
+  servers: [{ url: "/" }],
 });

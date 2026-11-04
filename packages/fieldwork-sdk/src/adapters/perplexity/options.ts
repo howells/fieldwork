@@ -48,7 +48,7 @@ export interface PerplexityFilters {
 
 /**
  * Options for `search` (`POST /search`). Refused before sending: both domain lists,
- * more than five queries in all, a `limit` over 20 without `searchType: "people"`,
+ * more than five queries in all, a `limit` over 20 (50 with `searchType: "people"`),
  * and a date that is not YYYY-MM-DD.
  */
 export interface PerplexitySearchOptions

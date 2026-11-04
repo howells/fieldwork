@@ -15,7 +15,7 @@ import type { GatewayAgent } from "./auth.js";
 import { GatewayRejectionError, gatewayBody } from "./body.js";
 import { gatewayCatalog } from "./catalog.js";
 import type { GatewayDefaults } from "./catalog.js";
-import { gatewayExecutor } from "./execute.js";
+import { gatewayExecutor, redact, safeError } from "./execute.js";
 import type { CallContext, GatewayCall } from "./execute.js";
 import { serveGatewayMcp } from "./mcp.js";
 import { gatewayOpenApi } from "./openapi.js";
@@ -50,15 +50,15 @@ export interface FieldworkGatewayOptions extends ToolsOptions {
    * Receives one entry when each tool call ends, whether it succeeded or not.
    * The entry has no input or result. Requests refused before a tool is
    * chosen (key, origin, query string, content type, size, route) and
-   * `GET /tools` are not reported. It runs in the call's `finally`, so a throw
-   * from it replaces the call's result. Without it, only an unexpected error is
+   * `GET /tools` are not reported. A throw from it is written to stderr and
+   * never changes the response. Without it, only an unexpected error is
    * written, to stderr.
    */
   onCall?: (entry: GatewayCall) => void;
   /**
-   * Strings replaced with `[redacted]` in every error message of a tool call,
-   * in the response and in the log. Matches the exact text only. Pass every
-   * provider key and agent key; `gatewayFromEnvironment` does.
+   * Strings replaced with `[redacted]` in every error message, in the response
+   * and in the log. Matches the exact text only. The agents' keys are always
+   * included; pass the provider keys, as `gatewayFromEnvironment` does.
    */
   secrets?: readonly string[];
 }
@@ -88,11 +88,15 @@ const statusFor = (error: FieldworkError): number => {
 /**
  * Renders an error as `{ error, requestId }`. A gateway refusal keeps its own
  * status; a `FieldworkError` takes `statusFor`, plus `Retry-After` when the
- * provider asked for a wait; anything else is 500. Tool-call errors arrive
- * already redacted from the executor; an error raised elsewhere, such as
- * while reading the body, is rendered with its own message.
+ * provider asked for a wait. Anything else is a 500 with a fixed message, and
+ * its own message, redacted, goes to stderr only: an unexpected failure's text
+ * never reaches the caller.
  */
-const errorResponse = (error: Error | null, requestId: string): Response => {
+const errorResponse = (
+  error: Error | null,
+  requestId: string,
+  secrets: readonly string[]
+): Response => {
   if (error instanceof GatewayRejectionError) {
     return Response.json(
       {
@@ -106,15 +110,21 @@ const errorResponse = (error: Error | null, requestId: string): Response => {
       { status: error.status }
     );
   }
-  const detail = toolError(error);
-  const status = error instanceof FieldworkError ? statusFor(error) : 500;
-  const retryAfter =
-    error instanceof FieldworkError ? error.retryAfter : undefined;
+  const expected = error instanceof FieldworkError;
+  if (!expected) {
+    process.stderr.write(
+      `fieldwork-gateway: request ${requestId} failed: ${redact(error?.message ?? "unknown", secrets)}\n`
+    );
+  }
+  const safe = safeError(error, secrets);
   const headers =
-    retryAfter === undefined
+    safe.retryAfter === undefined
       ? undefined
-      : { "retry-after": String(retryAfter) };
-  return Response.json({ error: detail, requestId }, { headers, status });
+      : { "retry-after": String(safe.retryAfter) };
+  return Response.json(
+    { error: toolError(safe), requestId },
+    { headers, status: expected ? statusFor(safe) : 500 }
+  );
 };
 
 /**
@@ -237,12 +247,12 @@ export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
     maxTimeout,
     options
   );
-  const execute = gatewayExecutor(
-    catalog,
-    maxTimeout,
-    options.onCall,
-    options.secrets
-  );
+  // The agents' keys are always redacted, whatever the caller passes.
+  const secrets = [
+    ...(options.secrets ?? []),
+    ...options.agents.map((agent) => agent.apiKey),
+  ];
+  const execute = gatewayExecutor(catalog, maxTimeout, options.onCall, secrets);
   return async (request: Request): Promise<Response> => {
     const requestId = randomUUID();
     const url = new URL(request.url);
@@ -251,13 +261,7 @@ export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
       // Public, so an agent can learn the API before it holds a key. It lists the
       // tools and providers served, so it shows what the operator has keys for.
       return responseHeaders(
-        Response.json(
-          gatewayOpenApi(catalog.tools, {
-            apiPath,
-            mcpPath,
-            origin: url.origin,
-          })
-        ),
+        Response.json(gatewayOpenApi(catalog.tools, { apiPath, mcpPath })),
         requestId
       );
     }
@@ -300,7 +304,11 @@ export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
       return responseHeaders(response, requestId);
     } catch (error) {
       return responseHeaders(
-        errorResponse(error instanceof Error ? error : null, requestId),
+        errorResponse(
+          error instanceof Error ? error : null,
+          requestId,
+          secrets
+        ),
         requestId
       );
     }

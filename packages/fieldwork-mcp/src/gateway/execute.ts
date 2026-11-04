@@ -52,7 +52,7 @@ interface GatewayResult {
 }
 
 /** Replaces each secret's exact text. A key a provider echoes re-encoded, such as URL-encoded, is not caught. */
-const redact = (message: string, secrets: readonly string[]): string => {
+export const redact = (message: string, secrets: readonly string[]): string => {
   let redacted = message;
   for (const secret of secrets) {
     redacted = redacted.replaceAll(secret, "[redacted]");
@@ -66,7 +66,7 @@ const redact = (message: string, secrets: readonly string[]): string => {
  * becomes a fixed `ProviderError`, so the text of an unexpected failure never
  * leaves the process.
  */
-const safeError = (
+export const safeError = (
   error: Error | null,
   secrets: readonly string[]
 ): FieldworkError => {
@@ -186,7 +186,16 @@ export const gatewayExecutor =
     } finally {
       entry.durationMs = Date.now() - started;
       if (onCall !== undefined) {
-        onCall(entry);
+        // A failing log sink is reported, but never replaces the call's own
+        // result or error: that would lose a started job's jobId.
+        try {
+          onCall(entry);
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "unknown";
+          process.stderr.write(
+            `fieldwork-gateway: onCall failed for ${entry.tool}: ${redact(message, secrets)}\n`
+          );
+        }
       } else if (entry.errorDetail !== undefined) {
         process.stderr.write(
           `fieldwork-gateway: ${entry.tool} failed: ${entry.errorDetail}\n`

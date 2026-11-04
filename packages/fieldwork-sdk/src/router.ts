@@ -37,15 +37,17 @@ type RouterRaw<R extends Routes> = {
 
 /**
  * Binds each route's operation and records which provider serves it, so
- * `Fieldwork.providerFor` can say. `raw` is keyed by provider name: routes to
- * adapters of the same name share one entry, the last one winning.
+ * `Fieldwork.providerFor` can say. `raw` is keyed by provider name, so every
+ * route to one provider must use the same adapter instance.
  *
- * Throws `Unsupported` for a route to an adapter that lacks the capability.
+ * Throws `Unsupported` for a route to an adapter that lacks the capability,
+ * and `InvalidRequest` for two instances of one provider.
  */
 const build = (routes: Routes) => {
   const operations: Record<string, unknown> = {};
   const raw: Record<string, unknown> = {};
   const providers: Partial<Record<Capability, string>> = {};
+  const instances = new Map<string, AnyAdapter>();
   for (const [capability, adapter] of Object.entries(routes)) {
     if (adapter === undefined) {
       continue;
@@ -65,6 +67,15 @@ const build = (routes: Routes) => {
     if (known !== undefined) {
       providers[known] = adapter.name;
     }
+    const earlier = instances.get(adapter.name);
+    if (earlier !== undefined && earlier !== adapter) {
+      throw new FieldworkError(
+        "InvalidRequest",
+        `routes use two ${adapter.name} adapters; route every capability to one instance`,
+        { provider: adapter.name }
+      );
+    }
+    instances.set(adapter.name, adapter);
     raw[adapter.name] = adapter.raw;
   }
   return { operations, providers, raw };

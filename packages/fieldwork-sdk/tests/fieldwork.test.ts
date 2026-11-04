@@ -160,4 +160,18 @@ describe("routing by capability", () => {
     });
     expect(web.providerFor("read")).toBe("firecrawl");
   });
+
+  it("shares one adapter across routes but refuses two of one provider", () => {
+    const shared = exa({ apiKey: "k", fetch: fakeFetch().fetch, retries: 0 });
+    const web = new Fieldwork({
+      adapter: router({ read: shared, search: shared }),
+    });
+    expect(Object.keys(web.raw)).toStrictEqual(["exa"]);
+    expect(() =>
+      router({
+        read: exa({ apiKey: "a", fetch: fakeFetch().fetch, retries: 0 }),
+        search: exa({ apiKey: "b", fetch: fakeFetch().fetch, retries: 0 }),
+      })
+    ).toThrow(/two exa adapters/u);
+  });
 });

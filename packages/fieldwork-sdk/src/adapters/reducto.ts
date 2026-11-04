@@ -54,13 +54,22 @@ export interface ReductoParseOptions extends CallOptions {
   interval?: number;
 }
 
+/** Options for collecting an earlier parse by its id, without the file. */
+export type ReductoResumeOptions = Omit<ReductoParseOptions, "resume"> & {
+  resume: string;
+};
+
 /** What the Reducto adapter offers. */
 export interface ReductoOperations {
-  /** Uploads the file, starts the parse and waits for it. An error after the parse starts carries `jobId`. */
-  parse: (
-    document: DocumentInput,
-    options?: ReductoParseOptions
-  ) => Promise<ParsedDocument>;
+  parse: {
+    /** Uploads the file, starts the parse and waits for it. An error after the parse starts carries `jobId`. */
+    (
+      document: DocumentInput,
+      options?: ReductoParseOptions
+    ): Promise<ParsedDocument>;
+    /** Collects an earlier parse by its id, without sending the file again. */
+    (options: ReductoResumeOptions): Promise<ParsedDocument>;
+  };
 }
 
 const provider = "reducto";
@@ -141,7 +150,7 @@ const outputOf = async (
 
 const parse = async (
   raw: RawClient,
-  document: DocumentInput,
+  document: DocumentInput | undefined,
   options: ReductoParseOptions | undefined,
   fetchImpl: typeof fetch | undefined
 ): Promise<ParsedDocument> => {
@@ -190,7 +199,16 @@ const parse = async (
               : { job: found.original, stored },
         });
       },
-      start: async () => await startParse(raw, document, o, call),
+      start: async () => {
+        if (document === undefined) {
+          throw new FieldworkError(
+            "InvalidRequest",
+            "parse needs a document, or resume with the id of an earlier parse",
+            { provider }
+          );
+        }
+        return await startParse(raw, document, o, call);
+      },
     },
     { ...call, interval: o.interval, resume: o.resume }
   );
@@ -213,8 +231,13 @@ export const reducto = (config: ReductoConfig = {}) => {
   });
 
   const operations: ReductoOperations = {
-    async parse(document, options) {
-      return await parse(raw, document, options, config.fetch);
+    async parse(
+      first: DocumentInput | ReductoResumeOptions,
+      options?: ReductoParseOptions
+    ) {
+      return "resume" in first
+        ? await parse(raw, undefined, first, config.fetch)
+        : await parse(raw, first, options, config.fetch);
     },
   };
 
