@@ -1,3 +1,7 @@
+// Runs every asynchronous provider job (start, poll, finish) in one place, so
+// each carries `jobId` on its errors and accepts `resume`. Adapters never poll
+// by hand.
+
 import { FieldworkError, withJob } from "./errors.js";
 import { sleep, stopped } from "./http.js";
 import type { CallOptions } from "./types.js";
@@ -18,6 +22,11 @@ export interface Job<Found, Result> {
   finish: (found: Found, id: string) => Promise<Result> | Result;
 }
 
+/**
+ * The settings `runJob` reads. Here `timeout` is how long to wait for the job
+ * to finish, 600000 ms (ten minutes) when unset, and `signal` stops the wait;
+ * `retries` applies to each check request.
+ */
 export interface JobSettings extends CallOptions {
   /** The id of a job already started, from an error's `jobId`; waits for it instead of starting another. */
   resume?: string;
@@ -25,6 +34,12 @@ export interface JobSettings extends CallOptions {
   interval?: number;
 }
 
+/**
+ * Checks the job every `interval` until it has a finished state. Throws
+ * `Timeout` when another interval would pass the deadline, and `Aborted` or
+ * `Timeout` (by how the signal stopped) once the signal is aborted. Both carry
+ * `jobId`, because the job may still be running.
+ */
 const waitFor = async <Found>(
   provider: string,
   id: string,

@@ -1,3 +1,7 @@
+// Composes adapters into one: each capability is served by the adapter it is
+// routed to. The result is an adapter like any other, so `Fieldwork` and the
+// agent tools take it unchanged.
+
 import { defineAdapter } from "./adapter.js";
 import type { Adapter, AnyAdapter, Operations } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
@@ -31,6 +35,13 @@ type RouterRaw<R extends Routes> = {
   ]: R[C] extends AnyAdapter ? R[C]["raw"] : never;
 };
 
+/**
+ * Binds each route's operation and records which provider serves it, so
+ * `Fieldwork.providerFor` can say. `raw` is keyed by provider name: routes to
+ * adapters of the same name share one entry, the last one winning.
+ *
+ * Throws `Unsupported` for a route to an adapter that lacks the capability.
+ */
 const build = (routes: Routes) => {
   const operations: Record<string, unknown> = {};
   const raw: Record<string, unknown> = {};

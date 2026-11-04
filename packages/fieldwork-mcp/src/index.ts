@@ -1,3 +1,6 @@
+// The package's public surface: the stdio MCP server, the flags and provider
+// configuration that build it, and the HTTP gateway (JSON API and remote MCP).
+
 export {
   createFieldworkServer,
   type FieldworkServerOptions,

@@ -1,3 +1,7 @@
+// Schemas for Brave's responses, built from the lenient blocks in ../../parse.ts so
+// a changed field reads as absent instead of failing. ../brave.ts and ./parse.ts
+// read the parsed values; the response as received still goes in `raw`.
+
 import type * as z from "zod/mini";
 
 import {
@@ -36,6 +40,7 @@ const Result = looseObject({
   url: optionalString,
 });
 
+/** A section of a web search response: its `results`. */
 const Section = looseObject({ results: arrayOf(Result) });
 
 /** `/web/search`: the sections are each optional in what Brave sends. */
@@ -54,6 +59,7 @@ export const VerticalSearchResponse = looseObject({
   results: arrayOf(Result),
 });
 
+/** One image result: `url` is the source page and `properties.url` the image. */
 const ImageItem = looseObject({
   properties: looseObject({
     height: optionalNumber,
@@ -71,6 +77,10 @@ export const ImageSearchResponse = looseObject({
   results: arrayOf(ImageItem),
 });
 
+/**
+ * A grounding item of an LLM context response; `snippets` are the passages Brave
+ * chose from the page.
+ */
 const ContextItem = looseObject({
   name: optionalString,
   snippets: arrayOf(nonEmptyString),
@@ -78,6 +88,7 @@ const ContextItem = looseObject({
   url: optionalString,
 });
 
+/** The metadata of a grounding source, keyed by URL in `sources`. */
 const ContextSource = looseObject({
   description: optionalString,
   favicon: optionalString,
@@ -95,6 +106,7 @@ export const ContextResponse = looseObject({
   sources: recordOf(ContextSource),
 });
 
+/** One choice of a chat completion: `message` when sent whole, `delta` when streamed. */
 const Choice = looseObject({
   delta: looseObject({ content: optionalString }),
   message: looseObject({ content: optionalString }),

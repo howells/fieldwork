@@ -12,10 +12,8 @@ import {
 } from "./schema.js";
 import type { FieldSchema } from "./schema.js";
 
-/**
- * What each tool returns, faithful to the result types in types.ts. The
- * provider's `raw` response is never part of it: tools drop it.
- */
+// What each tool returns, faithful to the result types in types.ts. The
+// provider's `raw` response is never part of it: tools drop it.
 
 const usage = object({
   costUsd: number(),
@@ -165,6 +163,7 @@ const monitorInfo = object(
   ["id"]
 );
 
+/** The result of `search_web`, a `SearchResponse`. */
 export const SEARCH_OUTPUT: FieldSchema = object(
   {
     answer: str,
@@ -175,18 +174,22 @@ export const SEARCH_OUTPUT: FieldSchema = object(
   ["results"]
 );
 
+/** The result of `search_images`, an `ImageSearch`. */
 export const IMAGES_OUTPUT: FieldSchema = object(
   { meta, results: list(imageResult) },
   ["results"]
 );
 
+/** The result of `read_page`, a `Page`. */
 export const PAGE_OUTPUT: FieldSchema = page;
 
+/** The result of `read_pages`, a `PageBatch`: the pages read, and `failed` for URLs that could not be. */
 export const PAGES_OUTPUT: FieldSchema = object(
   { failed: failedUrls, id: str, meta, pages: list(page) },
   ["pages", "failed"]
 );
 
+/** The result of `extract_values`, an `Extraction`. */
 export const EXTRACT_OUTPUT: FieldSchema = object(
   {
     data: anything("The values, in the shape of the schema."),
@@ -196,6 +199,7 @@ export const EXTRACT_OUTPUT: FieldSchema = object(
   ["data"]
 );
 
+/** The result of `read_product`, a `Product`. */
 export const PRODUCT_OUTPUT: FieldSchema = object(
   {
     brand: str,
@@ -210,6 +214,7 @@ export const PRODUCT_OUTPUT: FieldSchema = object(
   ["variants"]
 );
 
+/** The result of `map_site`, a `SiteMap`. */
 export const MAP_OUTPUT: FieldSchema = object(
   {
     links: list(object({ description: str, title: str, url: str }, ["url"])),
@@ -218,6 +223,7 @@ export const MAP_OUTPUT: FieldSchema = object(
   ["links"]
 );
 
+/** The result of `crawl_site`, a `Crawl`. */
 export const CRAWL_OUTPUT: FieldSchema = object(
   {
     failed: failedUrls,
@@ -230,6 +236,7 @@ export const CRAWL_OUTPUT: FieldSchema = object(
   ["pages"]
 );
 
+/** The result of `answer_question`, an `Answer`. */
 export const ANSWER_OUTPUT: FieldSchema = object(
   {
     answer: str,
@@ -244,6 +251,7 @@ export const ANSWER_OUTPUT: FieldSchema = object(
   ["answer", "citations"]
 );
 
+/** The result of `research_question`, a `Research`. */
 export const RESEARCH_OUTPUT: FieldSchema = object(
   {
     continuationId: str,
@@ -262,6 +270,7 @@ export const RESEARCH_OUTPUT: FieldSchema = object(
   ["id", "status", "output", "sources"]
 );
 
+/** The result of `find_entities`, a `Discovery`. */
 export const DISCOVER_OUTPUT: FieldSchema = object(
   {
     entities: list(entity),
@@ -273,6 +282,7 @@ export const DISCOVER_OUTPUT: FieldSchema = object(
   ["id", "status", "entities"]
 );
 
+/** The result of `make_decisions`, a `Decisions`. */
 export const DECIDE_OUTPUT: FieldSchema = object(
   {
     answers: keyed(
@@ -285,6 +295,7 @@ export const DECIDE_OUTPUT: FieldSchema = object(
   ["answers", "citations"]
 );
 
+/** The result of `run_browser_script`, an `ActResult`. */
 export const ACT_OUTPUT: FieldSchema = object(
   {
     error: str,
@@ -299,6 +310,7 @@ export const ACT_OUTPUT: FieldSchema = object(
   ["stdout", "stderr"]
 );
 
+/** The result of `open_browser`, a `BrowserSession`. */
 export const OPEN_BROWSER_OUTPUT: FieldSchema = object(
   {
     cdpUrl: str,
@@ -310,6 +322,7 @@ export const OPEN_BROWSER_OUTPUT: FieldSchema = object(
   ["id"]
 );
 
+/** The result of `close_browser`: a confirmation, `{ closed: true, id }`. */
 export const CLOSE_BROWSER_OUTPUT: FieldSchema = object(
   { closed: flag(), id: str },
   ["closed", "id"]
@@ -345,6 +358,7 @@ const documentBlock = object(
   ["page", "type", "text"]
 );
 
+/** The result of `parse_document`, a `ParsedDocument`. */
 export const PARSE_OUTPUT: FieldSchema = object(
   {
     blocks: list(documentBlock),
@@ -365,18 +379,22 @@ export const PARSE_OUTPUT: FieldSchema = object(
   ["markdown"]
 );
 
+/** The result of `create_monitor` and `get_monitor`, a `MonitorInfo`. */
 export const MONITOR_OUTPUT: FieldSchema = monitorInfo;
 
+/** The result of `list_monitors`: the `MonitorInfo`s, wrapped as `monitors`. */
 export const MONITORS_OUTPUT: FieldSchema = object(
   { monitors: list(monitorInfo) },
   ["monitors"]
 );
 
+/** The result of `delete_monitor`: a confirmation, `{ deleted: true, id }`. */
 export const DELETE_MONITOR_OUTPUT: FieldSchema = object(
   { deleted: flag(), id: str },
   ["deleted", "id"]
 );
 
+/** The result of `list_monitor_events`, a `MonitorEvents`. */
 export const MONITOR_EVENTS_OUTPUT: FieldSchema = object(
   {
     events: list(
@@ -394,6 +412,7 @@ export const MONITOR_EVENTS_OUTPUT: FieldSchema = object(
   ["events"]
 );
 
+/** The result of `check_usage`, an `AccountUsage`. */
 export const USAGE_OUTPUT: FieldSchema = object({
   breakdown: keyed(number()),
   limit: number(),

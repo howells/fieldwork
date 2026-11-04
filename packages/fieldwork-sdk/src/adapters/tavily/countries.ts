@@ -1,3 +1,5 @@
+// The countries Tavily's search accepts. parse.ts looks a code up here, because Tavily takes the name.
+
 /** Tavily's country names, by ISO 3166-1 alpha-2 code. */
 export const COUNTRIES = new Map(
   `

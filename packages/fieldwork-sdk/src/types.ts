@@ -1,7 +1,5 @@
-/**
- * The shapes every adapter returns. Each result keeps the provider's own
- * response in `raw`, so nothing the provider sent is lost by normalizing it.
- */
+// The shapes every adapter returns. Each result keeps the provider's own
+// response in `raw`, so nothing the provider sent is lost by normalizing it.
 
 /** A JSON Schema object describing the values to extract. */
 export type JsonSchema = Record<string, unknown>;

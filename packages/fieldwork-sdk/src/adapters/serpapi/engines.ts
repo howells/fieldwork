@@ -1,3 +1,7 @@
+// The engine table at the heart of the SerpApi adapter. Each `EngineSpec` says which
+// normalized options an engine takes, how they become its SerpApi parameters, and
+// how its response becomes results. ../serpapi.ts looks the spec up by `engine`.
+
 import { invalidRequest } from "../../errors.js";
 import type { SearchResult } from "../../types.js";
 import { refuseTogether } from "../../util.js";
@@ -24,16 +28,34 @@ import {
 } from "./parse.js";
 import type { SearchBody } from "./response.js";
 
+/** The query parameters of a SerpApi call. */
 export type Query = Record<string, string | number | boolean | undefined>;
 
+/**
+ * How one engine turns normalized options into SerpApi parameters and reads the
+ * response. `search` refuses any set option outside `allowed`, then sends `engine`,
+ * `q`, `params(options)` and `no_cache`, and reads the response with `results`.
+ */
 export interface EngineSpec {
   /** The option names the engine documents; any other set option is refused. */
   allowed: readonly string[];
+  /**
+   * The engine's SerpApi parameters from the allowed options. Undefined values are
+   * dropped, and a combination the engine rejects throws.
+   */
   params: (o: Json) => Query;
+  /** The response's results. An item with no usable URL is left out. */
   results: (body: SearchBody) => SearchResult[];
 }
 
+/**
+ * One spec per `SerpApiEngine`. The public types already limit the options, so
+ * specs read them untyped, and `allowed` is the runtime check for callers without
+ * types. An engine whose `allowed` has no `limit` (Google, Bing, news, maps and
+ * shopping) refuses it, because SerpApi documents no result count for it.
+ */
 export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
+  /** `country` (sent as lower-case `cc`) and `market` (`mkt`) are alternatives. */
   bing: {
     allowed: [
       "country",
@@ -57,6 +79,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     },
     results: webResults,
   },
+  /** `limit` is `m`, 1 to 50; `region` is `kl`; the recency or date filter is `df`. */
   duckduckgo: {
     allowed: [
       "limit",
@@ -77,6 +100,10 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: webResults,
   },
+  /**
+   * The only engine whose response also gives the search an `answer`, from the answer
+   * box.
+   */
   google: {
     allowed: [
       "country",
@@ -101,6 +128,10 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: webResults,
   },
+  /**
+   * `type=search` lists places. The origin is `lat` and `lon`, or `location`, with
+   * the zoom `z`.
+   */
   google_maps: {
     allowed: [
       "language",
@@ -119,6 +150,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: placeResults,
   },
+  /** Takes `gl` and `hl` only. */
   google_news: {
     allowed: ["country", "language", "noCache"],
     params: (o) => ({
@@ -127,6 +159,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: newsResults,
   },
+  /** `limit` is `num`, 10 to 100. The dates become `publication:YYYYMMDD`. */
   google_patents: {
     allowed: [
       "limit",
@@ -151,6 +184,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: patentResults,
   },
+  /** `limit` is `num`, 1 to 20. `yearFrom` and `yearTo` are `as_ylo` and `as_yhi`. */
   google_scholar: {
     allowed: [
       "limit",
@@ -171,6 +205,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
     }),
     results: scholarResults,
   },
+  /** The boolean filters are sent only when true. `sortBy` is `sort_by`. */
   google_shopping: {
     allowed: [
       "country",
@@ -203,6 +238,7 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
   },
 };
 
+/** The options `images` takes. Google Images has no `limit`. */
 export const IMAGE_OPTIONS = [
   "country",
   "language",
@@ -221,6 +257,10 @@ export const IMAGE_OPTIONS = [
   "noCache",
 ] as const;
 
+/**
+ * Refuses every set option outside `allowed`, naming all of them. An option set to
+ * undefined passes.
+ */
 export const onlyAllowed = (
   engine: string,
   options: Json,

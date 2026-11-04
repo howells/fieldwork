@@ -1,3 +1,7 @@
+// SerpApi's option types, as exported from `@howells/fieldwork-sdk/serpapi`, and the
+// encoders for the values that differ per engine: country codes, date formats and
+// recency codes. ./engines.ts uses the encoders to build each engine's parameters.
+
 import { invalidRequest } from "../../errors.js";
 import type {
   AccountUsage,
@@ -10,10 +14,16 @@ import { refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
 import { provider } from "./parse.js";
 
+/** Settings for `serpapi()`. */
 export interface SerpApiConfig {
   /** Defaults to the SERPAPI_API_KEY environment variable. */
   apiKey?: string;
+  /** Defaults to https://serpapi.com. */
   baseUrl?: string;
+  /**
+   * Used in place of the global `fetch`. The API key is added to each request's URL
+   * before it is called.
+   */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
@@ -29,7 +39,11 @@ interface SerpApiBaseOptions extends CallOptions {
   noCache?: boolean;
 }
 
-/** Google web search: `GET /search?engine=google`, organic results and the answer box. */
+/**
+ * Google web search: `GET /search?engine=google`, organic results and the answer
+ * box. This is the default engine. `limit` is refused: SerpApi documents no
+ * result count for Google.
+ */
 export interface SerpApiGoogleOptions extends SerpApiBaseOptions {
   engine?: "google";
   /** ISO 3166-1 alpha-2 code such as "GB"; sent as `gl` ("uk" for GB, as SerpApi documents). */
@@ -40,9 +54,9 @@ export interface SerpApiGoogleOptions extends SerpApiBaseOptions {
   location?: string;
   /** Sent as `tbs` `qdr`. Not allowed with `publishedAfter` or `publishedBefore`. */
   recency?: Recency;
-  /** YYYY-MM-DD. Sent as `tbs` `cdr`. */
+  /** YYYY-MM-DD. Sent as `tbs` `cdr`; either end may be given alone. */
   publishedAfter?: string;
-  /** YYYY-MM-DD. Sent as `tbs` `cdr`. */
+  /** YYYY-MM-DD. Sent as `tbs` `cdr`; either end may be given alone. */
   publishedBefore?: string;
   safe?: "active" | "off";
   device?: Device;
@@ -159,6 +173,11 @@ export interface SerpApiDuckDuckGoOptions extends SerpApiBaseOptions {
   start?: number;
 }
 
+/**
+ * The options of `search`, chosen by `engine` (Google when it is left out). Each
+ * engine takes only the options it documents; any other set option is refused
+ * before sending. The per-engine mapping is in `ENGINES`.
+ */
 export type SerpApiSearchOptions =
   | SerpApiGoogleOptions
   | SerpApiNewsOptions
@@ -169,9 +188,13 @@ export type SerpApiSearchOptions =
   | SerpApiBingOptions
   | SerpApiDuckDuckGoOptions;
 
+/** The engine names `search` accepts. */
 export type SerpApiEngine = NonNullable<SerpApiSearchOptions["engine"]>;
 
-/** Google Images: `engine=google_images`. */
+/**
+ * Options for `images`, which always uses `engine=google_images`. `limit` is
+ * refused: SerpApi documents no result count for it.
+ */
 export interface SerpApiImagesOptions extends SerpApiBaseOptions {
   country?: string;
   language?: string;
@@ -229,6 +252,7 @@ export interface SerpApiImagesOptions extends SerpApiBaseOptions {
   license?: "f" | "fc" | "fm" | "fmc" | "cl" | "ol";
 }
 
+/** What SerpApi offers: search, images and usage. */
 export interface SerpApiOperations {
   search: (
     query: string,
@@ -241,6 +265,10 @@ export interface SerpApiOperations {
   usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
 
+/**
+ * SerpApi's single-letter codes for the recency windows, as Google's `qdr` and
+ * `period_unit` and DuckDuckGo's `df` take them.
+ */
 export const RECENCY_CODE: Record<Recency, string> = {
   day: "d",
   hour: "h",
@@ -249,17 +277,27 @@ export const RECENCY_CODE: Record<Recency, string> = {
   year: "y",
 };
 
+/** The value if it is a string, else undefined. Engine specs read options as `Json`. */
 export const str = (value: unknown): string | undefined =>
   typeof value === "string" ? value : undefined;
 
+/** The value if it is a number, else undefined. */
 export const count = (value: unknown): number | undefined =>
   typeof value === "number" ? value : undefined;
 
+/**
+ * Google's `gl` code for a country: lower case, and "uk" for "gb", as SerpApi
+ * documents.
+ */
 export const googleCountry = (value: unknown): string | undefined => {
   const code = str(value)?.toLowerCase();
   return code === "gb" ? "uk" : code;
 };
 
+/**
+ * The value if it is shaped YYYY-MM-DD; refuses anything else. It does not check
+ * that the date exists.
+ */
 export const isoDate = (name: string, value: unknown): string | undefined => {
   if (value === undefined) {
     return undefined;
@@ -270,9 +308,14 @@ export const isoDate = (name: string, value: unknown): string | undefined => {
   return value;
 };
 
+/** A YYYY-MM-DD date as YYYYMMDD. */
 export const compactDate = (name: string, value: unknown): string | undefined =>
   isoDate(name, value)?.replaceAll("-", "");
 
+/**
+ * A YYYY-MM-DD date as M/D/YYYY with no leading zeros, the form of Google's custom
+ * date range.
+ */
 export const usDate = (name: string, value: unknown): string | undefined => {
   const [year, month, day] = isoDate(name, value)?.split("-") ?? [];
   return year === undefined
@@ -280,6 +323,7 @@ export const usDate = (name: string, value: unknown): string | undefined => {
     : `${Number(month)}/${Number(day)}/${year}`;
 };
 
+/** A result count that is a whole number from `min` to `max`; refuses any other. */
 export const bounded = (
   engine: string,
   value: unknown,
@@ -307,6 +351,11 @@ export const bounded = (
 const recencyCode = (o: Json): string | undefined =>
   Object.entries(RECENCY_CODE).find(([name]) => name === o.recency)?.[1];
 
+/**
+ * Google's `tbs`: `qdr:<code>` for `recency`, or a custom range
+ * `cdr:1,cd_min:<M/D/YYYY>,cd_max:<M/D/YYYY>` with either end optional. Refuses
+ * `recency` with either date.
+ */
 export const googleTbs = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
@@ -327,6 +376,10 @@ export const googleTbs = (o: Json): string | undefined => {
     .join(",");
 };
 
+/**
+ * DuckDuckGo's `df`: a window code, or `YYYY-MM-DD..YYYY-MM-DD`. Refuses "hour",
+ * `recency` with either date, and one date without the other.
+ */
 export const duckDuckGoFilter = (o: Json): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
@@ -351,11 +404,17 @@ export const duckDuckGoFilter = (o: Json): string | undefined => {
   return `${isoDate("publishedAfter", o.publishedAfter)}..${isoDate("publishedBefore", o.publishedBefore)}`;
 };
 
+/** Google Patents' `after` or `before` value: `publication:YYYYMMDD`. */
 export const patentDate = (name: string, value: unknown) => {
   const date = compactDate(name, value);
   return date === undefined ? undefined : `publication:${date}`;
 };
 
+/**
+ * Google Maps' search origin: `lat` and `lon`, or `location`, with the zoom `z`.
+ * Refuses `location` with coordinates, a latitude or longitude without the other,
+ * an origin without `zoom`, and `zoom` without an origin.
+ */
 export const mapsOrigin = (o: Json) => {
   refuseTogether(provider, o, "location", "latitude");
   refuseTogether(provider, o, "location", "longitude");

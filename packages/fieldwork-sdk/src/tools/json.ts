@@ -1,9 +1,8 @@
-/**
- * The JSON values that cross the tool boundary: what a model sends in, what a
- * tool sends back. Tools take and return these types, and the guards below are
- * the one place untyped data becomes one of them.
- */
+// The JSON values that cross the tool boundary: what a model sends in, what a
+// tool sends back. Tools take and return these types, and the guards below are
+// the one place untyped data becomes one of them.
 
+/** Any JSON value. */
 export type JsonValue =
   | string
   | number
@@ -12,13 +11,17 @@ export type JsonValue =
   | JsonValue[]
   | JsonObject;
 
+/** A JSON object. A key may be undefined, which reads as absent and is not serialized. */
 export interface JsonObject {
   [key: string]: JsonValue | undefined;
 }
 
+// The four guards below take undefined (an absent key) and answer false for it.
+
 export const isText = (value: JsonValue | undefined): value is string =>
   typeof value === "string";
 
+/** A finite number: JSON has no NaN or Infinity. */
 export const isNumber = (value: JsonValue | undefined): value is number =>
   typeof value === "number" && Number.isFinite(value);
 

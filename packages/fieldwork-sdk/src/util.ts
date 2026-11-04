@@ -1,16 +1,23 @@
+// Helpers every adapter shares: reading untyped provider bodies, building
+// request bodies and `Meta`, and refusing option combinations before a send.
+// Per-call deadlines live here (`callSettings`); the HTTP client is in http.ts.
+
 import { FieldworkError } from "./errors.js";
 import type { Original, SourceBlock } from "./parse.js";
 import type { Citation, CallOptions, Meta, Page } from "./types.js";
 
+/** An object with unchecked values: a parsed provider body, or a request body being built. */
 export type Json = Record<string, unknown>;
 
 const isJson = <V>(value: V): value is V & Json =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+/** The value as an object, or an empty one when it is null, an array or not an object, so a read of a missing body needs no guard. */
 export const record = (value: unknown): Json => (isJson(value) ? value : {});
 
 // SAFETY: only keys whose value is undefined are dropped, so every other key
 // keeps the type T gives it; callers read the dropped ones as absent.
+/** Drops the keys whose value is undefined, so a request body or result carries only what was set. Shallow: nested objects are not touched. */
 export const compact = <T extends Json>(value: T): T =>
   Object.fromEntries(
     Object.entries(value).filter(([, item]) => item !== undefined)
@@ -49,6 +56,13 @@ export const callSettings = <T extends CallOptions>(
   return { call: { retries, signal: deadline, timeout }, rest };
 };
 
+/**
+ * Reads a provider field that holds JSON text. A value that is not a string
+ * is returned as it is, already parsed.
+ *
+ * Throws `ProviderError` carrying the parse error as `cause` when the text is
+ * not valid JSON.
+ */
 export const parseJson = (provider: string, value: unknown): unknown => {
   if (typeof value !== "string") {
     return value;
@@ -67,6 +81,7 @@ export const parseJson = (provider: string, value: unknown): unknown => {
   }
 };
 
+/** The citations with repeated URLs removed: the first of each URL stays, in order. */
 export const uniqueCitations = (all: Citation[]): Citation[] => {
   const seen = new Map<string, Citation>();
   for (const item of all) {
@@ -108,6 +123,12 @@ export const requireJobId = (
   return id.value;
 };
 
+/**
+ * Builds a result's `meta`, leaving out whatever is absent: `units` with an
+ * undefined count, an empty `usage`, no `warnings`. A single warning string
+ * becomes a one-item list. Returns undefined when nothing is left, so a result
+ * has no `meta` at all rather than an empty one.
+ */
 export const meta = (parts: {
   requestId?: string;
   credits?: number;
@@ -134,6 +155,13 @@ export const meta = (parts: {
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
+/**
+ * Refuses a request that sets more than one of `names` (a name counts as set
+ * unless its value is undefined), for options the provider rejects or ignores
+ * when combined. Throws before anything is sent.
+ *
+ * Throws `InvalidRequest` naming the options that were set.
+ */
 export const refuseTogether = <T>(
   provider: string,
   options: T,
@@ -149,6 +177,11 @@ export const refuseTogether = <T>(
   }
 };
 
+/**
+ * A `maxAge` in seconds as the whole hours Exa and Tavily count in, rounded
+ * up, so 1 second is 1 hour and 0 stays 0 (always fetch fresh). A negative age
+ * (read only the cache) becomes -1. Undefined stays undefined.
+ */
 export const hours = (seconds: number | undefined): number | undefined =>
   seconds === undefined
     ? undefined

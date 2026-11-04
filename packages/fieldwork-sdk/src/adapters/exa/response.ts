@@ -1,3 +1,6 @@
+// Schemas for Exa's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// parse.ts maps these to normalized results; the adapter in ../exa.ts parses each response with one of them.
+
 import * as z from "zod/mini";
 
 import {
@@ -90,6 +93,7 @@ export const SearchResponse = looseObject({
   warnings: arrayOf(warningEntry),
 });
 
+/** The sources behind one field of a run's output, with Exa's confidence in it. */
 const Grounding = looseObject({
   citations: arrayOf(Source),
   confidence: optionalStringOrNumber,
@@ -126,6 +130,7 @@ export const RunEntry = withOriginal(Run);
 /** The reply to starting a run. */
 export const RunStart = looseObject({ id: withOriginal(optionalId) });
 
+/** A monitor. `trigger.period` is its schedule and `search.query` what it watches. */
 const Monitor = looseObject({
   createdAt: optionalString,
   id: withOriginal(optionalId),
@@ -145,6 +150,7 @@ export const MonitorsPage = looseObject({
   nextCursor: optionalString,
 });
 
+/** One run of a monitor; `output.content` is its generated report, text or a value. */
 const MonitorRun = looseObject({
   completedAt: optionalString,
   createdAt: optionalString,

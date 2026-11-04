@@ -1,3 +1,7 @@
+// The HTTP client every adapter builds on: JSON in and out, status codes mapped
+// to `FieldworkError`, retries, deadlines, and redirects confined to the
+// provider's own origin so its key never reaches another host.
+
 import { codeForStatus, FieldworkError } from "./errors.js";
 import type { CallOptions } from "./types.js";
 import { record } from "./util.js";
@@ -8,6 +12,7 @@ export interface RequestOptions extends CallOptions {
   body?: unknown;
   /** A multipart body, sent as is. */
   form?: FormData;
+  /** Query parameters. Undefined values are left out. */
   query?: Record<string, string | number | boolean | undefined>;
   /**
    * The request creates a job, session or monitor that the provider bills for
@@ -28,6 +33,17 @@ export interface RequestOptions extends CallOptions {
 export interface RawClient {
   readonly provider: string;
   readonly baseUrl: string;
+  /**
+   * Sends a request and returns the response body: its JSON as `T`, which the
+   * caller asserts and the client does not check (an empty body is undefined),
+   * or a string when `options.text` is set. Retries as `CallOptions.retries`
+   * says.
+   *
+   * Throws `FieldworkError`: from the status for an error response, and
+   * `ProviderError` for a success whose body is not JSON, for a connection that
+   * failed, and for a redirect to another origin. A stopped call is `Timeout` or
+   * `Aborted`.
+   */
   request: <T = unknown>(
     method: string,
     path: string,
@@ -35,10 +51,15 @@ export interface RawClient {
   ) => Promise<T>;
 }
 
+/** What `createRawClient` needs to talk to one provider. */
 export interface ClientConfig {
+  /** The provider's name, which leads every error message. */
   provider: string;
+  /** The API's root; a request's path is appended to it. */
   baseUrl: string;
+  /** Sent with every request, such as the authorization header. */
   headers: Record<string, string>;
+  /** Defaults to the global `fetch`. A test passes a fake. */
   fetch?: typeof fetch;
   /** Repeats of a failed request; see `CallOptions.retries`. */
   retries?: number;
@@ -47,6 +68,11 @@ export interface ClientConfig {
 /** How many times a request that can succeed on repeat is retried by default. */
 export const DEFAULT_RETRIES = 2;
 
+/**
+ * Waits `ms`. When `signal` aborts it resolves early rather than rejecting, so
+ * the caller checks the signal afterwards. A signal already aborted on entry
+ * does not cut the wait short.
+ */
 export const sleep = async (ms: number, signal?: AbortSignal) => {
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
@@ -121,6 +147,7 @@ export const stopped = (
     options
   );
 
+/** The error for a fetch that threw: stopped by the signal (`Timeout` or `Aborted`), timed out on its own, or a lost connection, which can succeed on repeat. */
 const transportError = (
   provider: string,
   error: unknown,
@@ -167,6 +194,14 @@ const readText = async (
   }
 };
 
+/**
+ * Builds the client for one provider. A request is sent to `baseUrl` plus its
+ * path, with JSON bodies and the config's headers, and `timeout` and `signal`
+ * stop it. A failed request is repeated as `CallOptions.retries` says, waiting
+ * as long as the provider's `Retry-After` or backing off exponentially, and
+ * never past the call's `timeout`. A request marked `creates` is repeated only
+ * after a rate limit.
+ */
 export const createRawClient = (config: ClientConfig): RawClient => {
   const doFetch = config.fetch ?? globalThis.fetch;
   return {
@@ -381,6 +416,11 @@ const describe = (parsed: unknown, text: string): string => {
   return text.slice(0, 300);
 };
 
+/**
+ * Seconds to wait from a `Retry-After` header, which is a number of seconds or
+ * an HTTP date. Undefined when the header is absent, empty or neither. `now`
+ * is for tests.
+ */
 export const retryAfterSeconds = (
   header: string | null,
   now = Date.now()
@@ -401,6 +441,12 @@ export const retryAfterSeconds = (
 /** An id as one path segment, so a caller's `resume` cannot reach another endpoint. */
 export const segment = (id: string): string => encodeURIComponent(id);
 
+/**
+ * The API key: `given`, else the environment variable. An empty `given` is
+ * not replaced by the variable.
+ *
+ * Throws `Unauthorized` when there is no key or it is empty.
+ */
 export const requireKey = (
   provider: string,
   given: string | undefined,

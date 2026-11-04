@@ -12,13 +12,14 @@ import { problem } from "./tools/validate.js";
 import { CAPABILITIES } from "./types.js";
 import type { CallOptions, Capability, JsonSchema } from "./types.js";
 
-/**
- * Tool definitions for agents, built from a Fieldwork instance. Each tool's
- * input schema lists only the options its provider supports, so a model is
- * never offered an option that would be ignored. The definitions are plain
- * JSON Schema with MCP-style annotations, so they work with the AI SDK, MCP
- * servers and any framework that accepts JSON Schema tools.
- */
+// Tool definitions for agents, built from a Fieldwork instance. Each tool's
+// input schema lists only the options its provider supports, so a model is
+// never offered an option that would be ignored. The definitions are plain
+// JSON Schema with MCP-style annotations, so they work with the AI SDK, MCP
+// servers and any framework that accepts JSON Schema tools.
+//
+// The tools themselves are declared in tool-specs/; tools/ holds the dispatch,
+// input validation and result shaping `toolsFor` ties together.
 
 /** What a model sends a tool: a parsed JSON value, which must be an object. */
 export type ToolInput = JsonValue;
@@ -38,7 +39,7 @@ export interface ToolAnnotations {
   destructiveHint: boolean;
   /** True when repeating a call with the same input has no further effect. */
   idempotentHint: boolean;
-  /** True when the tool reaches the open web. */
+  /** True when the tool reaches outside Fieldwork. `toolsFor` sets it on every tool. */
   openWorldHint: boolean;
 }
 
@@ -46,6 +47,7 @@ export interface ToolAnnotations {
 export interface FieldworkTool {
   /** A verb_noun name, such as `search_web`. */
   name: string;
+  /** The capability this tool calls on the instance. */
   capability: Capability;
   /** For a group capability, the method this tool calls, such as `create` for `monitor`. */
   method?: string;
@@ -61,7 +63,8 @@ export interface FieldworkTool {
   /**
    * Checks the input against `inputSchema`, calls the capability and returns
    * the result shaped for a model: without the provider's `raw` response and
-   * with long text cut to the `maxCharacters` budget. Throws a
+   * with long text cut to the `maxCharacters` budget. `options` are the call's
+   * `signal`, `timeout` and `retries`, passed through. Throws a
    * `FieldworkError`; bad input is `InvalidRequest`.
    */
   execute: (input: ToolInput, options?: CallOptions) => Promise<ToolOutput>;
@@ -98,10 +101,12 @@ export interface ToolsOptions {
   maxCharacters?: number;
 }
 
+/** Whether the field is offered to the provider: a field with no `providers` goes to every provider that has the capability. */
 const offers = (field: Field, provider: string): boolean =>
   field.providers === undefined ||
   field.providers.some((name) => name === provider);
 
+/** Whether the field is required for the provider, either for all that are offered it or for this one. */
 const needs = (field: Field, provider: string): boolean =>
   field.required === true ||
   field.requiredFor?.some((name) => name === provider) === true;
@@ -109,6 +114,13 @@ const needs = (field: Field, provider: string): boolean =>
 const invalid = (tool: string, provider: string, message: string) =>
   new FieldworkError("InvalidRequest", `${tool}: ${message}`, { provider });
 
+/**
+ * Checks a model's input against the fields offered to the provider and
+ * returns it unchanged: it must be an object, with no key the provider does
+ * not take, every required field present and each value valid for its schema.
+ *
+ * Throws `InvalidRequest`, prefixed with the tool's name, on the first problem.
+ */
 const readInput = (
   tool: string,
   provider: string,
@@ -144,7 +156,11 @@ const readInput = (
   return input;
 };
 
-/** The tool's result as an object: a list is wrapped, a confirmation is spelled out. */
+/**
+ * The tool's result as an object: a list is wrapped, a confirmation is spelled
+ * out. Any other result must already be an object, or this throws
+ * `ProviderError`.
+ */
 const resultObject = (
   spec: Spec,
   values: ToolArguments,
@@ -165,6 +181,7 @@ const resultObject = (
   );
 };
 
+/** The JSON Schema advertised for the tool's input: closed to other keys, requiring what `needs` says. */
 const inputSchema = (fields: Field[], provider: string): JsonSchema => ({
   additionalProperties: false,
   properties: Object.fromEntries(
@@ -206,7 +223,11 @@ const toolFor = (
   };
 };
 
-/** Makes one tool per capability, or per method of a group, the instance supports. */
+/**
+ * Makes one tool per capability, or per method of a group, the instance
+ * supports, in the order of `SPECS`. A router gives each tool the inputs of
+ * the provider that serves its capability, and `provider` names it.
+ */
 export const toolsFor = (
   web: Fieldwork<AnyAdapter>,
   options: ToolsOptions = {}
@@ -233,7 +254,9 @@ export const toolsFor = (
 
 /**
  * An error as a model or an MCP client should see it: the code, the message
- * and what to do next, without the provider's response.
+ * and what to do next (`retryable`, `retryAfter`, `jobId`), without the
+ * provider's response. An error that is not a `FieldworkError` becomes a
+ * `ProviderError` that is not retryable.
  */
 export const toolError = (cause: unknown) => {
   if (cause instanceof FieldworkError) {

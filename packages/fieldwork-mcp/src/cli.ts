@@ -1,4 +1,7 @@
 #!/usr/bin/env node
+// The `fieldwork-mcp` executable: reads the flags, builds a Fieldwork instance and
+// serves its tools over stdio. Provider keys come from the environment only.
+
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 
 import { USAGE, fieldworkFor, parseArgs } from "./config.js";

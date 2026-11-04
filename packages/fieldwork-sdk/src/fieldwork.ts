@@ -1,9 +1,15 @@
+// The client. `Fieldwork` binds an adapter's operations onto one object, so a
+// capability the provider has is a method and one it lacks is typed away and
+// refuses at run time. Adapters are in adapter.ts; `router` composes several.
+
 import type { AnyAdapter } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
 import { CAPABILITIES, GROUP_CAPABILITIES } from "./types.js";
 import type { Capability } from "./types.js";
 
+/** What `new Fieldwork` takes. */
 export interface FieldworkOptions<A extends AnyAdapter> {
+  /** The provider to call, such as `exa()`, or a `router` over several. */
   adapter: A;
 }
 
@@ -14,6 +20,7 @@ interface FieldworkBase<A extends AnyAdapter> {
   readonly capabilities: Readonly<Record<Capability, boolean>>;
   /** The provider's HTTP API, for anything Fieldwork does not wrap. */
   readonly raw: A["raw"];
+  /** Whether the capability can be called. Same as `capabilities[capability]`. */
   supports: (capability: Capability) => boolean;
   /** The provider that serves a capability, or undefined when none does. */
   providerFor: (capability: Capability) => string | undefined;
@@ -32,6 +39,12 @@ type Bound =
   | ((...args: unknown[]) => Promise<unknown>)
   | Record<string, unknown>;
 
+/**
+ * The adapter's operation for a capability, bound to its `operations` object
+ * (or, for a group such as `monitor`, each method bound to the group) so it
+ * can be called detached. Undefined when the adapter lacks the capability.
+ * `Fieldwork` and `router` both bind through this.
+ */
 export const bindOperation = (
   operations: unknown,
   capability: string
@@ -62,6 +75,7 @@ export const bindOperation = (
   return undefined;
 };
 
+/** What a capability the provider lacks does when called: throws `Unsupported`, for every method of a group too. */
 const unsupported = (provider: string, capability: Capability): Bound => {
   const refuse = async () => {
     throw new FieldworkError(
@@ -77,6 +91,11 @@ const unsupported = (provider: string, capability: Capability): Bound => {
   return new Proxy({}, { get: () => refuse });
 };
 
+/**
+ * The implementation behind `Fieldwork`, typed loosely: each capability name
+ * is assigned onto the instance in the constructor, as the adapter's bound
+ * operation or a stand-in that throws `Unsupported`.
+ */
 class FieldworkClient {
   readonly provider: string;
   readonly capabilities: Readonly<Record<Capability, boolean>>;

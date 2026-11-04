@@ -1,3 +1,6 @@
+// Builds a gateway from environment variables: provider keys decide which clients
+// exist, and FIELDWORK_* keys name the agents. Wraps createFieldworkGateway.
+
 import { Fieldwork } from "@howells/fieldwork-sdk";
 
 import { adapterFor, PROVIDERS } from "../config.js";
@@ -7,6 +10,7 @@ import type { GatewayDefaults } from "./catalog.js";
 import type { GatewayCall } from "./execute.js";
 import { createFieldworkGateway } from "./http.js";
 
+/** The variable that holds each provider's key; the stdio server reads the same ones. */
 const KEY_NAMES: Record<Provider, string> = {
   brave: "BRAVE_API_KEY",
   browserbase: "BROWSERBASE_API_KEY",
@@ -20,7 +24,11 @@ const KEY_NAMES: Record<Provider, string> = {
   tavily: "TAVILY_API_KEY",
 };
 
-/** Configuration is code; the environment contains credentials only. */
+/**
+ * Configuration is code; the environment contains credentials only. A default
+ * applies only when the environment has that provider's key; otherwise a call
+ * must name a provider.
+ */
 const DEFAULTS: GatewayDefaults = {
   answer: "exa",
   crawl: "firecrawl",
@@ -38,6 +46,11 @@ const DEFAULTS: GatewayDefaults = {
   usage: "firecrawl",
 };
 
+/**
+ * `FIELDWORK_API_KEY` is the agent `owner`; `FIELDWORK_AGENT_<NAME>_API_KEY` is
+ * `<name>`, lower-cased with `_` as `-`. An unset or empty variable adds no
+ * agent, which is how a key is revoked.
+ */
 const agentsFrom = (environment: NodeJS.ProcessEnv): GatewayAgent[] => {
   const agents: GatewayAgent[] = [];
   const owner = environment.FIELDWORK_API_KEY;
@@ -55,7 +68,19 @@ const agentsFrom = (environment: NodeJS.ProcessEnv): GatewayAgent[] => {
   return agents;
 };
 
-/** Only providers with credentials are constructed or advertised. */
+/**
+ * Builds the gateway from the environment, as the handler `createFieldworkGateway`
+ * returns. Only providers whose key is set are constructed or advertised, and
+ * the browser, act and monitor tools are never offered. Every provider and
+ * agent key is redacted from error messages.
+ *
+ * Throws when an agent key is shorter than 32 characters, holds whitespace, or
+ * repeats another's, or two agents share an id. With no agent keys set it
+ * starts and refuses every request with 401.
+ *
+ * `onCall` receives each tool call's log entry; without it, only an unexpected
+ * error is written, to stderr.
+ */
 export const gatewayFromEnvironment = (
   environment: NodeJS.ProcessEnv,
   onCall?: (entry: GatewayCall) => void

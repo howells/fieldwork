@@ -1,3 +1,6 @@
+// Option and operation types for the Tavily adapter, exported from `@howells/fieldwork-sdk/tavily`.
+// The adapter in ../tavily.ts implements them; parse.ts turns the options into Tavily requests.
+
 import type { OutputSchema } from "../../schema.js";
 import type {
   AccountUsage,
@@ -13,19 +16,35 @@ import type {
   SiteMap,
 } from "../../types.js";
 
+/** Settings for the Tavily adapter. */
 export interface TavilyConfig {
   /** Defaults to the TAVILY_API_KEY environment variable. */
   apiKey?: string;
   /** Sent as the X-Project-ID header, so Tavily groups usage and logs by project. */
   projectId?: string;
+  /** Defaults to https://api.tavily.com. */
   baseUrl?: string;
+  /** Sends every request instead of the global `fetch`. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
 }
 
+/**
+ * How deep a search goes. `advanced` costs 2 credits; `fast` and `ultra-fast`
+ * refuse `safeSearch`, and `ultra-fast` refuses `chunksPerSource`.
+ */
 export type TavilySearchDepth = "ultra-fast" | "fast" | "basic" | "advanced";
 
+/**
+ * Options for `search`. The adapter throws `InvalidRequest` before sending
+ * when `includeDomainsMode` has no `includeDomains`, `filterByLanguage` has no
+ * `language`, `imageDescriptions` has no `includeImages`, `safeSearch` or
+ * `chunksPerSource` meets a depth that lacks it, `maxAge` is over 30 days, or
+ * `country` is not in Tavily's list or `topic` is not `general`.
+ *
+ * A result's `snippet` is Tavily's passages and its `content` is the page text.
+ */
 export interface TavilySearchOptions extends CallOptions {
   /** Results to return; Tavily allows 0 to 20. */
   limit?: number;
@@ -52,7 +71,7 @@ export interface TavilySearchOptions extends CallOptions {
   excludeDomains?: string[];
   /** "restrict" keeps to includeDomains; "prefer" only ranks them higher. */
   includeDomainsMode?: "restrict" | "prefer";
-  /** ISO 3166-1 alpha-2 code such as "GB". Ranks that country higher; general topic only. */
+  /** ISO 3166-1 alpha-2 code such as "GB". Ranks that country higher; general topic only. Tavily takes country names, so the adapter sends the name for the code. */
   country?: string;
   /** ISO 639-1 code. Ranks pages in that language higher. */
   language?: string;
@@ -64,7 +83,7 @@ export interface TavilySearchOptions extends CallOptions {
   autoParameters?: boolean;
   /** Only pages containing the quoted phrases in the query. */
   exactMatch?: boolean;
-  /** Seconds a cached copy may be old; 0 always fetches live, a negative number never does. Tavily counts hours, up to 720. */
+  /** Seconds a cached copy may be old; 0 always fetches live, a negative number never does. Tavily counts hours, so this is rounded up to whole hours, up to 720. */
   maxAge?: number;
   /** Include each result's page text; `true` means Markdown. */
   content?: boolean | "markdown" | "text";
@@ -76,6 +95,7 @@ export interface TavilySearchOptions extends CallOptions {
   favicon?: boolean;
 }
 
+/** Options for `images`, which runs a Tavily search and returns the images it finds. */
 export interface TavilyImagesOptions extends CallOptions {
   searchDepth?: TavilySearchDepth;
   topic?: "general" | "news" | "finance";
@@ -86,6 +106,11 @@ export interface TavilyImagesOptions extends CallOptions {
   descriptions?: boolean;
 }
 
+/**
+ * Options for `answer`, which is a Tavily search with a written answer. It
+ * takes the search options except those for page text, images and favicons.
+ * The citations are the search results.
+ */
 export interface TavilyAnswerOptions extends Omit<
   TavilySearchOptions,
   "content" | "includeImages" | "imageDescriptions" | "favicon"
@@ -94,6 +119,7 @@ export interface TavilyAnswerOptions extends Omit<
   answerDepth?: "basic" | "advanced";
 }
 
+/** Options for `read`, through Tavily's extract endpoint. */
 export interface TavilyExtractOptions extends CallOptions {
   /** `advanced` also reads tables and embedded content, and costs 2 credits per 5 pages. */
   extractDepth?: "basic" | "advanced";
@@ -109,9 +135,12 @@ export interface TavilyExtractOptions extends CallOptions {
   serverTimeout?: number;
 }
 
+/** Options for `read`. The same as `TavilyExtractOptions`. */
 export type TavilyReadOptions = TavilyExtractOptions;
+/** Options for `readMany`, which reads 1 to 20 URLs in one call. The same as `TavilyExtractOptions`. */
 export type TavilyReadManyOptions = TavilyExtractOptions;
 
+/** How Tavily walks a site, shared by `map` and `crawl`. */
 export interface TavilyTraversal {
   /** Plain-words instructions that focus the walk. Raises the cost. */
   instructions?: string;
@@ -133,8 +162,13 @@ export interface TavilyTraversal {
   serverTimeout?: number;
 }
 
+/** Options for `map`. */
 export interface TavilyMapOptions extends CallOptions, TavilyTraversal {}
 
+/**
+ * Options for `crawl`. With `instructions`, each page comes back as `excerpts`
+ * instead of `markdown`.
+ */
 export interface TavilyCrawlOptions extends CallOptions, TavilyTraversal {
   extractDepth?: "basic" | "advanced";
   format?: "markdown" | "text";
@@ -152,6 +186,11 @@ export interface TavilyResearchFile {
   data: string | Uint8Array;
 }
 
+/**
+ * Options for `research`, which starts a Tavily research task and waits for it
+ * as an asynchronous job. The adapter refuses more than 5 files, and file
+ * names that do not end in `.txt`, `.md` or `.json`.
+ */
 export interface TavilyResearchOptions<T = unknown> extends CallOptions {
   /** Tavily accepts object, string, integer, number and array types only, and each property needs a description. */
   schema?: OutputSchema<T>;
@@ -173,6 +212,10 @@ export interface TavilyResearchOptions<T = unknown> extends CallOptions {
   resume?: string;
 }
 
+/**
+ * What Tavily can do: search, images, read, readMany, map, crawl, answer,
+ * research and usage. `research` is an asynchronous job and accepts `resume`.
+ */
 export interface TavilyOperations {
   search: (
     query: string,

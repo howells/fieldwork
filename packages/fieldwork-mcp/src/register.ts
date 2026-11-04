@@ -1,3 +1,6 @@
+// Registers one tool on an `McpServer` from a Fieldwork JSON Schema. Shared by the
+// stdio server (server.ts) and the gateway's remote MCP (gateway/mcp.ts).
+
 import type { JsonSchema } from "@howells/fieldwork-sdk";
 import { toolError } from "@howells/fieldwork-sdk/tools";
 import type {
@@ -34,18 +37,21 @@ const schemaOf = (
   },
 });
 
+/** A tool as the MCP server advertises it. */
 export interface RegisteredTool {
   annotations: FieldworkTool["annotations"];
   description: string;
+  /** Advertised to clients as is; `run` receives any JSON object, and the tool checks it. */
   inputSchema: JsonSchema;
-  /** Listed with the tool. */
+  /** Sent as `_meta` on the tool when clients list tools. */
   meta?: Record<string, string | undefined>;
   name: string;
   outputSchema: JsonSchema;
 }
 
+/** What one tool call returns to `registerTool`. */
 export interface ToolRun {
-  /** Returned with this call's result. */
+  /** Sent as `_meta` on this call's result. */
   meta?: Record<string, string | undefined>;
   result: ToolOutput;
 }
@@ -54,6 +60,10 @@ export interface ToolRun {
  * Registers one tool. A thrown error comes back as a result with
  * `isError: true` and a structured body, so a model can read the code and
  * decide what to do next. `run` receives the client's abort signal.
+ *
+ * The error body is `toolError(error)`, which passes a plain `Error`'s message
+ * through. A caller that serves untrusted clients must make `run` throw only
+ * errors it has already sanitised, as the gateway's executor does.
  */
 export const registerTool = (
   server: McpServer,

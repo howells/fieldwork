@@ -1,3 +1,6 @@
+// Schemas for Browserbase's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// The adapter in ../browserbase.ts parses each response with one of them and keeps the untouched response in `raw`.
+
 import type * as z from "zod/mini";
 
 import {
@@ -59,4 +62,5 @@ export const ProjectsResponse = arrayOf(
   looseObject({ id: withOriginal(optionalId) })
 );
 
+/** The parsed `POST /v1/fetch` body. */
 export type FetchBody = z.output<typeof FetchResponse>;

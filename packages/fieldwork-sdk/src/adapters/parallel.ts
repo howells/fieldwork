@@ -1,3 +1,8 @@
+// The Parallel adapter. Each operation builds its request here and reads the
+// response with the helpers in ./parallel/parse.ts. ./parallel/options.ts holds
+// the option types and request encoders, ./parallel/jobs.ts the Task and FindAll
+// polling, and ./parallel/response.ts the response schemas.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -284,6 +289,7 @@ export const parallel = (config: ParallelConfig = {}) => {
           },
           metadata: o.metadata,
           processor: o.processor ?? "base",
+          // Limits the Task's sources to this page (host and path, no query string).
           source_policy: {
             include_domains: [
               `${target.hostname}${target.pathname}`.replace(/\/$/u, ""),
@@ -589,6 +595,7 @@ export const parallel = (config: ParallelConfig = {}) => {
         results: body.results.map((result) =>
           compact({
             publishedAt: result.publish_date,
+            // Parallel returns excerpts rather than one snippet, so they are joined.
             snippet:
               result.excerpts.length > 0
                 ? result.excerpts.join(" … ")

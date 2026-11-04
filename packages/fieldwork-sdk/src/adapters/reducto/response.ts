@@ -1,3 +1,7 @@
+// Schemas for Reducto's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// `documentBlocks` turns the parse output into the normalized blocks. Reducto's boxes are already fractions of the page.
+// The adapter in ../reducto.ts parses each response with one of these.
+
 import * as z from "zod/mini";
 
 import {
@@ -22,6 +26,7 @@ const FractionBox = looseObject({
   width: optionalNumber,
 });
 
+/** A layout block. `extra` holds the word and cell citations, which the `return_citations` setting asks for. */
 const Block = looseObject({
   bbox: FractionBox,
   content: optionalAnyString,
@@ -74,7 +79,9 @@ export const JobResponse = withOriginal(
   })
 );
 
+/** A job's status response: `value` is what the schema read, `original` the response as it arrived, for `raw` and error causes. */
 export type JobResponseBlock = z.output<typeof JobResponse>;
+/** The parse output, whether it came inline or from the stored result. */
 export type ParseOutputBlock = z.output<typeof ParseOutput>;
 type FractionBoxBlock = z.output<typeof FractionBox>;
 type BlockBlock = z.output<typeof Block>;

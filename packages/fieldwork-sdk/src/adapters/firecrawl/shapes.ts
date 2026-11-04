@@ -1,3 +1,6 @@
+// Schemas for Firecrawl's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// response.ts maps these to normalized results; the adapter in ../firecrawl.ts parses each response with one of them.
+
 import * as z from "zod/mini";
 
 import {
@@ -67,6 +70,7 @@ const Price = looseObject({
   formatted: optionalString,
 });
 
+/** A product variant. GTINs arrive in several widths, so each is read apart; `values` maps option names to values. */
 const Variant = looseObject({
   availability: looseObject({
     inStock: optionalBoolean,
@@ -220,6 +224,7 @@ export const Execution = withOriginal(
 /** What closing a session billed. */
 export const Closed = looseObject({ creditsBilled: optionalNumber });
 
+/** A web or news search result. */
 const WebItem = looseObject({
   category: optionalString,
   date: optionalString,
@@ -231,6 +236,7 @@ const WebItem = looseObject({
   url: optionalString,
 });
 
+/** A research search result. It carries ids, not a URL. */
 const Paper = looseObject({
   abstract: optionalString,
   paperId: optionalString,
@@ -239,6 +245,7 @@ const Paper = looseObject({
   title: optionalString,
 });
 
+/** An image search result: `imageUrl` is the image and `url` the page it is on. */
 const ImageItem = looseObject({
   imageHeight: optionalNumber,
   imageUrl: optionalString,
@@ -287,6 +294,7 @@ export const MapResponse = looseObject({
   ),
 });
 
+/** A monitor. Its targets are a scrape (`urls`), a crawl (`url`) or a search (`queries`). */
 const Monitor = looseObject({
   createdAt: optionalString,
   goal: optionalString,

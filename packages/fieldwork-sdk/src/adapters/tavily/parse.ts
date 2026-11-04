@@ -1,3 +1,6 @@
+// Request bodies and result mapping for the Tavily adapter: options in, Tavily's JSON out, normalized results back.
+// ../tavily.ts calls these; the shapes of Tavily's responses are in response.ts and the option types in options.ts.
+
 import { invalidRequest } from "../../errors.js";
 import type { FailedUrl, ImageResult, Page } from "../../types.js";
 import { compact, hours, meta } from "../../util.js";
@@ -16,8 +19,10 @@ import type {
 
 export const provider = "tavily";
 
+/** The file names `research` takes. */
 export const RESEARCH_FILE = /\.(?:txt|md|json)$/iu;
 
+/** The passages in Tavily's text, which arrives as one string joined with `[...]`. Undefined when there are none. */
 export const chunks = (content: string | undefined): string[] | undefined => {
   if (content === undefined) {
     return undefined;
@@ -29,6 +34,7 @@ export const chunks = (content: string | undefined): string[] | undefined => {
   return parts.length > 0 ? parts : undefined;
 };
 
+/** Tavily's name for a country code, since Tavily takes names. Throws for a topic other than `general` and for a code Tavily does not list. */
 const countryName = (code: string, topic: string | undefined): string => {
   if (topic !== undefined && topic !== "general") {
     throw invalidRequest(
@@ -46,6 +52,7 @@ const countryName = (code: string, topic: string | undefined): string => {
   return name;
 };
 
+/** The images that parsed; undefined when there are none. */
 export const imageResults = (
   images: SearchBody["images"]
 ): ImageResult[] | undefined => {
@@ -53,6 +60,7 @@ export const imageResults = (
   return items.length > 0 ? items : undefined;
 };
 
+/** The credits, request id and response time Tavily reports. */
 export const responseMeta = (body: MeteredBody) =>
   meta({
     credits: body.usage.credits,
@@ -60,6 +68,7 @@ export const responseMeta = (body: MeteredBody) =>
     units: { responseTimeSeconds: body.response_time },
   });
 
+/** Refuses filters that need another option, or a depth that lacks them. */
 const checkFilters = (o: TavilySearchOptions): void => {
   if (
     o.includeDomainsMode !== undefined &&
@@ -81,6 +90,7 @@ const checkFilters = (o: TavilySearchOptions): void => {
   }
 };
 
+/** Refuses option combinations Tavily does not accept, and returns `maxAge` in whole hours. */
 const checkSearch = (o: TavilySearchOptions): number | undefined => {
   checkFilters(o);
   if (o.chunksPerSource !== undefined && o.searchDepth === "ultra-fast") {
@@ -102,6 +112,7 @@ const checkSearch = (o: TavilySearchOptions): number | undefined => {
   return maxAgeHours;
 };
 
+/** Tavily's `include_raw_content`: `true` asks for Markdown, `false` for none. */
 const rawContent = (content: TavilySearchOptions["content"]) => {
   if (content === true) {
     return "markdown";
@@ -109,6 +120,10 @@ const rawContent = (content: TavilySearchOptions["content"]) => {
   return content === false ? undefined : content;
 };
 
+/**
+ * The `/search` body. It always asks for usage, so credits are reported, and
+ * asks for each result's published date whenever a date window or `recency` is set.
+ */
 export const searchBody = (query: string, o: TavilySearchOptions) => {
   const maxAgeHours = checkSearch(o);
   const dated =
@@ -145,6 +160,7 @@ export const searchBody = (query: string, o: TavilySearchOptions) => {
   });
 };
 
+/** Search results: Tavily's `content` (passages) is the `snippet`, its `raw_content` (page text) the `content`. */
 export const searchResults = (body: SearchBody) =>
   body.results.map((result) =>
     compact({
@@ -158,6 +174,7 @@ export const searchResults = (body: SearchBody) =>
     })
   );
 
+/** The URLs Tavily could not read. An entry without a URL is dropped. */
 export const failures = (failed: readonly FailedBlock[]): FailedUrl[] =>
   failed.flatMap((failure) =>
     failure.url === undefined
@@ -165,6 +182,11 @@ export const failures = (failed: readonly FailedBlock[]): FailedUrl[] =>
       : [{ error: failure.error ?? "no content returned", url: failure.url }]
   );
 
+/**
+ * A page from `/extract` or `/crawl`. When `query` is true, passages were asked
+ * for (a `query` on read, `instructions` on crawl) and the text goes to
+ * `excerpts`; otherwise it is the page's `markdown`.
+ */
 export const page = (entry: PageEntry, query: boolean): Page => {
   const result = entry.value;
   return compact({
@@ -177,6 +199,7 @@ export const page = (entry: PageEntry, query: boolean): Page => {
   });
 };
 
+/** The `/extract` body for one or more URLs. `chunksPerSource` needs a `query`. */
 export const extractBody = (urls: string[], o: TavilyExtractOptions) => {
   if (o.chunksPerSource !== undefined && o.query === undefined) {
     throw invalidRequest(provider, "chunksPerSource needs query");
@@ -194,6 +217,7 @@ export const extractBody = (urls: string[], o: TavilyExtractOptions) => {
   });
 };
 
+/** The body fields `map` and `crawl` share. */
 export const traversal = (o: TavilyTraversal) =>
   compact({
     allow_external: o.allowExternal,
@@ -209,6 +233,7 @@ export const traversal = (o: TavilyTraversal) =>
     timeout: o.serverTimeout,
   });
 
+/** Base64 of the bytes, encoded in 32 KiB steps so a large file does not exceed the argument limit of `fromCodePoint`. */
 export const base64 = (bytes: Uint8Array): string => {
   let binary = "";
   for (let index = 0; index < bytes.length; index += 0x80_00) {

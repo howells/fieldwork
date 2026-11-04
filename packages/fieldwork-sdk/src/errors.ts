@@ -1,3 +1,7 @@
+// The one error type the SDK throws, and the mapping from HTTP statuses to its
+// codes. http.ts raises these for transport and status failures; adapters raise
+// them for the rest; job.ts attaches `jobId`.
+
 /** Why a call failed. Branch on this, not on the message, which can change. */
 export type FieldworkErrorCode =
   /** The adapter's provider does not offer this capability. */
@@ -6,18 +10,24 @@ export type FieldworkErrorCode =
   | "Unauthorized"
   /** The provider refused the request because of a rate or plan limit. */
   | "RateLimited"
+  /** A 404, or a page read that answered 404 or 410. */
   | "NotFound"
-  /** The provider rejected the request as malformed. */
+  /** The request is malformed or combines options the provider rejects: its 400 or 422, or Fieldwork refusing it before sending. */
   | "InvalidRequest"
   /** An asynchronous job finished without a result. */
   | "JobFailed"
+  /** The call's `timeout` ran out, a job did not finish within it, or the provider answered 408. */
   | "Timeout"
+  /** The caller's `signal` cancelled the call. */
   | "Aborted"
   /** Any other provider failure. */
   | "ProviderError";
 
+/** What a `FieldworkError` carries besides its code and message. */
 export interface FieldworkErrorOptions {
+  /** The provider the call was for, such as "exa". */
   provider?: string;
+  /** The HTTP status the provider answered with. */
   status?: number;
   /** Seconds the provider asked to wait before retrying. */
   retryAfter?: number;
@@ -25,6 +35,7 @@ export interface FieldworkErrorOptions {
   jobId?: string;
   /** Overrides the default, which follows from the code and status. */
   retryable?: boolean;
+  /** What the failure came from, such as the provider's parsed error body or the underlying fetch error. */
   cause?: unknown;
 }
 
@@ -32,8 +43,11 @@ export interface FieldworkErrorOptions {
 export class FieldworkError extends Error {
   override readonly name = "FieldworkError";
   readonly code: FieldworkErrorCode;
+  /** The provider the call was for, when the error came from one. */
   readonly provider?: string;
+  /** The HTTP status the provider answered with, when there was a response. */
   readonly status?: number;
+  /** Seconds the provider asked to wait before retrying, from its `Retry-After` header. */
   readonly retryAfter?: number;
   /**
    * The provider's id for an asynchronous job that was already created when
@@ -78,6 +92,7 @@ export class FieldworkError extends Error {
   }
 }
 
+/** Rate limits, timeouts and 5xx statuses can succeed on repeat. The HTTP client still does not repeat a call whose own deadline ran out. */
 const isRetryable = (code: FieldworkErrorCode, status: number | undefined) => {
   if (code === "RateLimited" || code === "Timeout") {
     return true;
@@ -85,6 +100,11 @@ const isRetryable = (code: FieldworkErrorCode, status: number | undefined) => {
   return status !== undefined && status >= 500;
 };
 
+/**
+ * The error with the job it belongs to attached. An error that is not a
+ * `FieldworkError`, or that already has a `jobId`, comes back as it is.
+ * Otherwise a copy carries `jobId`, which also makes it not `retryable`.
+ */
 export const withJob = <E>(error: E, jobId: string): E | FieldworkError => {
   if (!(error instanceof FieldworkError) || error.jobId !== undefined) {
     return error;
@@ -98,6 +118,10 @@ export const withJob = <E>(error: E, jobId: string): E | FieldworkError => {
   });
 };
 
+/**
+ * The code for a provider's HTTP error status. Statuses not listed, 5xx
+ * included, are `ProviderError`; a 5xx is still `retryable`.
+ */
 export const codeForStatus = (status: number): FieldworkErrorCode => {
   if (status === 401 || status === 403) {
     return "Unauthorized";

@@ -1,3 +1,6 @@
+// Maps Firecrawl's parsed responses to normalized results.
+// The adapter in ../firecrawl.ts calls these; the response schemas are in shapes.ts and the request bodies in request.ts.
+
 import { FieldworkError } from "../../errors.js";
 import type {
   ActResult,
@@ -59,15 +62,18 @@ const LANGUAGE = /^(?<code>[a-z]{2})(?:[-_]|$)/u;
 const some = <T>(items: readonly T[]): T[] | undefined =>
   items.length > 0 ? [...items] : undefined;
 
+/** The two-letter code of a locale such as `en-GB` or `en_GB`. */
 const languageCode = (value: string | undefined): string | undefined =>
   LANGUAGE.exec(value?.toLowerCase() ?? "")?.groups?.code;
 
+/** The passages for a page: the `highlights` text, else the highlight list, else the written `answer` of a `question` query. */
 const excerptsOf = (data: PageDataBlock): string[] | undefined => {
   const { list, text } = data.highlights;
   const highlights = text === undefined ? some(list) : [text];
   return highlights ?? (data.answer === undefined ? undefined : [data.answer]);
 };
 
+/** The credits and scrape id of a page, with its warnings and those of the whole response. */
 export const pageMeta = (
   data: Pick<PageDataBlock, "metadata" | "warning">,
   topNotes: readonly string[]
@@ -107,6 +113,7 @@ export const toPage = (
   });
 };
 
+/** A price; undefined when Firecrawl gave none of its fields. */
 const price = (item: PriceBlock): Price | undefined => {
   const result = compact({
     amount: item.amount,
@@ -116,6 +123,7 @@ const price = (item: PriceBlock): Price | undefined => {
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
+/** The first non-empty GTIN, from `gtin` then the 14, 13, 12 and 8 digit forms. */
 const gtin = (variant: VariantBlock): string | undefined =>
   [
     variant.gtin,
@@ -150,6 +158,7 @@ const toVariant = (variant: VariantBlock): ProductVariant => {
   });
 };
 
+/** The variants' images without repeats, by URL. Used when the product lists none of its own. */
 const allImages = (variants: ProductVariant[]): ProductImage[] | undefined => {
   const seen = new Map<string, ProductImage>();
   for (const image of variants.flatMap((variant) => variant.images ?? [])) {
@@ -185,6 +194,7 @@ export const toProduct = (
 export const noProductReason = (body: ScrapeBody): string | undefined =>
   body.data.warning.text ?? body.warning.text;
 
+/** A web or news result. `kind` is the result's own category, else its source; `snippet` is its description, else its snippet. */
 const searchItem = (result: WebItemBlock, kind: string): SearchResult =>
   compact({
     content: result.markdown,
@@ -196,6 +206,11 @@ const searchItem = (result: WebItemBlock, kind: string): SearchResult =>
     url: result.url ?? "",
   });
 
+/**
+ * A research result. Papers carry ids rather than URLs: a `web:` id holds the
+ * URL itself, and an `arxiv`, `pmid`, `pmcid` or `doi` id resolves through
+ * `PAPER_URLS`. Any other id is used as it is.
+ */
 const paperItem = (paper: PaperBlock): SearchResult => {
   const paperId = paper.paperId ?? "";
   const primary = paper.primaryId ?? paperId;
@@ -213,6 +228,7 @@ const paperItem = (paper: PaperBlock): SearchResult => {
   });
 };
 
+/** Image results. `sourceUrl` is the page the image is on; an item without an image URL is dropped. */
 const imageItems = (found: readonly ImageItemBlock[]): ImageResult[] =>
   found.flatMap((image) => {
     const { imageUrl: url } = image;
@@ -229,6 +245,7 @@ const imageItems = (found: readonly ImageItemBlock[]): ImageResult[] =>
         ];
   });
 
+/** The credits, request id and warnings of a search. */
 const searchMeta = (body: SearchBody) =>
   meta({
     credits: body.creditsUsed,
@@ -236,7 +253,7 @@ const searchMeta = (body: SearchBody) =>
     warnings: [...body.warning, ...body.warnings],
   });
 
-/** The results of a search; the caller adds `raw`. */
+/** The results of a search, web then news then research; the caller adds `raw`. Images are kept apart in `images`. */
 export const searchResult = (body: SearchBody): Omit<SearchResponse, "raw"> => {
   const { data } = body;
   return compact({
@@ -250,18 +267,25 @@ export const searchResult = (body: SearchBody): Omit<SearchResponse, "raw"> => {
   });
 };
 
+/** The image results of a search for images; the caller adds `raw`. */
 export const imagesResult = (body: SearchBody) =>
   compact({
     meta: searchMeta(body),
     results: imageItems(body.data.images ?? []),
   });
 
+/** The pages a crawl or batch could not read. */
 export const failedPages = (errors: BatchErrorsBlock): FailedUrl[] =>
   errors.value.errors.map((entry) => ({
     error: entry.error ?? "unknown error",
     url: entry.url ?? "",
   }));
 
+/**
+ * The run when it has finished, undefined while it runs. A `failed` run that
+ * left partial output counts as finished; any other `failed` or `cancelled`
+ * run throws `JobFailed`.
+ */
 export const researchState = (
   id: string,
   entry: AgentRunBlock
@@ -280,6 +304,12 @@ export const researchState = (
   return done ? entry : undefined;
 };
 
+/**
+ * The result of a finished run. A `failed` run with partial output is
+ * `partial`, with that output and a `stopReason`; any other is `completed`
+ * with `data`, else the message. `sources` is always empty. The continuation
+ * id is the run's thread.
+ */
 export const researchResult = (
   id: string,
   started: RunStartBlock,
@@ -311,6 +341,10 @@ export const researchResult = (
   });
 };
 
+/**
+ * The outcome of a script. `sessionId` is set only when the session is still
+ * open or could not be closed; `close` is what closing it returned.
+ */
 export const actResult = (
   entry: ExecutionBlock,
   sessionId: string | undefined,
@@ -341,6 +375,7 @@ export const actResult = (
   });
 };
 
+/** An open browser session. Throws `ProviderError` when Firecrawl returned no id. */
 export const browserSession = (entry: SessionBlock): BrowserSession => {
   const session = entry.value;
   return compact({
@@ -352,7 +387,7 @@ export const browserSession = (entry: SessionBlock): BrowserSession => {
   });
 };
 
-/** Firecrawl's blocks, a page at a time; a page without a number is left out. */
+/** Firecrawl's blocks, a page at a time; a page without a number is left out. `box` is set only when `bbox` has four numbers. */
 const documentBlocks = (pages: readonly ParsePageBlock[]): DocumentBlock[] =>
   pages.flatMap((entry) => {
     const page = entry.pageNumber;
@@ -393,6 +428,7 @@ export const parseResult = (body: ParseBody): Omit<ParsedDocument, "raw"> => {
   });
 };
 
+/** What a monitor watches: its goal, else its target URLs or queries joined with commas. */
 const watching = (monitor: MonitorBlock["value"]): string | undefined => {
   if (monitor.goal !== undefined) {
     return monitor.goal;
@@ -409,6 +445,7 @@ const watching = (monitor: MonitorBlock["value"]): string | undefined => {
   return watched.filter((item) => item !== undefined).join(", ") || undefined;
 };
 
+/** A monitor. `schedule` is its cron expression, else Firecrawl's text for it. */
 export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   const monitor = entry.value;
   return compact({
@@ -422,6 +459,11 @@ export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   });
 };
 
+/**
+ * One check of a monitor as an event. The summary reads like
+ * `completed: 2 changed, 1 new of 40 pages`, and the time is when the check
+ * finished, else started, was scheduled or was created.
+ */
 const checkEvent = (entry: CheckBlock): MonitorEvent => {
   const check = entry.value;
   const { summary } = check;
@@ -451,7 +493,10 @@ const checkEvent = (entry: CheckBlock): MonitorEvent => {
   });
 };
 
-/** One page of a monitor's checks; the caller adds `raw`. */
+/**
+ * One page of a monitor's checks; the caller adds `raw`. The cursor is the
+ * offset of the next page, set only when this page is full.
+ */
 export const monitorEvents = (
   checks: readonly CheckBlock[],
   offset: number

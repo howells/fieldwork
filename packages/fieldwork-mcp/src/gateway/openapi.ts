@@ -1,3 +1,6 @@
+// The OpenAPI 3.1 description http.ts serves at `{apiPath}/openapi.json`, built from
+// the catalog's tools so it lists only what this gateway serves.
+
 import type { FieldworkErrorCode, JsonSchema } from "@howells/fieldwork-sdk";
 
 import { VERSION } from "../version.js";
@@ -81,7 +84,14 @@ const toolOperation = (tool: GatewayTool) => ({
   },
 });
 
-/** The OpenAPI 3.1 description of one running gateway: only the tools it serves. */
+/**
+ * The OpenAPI 3.1 description of one running gateway: only the tools it serves.
+ *
+ * It is served without a key. It holds tool names, providers and schemas,
+ * never an input, a result or a key, and `servers` is the request's own
+ * origin. Its `/openapi.json` operation sets `security: []`; everything else
+ * needs the bearer key.
+ */
 export const gatewayOpenApi = (
   tools: readonly GatewayTool[],
   paths: { apiPath: string; mcpPath: string; origin: string }

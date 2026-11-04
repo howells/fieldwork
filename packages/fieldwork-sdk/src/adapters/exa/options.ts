@@ -1,3 +1,6 @@
+// Option and operation types for the Exa adapter, exported from `@howells/fieldwork-sdk/exa`.
+// The adapter in ../exa.ts implements them; parse.ts turns the options into Exa requests.
+
 import type { OutputSchema } from "../../schema.js";
 import type {
   Answer,
@@ -12,10 +15,13 @@ import type {
   SearchResponse,
 } from "../../types.js";
 
+/** Settings for the Exa adapter. */
 export interface ExaConfig {
   /** Defaults to the EXA_API_KEY environment variable. */
   apiKey?: string;
+  /** Defaults to https://api.exa.ai. */
   baseUrl?: string;
+  /** Sends every request instead of the global `fetch`. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
@@ -36,6 +42,7 @@ export type ExaOutputSchema =
       additionalProperties?: boolean;
     };
 
+/** Steers the passages `search` returns as `snippet`. */
 export interface ExaHighlightOptions {
   /** Guides which passages Exa picks. Defaults to the search query. */
   query?: string;
@@ -43,6 +50,13 @@ export interface ExaHighlightOptions {
   maxCharacters?: number;
 }
 
+/**
+ * Options for `search`. Combinations Exa does not accept (`lite` with the
+ * options it lacks, `additionalQueries` without a deep type, the `category`
+ * limits below) throw `InvalidRequest` before the request is sent.
+ *
+ * A result's `snippet` is its highlights and its `content` is the page text.
+ */
 export interface ExaSearchOptions extends CallOptions {
   /** Results to return; Exa allows 1 to 100, fewer for some types. */
   limit?: number;
@@ -74,12 +88,13 @@ export interface ExaSearchOptions extends CallOptions {
     | "people";
   /** Hostnames, hostname plus path prefix, or `*.` wildcards; up to 1,200. */
   includeDomains?: string[];
+  /** Refused with `category: "people"`. */
   excludeDomains?: string[];
   /** YYYY-MM-DD, from the start of that day (UTC). */
   publishedAfter?: string;
   /** YYYY-MM-DD, to the end of that day (UTC). */
   publishedBefore?: string;
-  /** Two-letter country code that localizes results. */
+  /** Two-letter country code that localizes results; sent as Exa's `userLocation`. */
   country?: string;
   /** Filter unsafe content from the results. */
   moderation?: boolean;
@@ -110,6 +125,11 @@ export interface ExaSearchOptions extends CallOptions {
   systemPrompt?: string;
 }
 
+/**
+ * Options for `read`. Exa reports a URL it could not read in its response
+ * rather than as an HTTP error; `read` throws for it (`NotFound`, `Timeout` or
+ * `ProviderError`, by Exa's reason) and `readMany` lists it in `failed`.
+ */
 export interface ExaReadOptions extends CallOptions {
   /** Return passages that answer this query as `excerpts`. */
   query?: string;
@@ -127,8 +147,13 @@ export interface ExaReadOptions extends CallOptions {
   imageLimit?: number;
 }
 
+/** Options for `readMany`, which reads 1 to 100 URLs in one call. The same as `ExaReadOptions`. */
 export type ExaReadManyOptions = ExaReadOptions;
 
+/**
+ * Options for `extract`. Exa has no extraction endpoint, so the adapter asks
+ * for a summary of the page in the shape of `schema` and returns it as `data`.
+ */
 export interface ExaExtractOptions<T = unknown> extends CallOptions {
   /** A JSON Schema, or a Zod, Valibot or ArkType schema that types and checks `data`. */
   schema: OutputSchema<T>;
@@ -138,8 +163,12 @@ export interface ExaExtractOptions<T = unknown> extends CallOptions {
   maxAge?: number;
 }
 
+/** Options for `answer`. */
 export interface ExaAnswerOptions<T = unknown> extends CallOptions {
-  /** JSON Schema (draft 7) or a Standard Schema for the answer; the answer comes back as an object. */
+  /**
+   * JSON Schema (draft 7) or a Standard Schema for the answer. The checked
+   * object comes back as `output`, and `answer` holds it as JSON text.
+   */
   schema?: OutputSchema<T>;
   systemPrompt?: string;
   /** Two-letter country code that localizes the search. */
@@ -147,13 +176,19 @@ export interface ExaAnswerOptions<T = unknown> extends CallOptions {
   model?: "exa" | "exa-pro" | "exa-research" | "exa-fast";
 }
 
+/**
+ * Options for `research`, which starts an Exa agent run and waits for it as an
+ * asynchronous job. A run that stops early with output is returned with status
+ * `partial`.
+ */
 export interface ExaResearchOptions<T = unknown> extends CallOptions {
+  /** Output in the shape of this schema, sent as JSON Schema draft 7. Without one the output is text. */
   schema?: OutputSchema<T>;
   /** Cost and reasoning preference. Defaults to `auto`. */
   effort?: "minimal" | "low" | "medium" | "high" | "xhigh" | "auto" | "ultra";
-  /** Spend cap in dollars, 1 to 100. Only `auto` and `ultra` accept it. */
+  /** Spend cap in dollars, 1 to 100. Only `auto` and `ultra` accept it; other efforts are refused. */
   maxCostDollars?: number;
-  /** Soft time limit in seconds, 300 to 10,800. Only `ultra` accepts it. */
+  /** Soft time limit in seconds, 300 to 10,800. Only `ultra` accepts it; other efforts are refused. */
   maxDurationSeconds?: number;
   systemPrompt?: string;
   /** Records for the run to enrich, and records it must not return. */
@@ -172,6 +207,7 @@ export interface ExaResearchOptions<T = unknown> extends CallOptions {
   resume?: string;
 }
 
+/** An event Exa can send to a monitor's webhook. */
 export type ExaWebhookEvent =
   | "monitor.created"
   | "monitor.updated"
@@ -179,6 +215,7 @@ export type ExaWebhookEvent =
   | "monitor.run.created"
   | "monitor.run.completed";
 
+/** Options for `monitor.create`. */
 export interface ExaMonitorCreateOptions extends CallOptions {
   /** What to search for on every run, in plain words. */
   query: string;
@@ -186,7 +223,8 @@ export interface ExaMonitorCreateOptions extends CallOptions {
   webhookUrl: string;
   /**
    * How often the monitor runs: whole hours or days, at least one hour. Exa
-   * has no cron. Leave it out for a monitor that runs only when triggered.
+   * has no cron. `week` is sent as `7d`. Leave it out for a monitor that runs
+   * only when triggered.
    */
   schedule?: Extract<MonitorSchedule, { every: unknown }>;
   name?: string;
@@ -204,12 +242,15 @@ export interface ExaMonitorCreateOptions extends CallOptions {
   webhookEvents?: ExaWebhookEvent[];
 }
 
+/** Options for `monitor.events`. Each event is one run of the monitor. */
 export interface ExaMonitorEventsOptions extends CallOptions {
+  /** The `next` cursor of an earlier page. */
   cursor?: string;
   /** Runs per page, 1 to 100. */
   limit?: number;
 }
 
+/** The `monitor` group: create, get, list, delete and events. `list` reads every page. */
 // A type alias, not an interface: an adapter's operation group must be assignable to a string-keyed record.
 // oxlint-disable-next-line typescript/consistent-type-definitions -- an interface has no implicit index signature
 export type ExaMonitor = {
@@ -223,6 +264,10 @@ export type ExaMonitor = {
   ) => Promise<MonitorEvents>;
 };
 
+/**
+ * What Exa can do: search, read, readMany, extract, answer, research and
+ * monitor. `research` is an asynchronous job and accepts `resume`.
+ */
 export interface ExaOperations {
   search: (
     query: string,

@@ -1,3 +1,6 @@
+// The Browserbase adapter: search, read (Browserbase Fetch, no browser), browser
+// sessions and usage. browserbase/response.ts holds the response schemas.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -27,6 +30,7 @@ import {
   UsageResponse,
 } from "./browserbase/response.js";
 
+/** Settings for `browserbase()`. */
 export interface BrowserbaseConfig {
   /** Defaults to the BROWSERBASE_API_KEY environment variable. */
   apiKey?: string;
@@ -36,7 +40,9 @@ export interface BrowserbaseConfig {
    * `usage` uses the key's only project.
    */
   projectId?: string;
+  /** Defaults to https://api.browserbase.com. */
   baseUrl?: string;
+  /** Defaults to the global `fetch`. A test passes a fake. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
@@ -51,12 +57,14 @@ export interface BrowserbaseGeolocation {
   city?: string;
 }
 
+/** Options for `read`, which fetches the page over HTTP without running a browser. */
 export interface BrowserbaseReadOptions extends CallOptions {
   /**
    * "markdown" converts the page to Markdown (`Page.markdown`). "raw" returns
    * the response body unchanged (`Page.rawHtml` for HTML). Defaults to
    * "markdown". Fetch never runs JavaScript, reads at most 5 MB and cannot
-   * convert PDFs.
+   * convert PDFs. A binary response is not converted either: its Base64
+   * content stays in `raw`, with a warning.
    */
   format?: "markdown" | "raw";
   /** Follow HTTP redirects. Browserbase defaults to false. */
@@ -68,7 +76,7 @@ export interface BrowserbaseReadOptions extends CallOptions {
    * default exit, or a geolocation. Not combinable with `country`.
    */
   proxies?: boolean | { geolocation?: BrowserbaseGeolocation };
-  /** ISO 3166-1 alpha-2 code. Sends the request through a proxy in that country. */
+  /** ISO 3166-1 alpha-2 code, upper-cased before sending. Sends the request through a proxy in that country. */
   country?: string;
   /** A context whose saved cookies are sent with the request. */
   contextId?: string;
@@ -90,6 +98,10 @@ export type BrowserbaseSearchOptions = BrowserbaseSearchBase &
     | { provider: "exa"; mode?: "fast" | "deep-lite" | "deep" }
   );
 
+/**
+ * A proxy rule for a browser session: Browserbase's network, your own server,
+ * or no proxy. `domainPattern` limits a rule to the domains that match.
+ */
 export type BrowserbaseProxy =
   | {
       type: "browserbase";
@@ -106,6 +118,10 @@ export type BrowserbaseProxy =
     }
   | { type: "none"; domainPattern?: string };
 
+/**
+ * Options for `browser.open`. The session is billed until it expires or
+ * `browser.close` releases it.
+ */
 export interface BrowserbaseOpenOptions extends CallOptions {
   region?: "us-west-2" | "us-east-1" | "eu-central-1" | "ap-southeast-1";
   /** Keep the session open after the client disconnects. Hobby plan and above. */
@@ -139,6 +155,7 @@ export interface BrowserbaseOpenOptions extends CallOptions {
   userMetadata?: Record<string, unknown>;
 }
 
+/** What the Browserbase adapter offers. */
 export interface BrowserbaseOperations {
   search: (
     query: string,
@@ -146,12 +163,19 @@ export interface BrowserbaseOperations {
   ) => Promise<SearchResponse>;
   read: (url: string, options?: BrowserbaseReadOptions) => Promise<Page>;
   browser: {
+    /**
+     * Creates a session. A failure to get its live view URL does not fail the
+     * call: the session is billed already, so the result carries a warning.
+     */
     open: (options?: BrowserbaseOpenOptions) => Promise<BrowserSession>;
+    /** Asks Browserbase to release the session. */
     close: (id: string, options?: CallOptions) => Promise<void>;
   };
+  /** Browser minutes and proxy bytes of `projectId`, or of the key's only project. */
   usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
 
+/** The modes each search provider takes; `search` refuses any other. */
 const SEARCH_MODES = {
   exa: ["fast", "deep-lite", "deep"],
   parallel: ["fast", "advanced"],
@@ -179,6 +203,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
   });
   const { projectId } = config;
 
+  /** The `proxies` value to send: as given, or built from `country`. Refuses both together, and a state outside the US. */
   const fetchProxies = (o: BrowserbaseReadOptions) => {
     refuseTogether(provider, o, "proxies", "country");
     const geolocation: BrowserbaseGeolocation | undefined =
@@ -383,6 +408,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
     },
   };
 
+  /** The key's project when it has exactly one; otherwise refuses rather than guess. */
   const onlyProject = async (call: CallOptions): Promise<string> => {
     const projects = z.parse(
       ProjectsResponse,

@@ -1,3 +1,7 @@
+// The LlamaParse adapter: `parse` uploads a document, runs it through `runJob`
+// and normalizes the result. llamaparse/response.ts holds the response schemas and
+// the box conversion.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -22,11 +26,13 @@ import {
 } from "./llamaparse/response.js";
 import type { JobResultBlock } from "./llamaparse/response.js";
 
+/** Settings for `llamaparse()`. */
 export interface LlamaParseConfig {
   /** Defaults to the LLAMA_CLOUD_API_KEY environment variable. */
   apiKey?: string;
   /** Defaults to https://api.cloud.llamaindex.ai; the EU region is https://api.cloud.eu.llamaindex.ai. */
   baseUrl?: string;
+  /** Defaults to the global `fetch`. It also downloads result files from the presigned URLs LlamaParse returns. A test passes a fake. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
@@ -42,6 +48,7 @@ export type LlamaParseTier =
   | "agentic"
   | "agentic_plus";
 
+/** Options for `parse`. */
 export interface LlamaParseParseOptions extends CallOptions {
   /** Defaults to "agentic". */
   tier?: LlamaParseTier;
@@ -51,7 +58,7 @@ export interface LlamaParseParseOptions extends CallOptions {
   blocks?: boolean;
   /**
    * Also return where each word and table cell sits in each block, from a
-   * second download. Returns blocks too. LlamaParse does not charge for it.
+   * second download. Returns blocks too.
    */
   wordBoxes?: boolean;
   /** Leave out text a reader cannot see, such as white text on white. */
@@ -74,8 +81,10 @@ export type LlamaParseResumeOptions = Omit<LlamaParseParseOptions, "resume"> & {
   resume: string;
 };
 
+/** What the LlamaParse adapter offers. */
 export interface LlamaParseOperations {
   parse: {
+    /** Uploads the file and waits for the parse. An error after the upload carries `jobId`. */
     (
       document: DocumentInput,
       options?: LlamaParseParseOptions
@@ -91,6 +100,7 @@ const PAGE_IMAGE = /^page_(?<page>\d+)\.jpg$/u;
 /** The largest file LlamaParse takes, in megabytes. */
 const MAX_PARSE_MB = 512;
 
+/** The upload's `configuration`. The tier and version are always sent; the rest only when asked for. */
 const configuration = (o: LlamaParseParseOptions) =>
   compact({
     output_options:
@@ -109,6 +119,7 @@ const configuration = (o: LlamaParseParseOptions) =>
     version: o.version ?? "latest",
   });
 
+/** Uploads the file and returns the job id. Refuses a missing document, or a file over the size limit, before sending. */
 const startParse = async (
   raw: RawClient,
   document: DocumentInput | undefined,
@@ -137,6 +148,7 @@ const startParse = async (
   return requireJobId(provider, created.id);
 };
 
+/** The result once the job has completed, undefined while it runs; throws `JobFailed` when LlamaParse failed or cancelled it. */
 const finished = (found: JobResultBlock) => {
   const { error_message: message, status } = found.value.job;
   if (status === "FAILED" || status === "CANCELLED") {
@@ -246,6 +258,7 @@ const parsedDocument = async (
   });
 };
 
+/** Runs the job. `expand` names the sections of the result to include; blocks, word boxes and page images each add one. */
 const parse = async (
   raw: RawClient,
   document: DocumentInput | undefined,

@@ -1,3 +1,6 @@
+// The Firecrawl adapter: calls Firecrawl's v2 REST API with `fetch` and returns normalized results.
+// Options and operation types are in firecrawl/options.ts, request bodies in firecrawl/request.ts, result mapping in firecrawl/response.ts, response schemas in firecrawl/shapes.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -131,6 +134,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     retries: config.retries,
   });
 
+  /** Scrapes one URL with the formats and page settings given. */
   const scrape = async (
     url: string,
     formats: unknown[],
@@ -145,6 +149,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     return { body, data: body.data, response };
   };
 
+  /** The path of a `next` link, relative to the base URL, so the next page of results goes through the same client. */
   const pathOf = (link: string): string => {
     const next = new URL(link);
     const base = new URL(baseUrl).pathname.replace(/\/$/u, "");
@@ -210,6 +215,7 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       settings
     );
 
+  /** Opens a browser session. Only a rate limit is retried, since after any other failure the session may already be open and billing. */
   const openSession = async (
     o: FirecrawlSessionSettings,
     call: CallOptions

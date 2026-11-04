@@ -1,9 +1,15 @@
+// Bearer-key authentication for gateway agents. http.ts calls the authenticator
+// first for every request except the public OpenAPI description.
+
 import { createHash, timingSafeEqual } from "node:crypto";
 
 import * as z from "zod/mini";
 
+/** One caller of the gateway. */
 export interface GatewayAgent {
+  /** Names the agent in the call log. Lower-case letters, digits, `_` and `-`, starting with a letter or digit. */
   id: string;
+  /** The bearer key: at least 32 characters, none of them whitespace. Distinct for each agent. */
   apiKey: string;
 }
 
@@ -15,7 +21,17 @@ const Agent = z.object({
 const digest = (key: string): Buffer =>
   createHash("sha256").update(key).digest();
 
-/** Keeps access-key hashes, never includes a key in an authentication error. */
+/**
+ * Checks the agents and returns a function that maps a request to the id of
+ * the agent whose key it carries, or undefined. Throws when an agent is
+ * malformed or two share an id or a key; the message never holds a key.
+ *
+ * Only SHA-256 digests of the keys are kept. A presented key is hashed too and
+ * compared with `timingSafeEqual`, so every comparison is between 32 bytes and
+ * the comparison itself takes the same time for any key. The scan stops at
+ * the first match, so time reveals only which agent matched. With no agents,
+ * nothing matches. The scheme is `Bearer`, in any case, followed by one space.
+ */
 export const agentAuthenticator = (agents: readonly GatewayAgent[]) => {
   const parsed = z.parse(z.array(Agent), agents);
   if (

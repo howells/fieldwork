@@ -1,3 +1,9 @@
+// The SerpApi adapter. `search` looks up the engine's spec in ./serpapi/engines.ts,
+// which maps the normalized options to SerpApi parameters and reads the results;
+// `images` is Google Images, with its own option list; `usage` reads `/account`.
+// Option types and the date and country encoders are in ./serpapi/options.ts, result
+// readers in ./serpapi/parse.ts and response schemas in ./serpapi/response.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";

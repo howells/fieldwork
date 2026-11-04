@@ -1,3 +1,7 @@
+// Schemas for Parallel's responses, built from the lenient blocks in ../../parse.ts
+// so a changed field reads as absent instead of failing. ./parse.ts and ./jobs.ts
+// read the parsed values; the response as received still goes in `raw`.
+
 import * as z from "zod/mini";
 
 import {
@@ -68,6 +72,7 @@ export const ImagesResponse = looseObject({
   warnings,
 });
 
+/** One URL's result in an Extract response. */
 const ExtractResult = looseObject({
   excerpts: arrayOf(z.string()),
   full_content: optionalString,
@@ -76,7 +81,10 @@ const ExtractResult = looseObject({
   url: optionalString,
 });
 
-/** `/v1/extract`. Each result keeps its own entry as it arrived. */
+/**
+ * `/v1/extract`. Each result keeps its own entry as it arrived. `extract_id` is
+ * read as text (the batch id) and as a request id (a string, number or boolean).
+ */
 export const ExtractResponse = looseObject({
   errors: arrayOf(
     looseObject({
@@ -126,6 +134,10 @@ export const AnswerResponse = looseObject({
   }),
 });
 
+/**
+ * One decision answer. `noul` is a yes/no probability; `probabilities` is keyed by
+ * choice, or by zero-based score level.
+ */
 const Decision = looseObject({
   choice: optionalString,
   confidence: optionalNumber,
@@ -176,6 +188,7 @@ export const FindAllRun = withOriginal(
   looseObject({ status: looseObject({ status: optionalString }) })
 );
 
+/** A FindAll candidate. `output` holds its enrichment values among other outputs. */
 const Candidate = looseObject({
   basis: arrayOf(Basis),
   description: optionalString,
@@ -220,6 +233,10 @@ export const MonitorsPage = looseObject({
   next_cursor: optionalString,
 });
 
+/**
+ * The output of a monitor event: the evidence and the content, read as text and as
+ * a structure.
+ */
 const EventOutput = looseObject({ basis: arrayOf(Basis), content: Content });
 
 /** One page of a monitor's events, each beside its entry as it arrived. */

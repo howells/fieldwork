@@ -1,14 +1,12 @@
 import * as z from "zod/mini";
 
-/**
- * Building blocks for the schemas that parse a provider's response at the
- * boundary. Every block is lenient: it never fails, so a provider that adds,
- * removes or retypes a field cannot make a working call throw. A field of the
- * wrong type reads as absent, and unknown keys pass through. Build each
- * adapter's response schema only from these, then `z.parse` the response once.
- * The provider's untouched response still goes in `raw`; the parsed value is
- * for reading only.
- */
+// Building blocks for the schemas that parse a provider's response at the
+// boundary. Every block is lenient: it never fails, so a provider that adds,
+// removes or retypes a field cannot make a working call throw. A field of the
+// wrong type reads as absent, and unknown keys pass through. Build each
+// adapter's response schema only from these, then `z.parse` the response once.
+// The provider's untouched response still goes in `raw`; the parsed value is
+// for reading only.
 
 /** The result of a field that is absent or of the wrong type. */
 const nothing = (): undefined => undefined;
@@ -214,6 +212,7 @@ export const sourceShape = {
 /** A cited source. */
 export const Source = looseObject(sourceShape);
 
+/** A cited source as parsed: URL, title and excerpts, each absent when the provider's value was missing or the wrong type. */
 export type SourceBlock = z.output<typeof Source>;
 
 /** A non-empty string, else a finite number, else undefined. */

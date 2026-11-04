@@ -1,3 +1,7 @@
+// Runs one tool call for the gateway: validates the gateway's own fields, selects
+// the provider, enforces the deadline, redacts errors and records the call.
+// http.ts and mcp.ts both call it, so the JSON API and MCP behave the same.
+
 import { FieldworkError } from "@howells/fieldwork-sdk";
 import type { CallOptions } from "@howells/fieldwork-sdk";
 import { toolError } from "@howells/fieldwork-sdk/tools";
@@ -6,23 +10,39 @@ import * as z from "zod/mini";
 
 import type { gatewayCatalog } from "./catalog.js";
 
+/**
+ * The log entry for one tool call, given to `onCall` when it ends. It holds who
+ * called, what ran and how it ended. It has no field for the input or the
+ * result, and `errorDetail` is redacted.
+ */
 export interface GatewayCall {
   agentId: string;
+  /** From the start of validation to the end of the call. */
   durationMs: number;
   errorCode?: string;
-  /** The redacted message of an unexpected error whose details the client never sees. */
+  /**
+   * The redacted message of an error that was not a `FieldworkError`. The
+   * client gets a generic message instead; this is for the operator.
+   */
   errorDetail?: string;
+  /** The provider job a failed call had already started; resume it rather than repeat the call. */
   jobId?: string;
   outcome: "success" | "error";
+  /** Absent when the call failed before a provider was chosen. */
   provider?: string;
   requestId: string;
   tool: string;
+  /** What the provider reported it used (`meta.usage` of the result), in its own units. */
   usage?: ToolOutput;
 }
 
+/** Who is calling and how to stop the call. */
 export interface CallContext {
+  /** The authenticated agent. */
   agentId: string;
+  /** Also sent to the caller as `x-request-id`. */
   requestId: string;
+  /** Aborts when the client goes away. */
   signal: AbortSignal;
 }
 
@@ -31,6 +51,7 @@ interface GatewayResult {
   result: ToolOutput;
 }
 
+/** Replaces each secret's exact text. A key a provider echoes re-encoded, such as URL-encoded, is not caught. */
 const redact = (message: string, secrets: readonly string[]): string => {
   let redacted = message;
   for (const secret of secrets) {
@@ -39,6 +60,12 @@ const redact = (message: string, secrets: readonly string[]): string => {
   return redacted;
 };
 
+/**
+ * The error the client may see. A `FieldworkError` keeps its code, ids and
+ * retry hints with a redacted message; its `cause` is dropped. Anything else
+ * becomes a fixed `ProviderError`, so the text of an unexpected failure never
+ * leaves the process.
+ */
 const safeError = (
   error: Error | null,
   secrets: readonly string[]
@@ -67,6 +94,7 @@ const Usage = z.object({
   ),
 });
 
+/** Takes the gateway's `provider` and `timeout` out of the input. The tool sees only the rest. */
 const settings = (input: ToolInput, maxTimeout: number) => {
   const parsed = z.safeParse(Input, input);
   const values = parsed.success ? parsed.data : undefined;
@@ -85,7 +113,16 @@ const settings = (input: ToolInput, maxTimeout: number) => {
   return { args, provider: provider.data, timeout: timeout.data ?? maxTimeout };
 };
 
-/** A call is recorded after completion, including a failed selection or validation. */
+/**
+ * Runs a call and records it. The entry is reported once the call ends, even
+ * when the input or provider was refused.
+ *
+ * The call stops at `timeout` milliseconds (the default is `maxTimeout`), or
+ * when the client goes away. When the deadline, not the client, ends a call
+ * with a `FieldworkError`, the error becomes `Timeout` and keeps the
+ * provider's `jobId`: the job may still be running, and the caller passes
+ * `jobId` as `resume` to collect it.
+ */
 export const gatewayExecutor =
   (
     catalog: ReturnType<typeof gatewayCatalog>,

@@ -19,6 +19,7 @@ import {
 import { list, text, url } from "./schema.js";
 import type { Field, ProviderName, Spec } from "./types.js";
 
+/** Providers whose read takes `query`, to return the passages of a page that answer it. */
 const QUERY_READERS: readonly ProviderName[] = [
   "exa",
   "firecrawl",
@@ -34,6 +35,11 @@ const query: Field = {
   ),
 };
 
+/**
+ * The tools that read pages: `read_page`, `read_pages`, `extract_values`,
+ * `read_product`, `map_site` and `crawl_site`. Firecrawl runs `read_pages` and
+ * `crawl_site` as jobs, so they take `resume` with it.
+ */
 export const READ_SPECS: Spec[] = [
   {
     capability: "read",

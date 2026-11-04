@@ -1,3 +1,7 @@
+// Reads SerpApi responses into normalized results, one function per result shape.
+// ./engines.ts picks the reader for each engine; the response schema is in
+// ./response.ts.
+
 import type { ImageResult, Price, SearchResult } from "../../types.js";
 import { compact, meta } from "../../util.js";
 import type {
@@ -8,8 +12,13 @@ import type {
   StoryBlock,
 } from "./response.js";
 
+/** The name this adapter reports in errors and results. */
 export const provider = "serpapi";
 
+/**
+ * A shopping item's price: `amount` from `extracted_price` and `formatted` from
+ * `price`, either alone, or undefined when it has neither.
+ */
 export const priceOf = (item: ShoppingBlock): Price | undefined => {
   const price = compact({
     amount: item.extracted_price,
@@ -18,6 +27,10 @@ export const priceOf = (item: ShoppingBlock): Price | undefined => {
   return Object.keys(price).length > 0 ? price : undefined;
 };
 
+/**
+ * Organic results of Google, Bing and DuckDuckGo, as `web` results. A result with
+ * no link is left out.
+ */
 export const webResults = (body: SearchBody): SearchResult[] =>
   body.organic_results.flatMap((item) => {
     const url = item.link;
@@ -37,6 +50,10 @@ export const webResults = (body: SearchBody): SearchResult[] =>
         ];
   });
 
+/**
+ * Google Images results: `original` is the image and `link` its source page. A
+ * result with no `original` is left out.
+ */
 export const imageResults = (body: SearchBody): ImageResult[] =>
   body.images_results.flatMap((item) => {
     const url = item.original;
@@ -54,6 +71,10 @@ export const imageResults = (body: SearchBody): ImageResult[] =>
         ];
   });
 
+/**
+ * One news story as a result, or none without a link. The author joins the
+ * source's authors, and the date prefers the ISO form.
+ */
 export const newsItem = (item: StoryBlock): SearchResult[] => {
   const url = item.link;
   if (url === undefined) {
@@ -81,6 +102,10 @@ export const newsResults = (body: SearchBody): SearchResult[] =>
     ...item.stories.flatMap((story) => newsItem(story)),
   ]);
 
+/**
+ * Shopping results from the first non-empty of the main, categorized and inline
+ * lists. The URL is `link`, else `product_link`.
+ */
 export const shoppingResults = (body: SearchBody): SearchResult[] => {
   const categorized = body.categorized_shopping_results.flatMap(
     (group) => group.shopping_results
@@ -169,6 +194,7 @@ export const scholarResults = (body: SearchBody): SearchResult[] =>
         ];
   });
 
+/** Patent results: the URL is `patent_link` and the author is the inventor. */
 export const patentResults = (body: SearchBody): SearchResult[] =>
   body.organic_results.flatMap((item) => {
     const url = item.patent_link;
@@ -187,9 +213,17 @@ export const patentResults = (body: SearchBody): SearchResult[] =>
         ];
   });
 
+/**
+ * An answer box's text: its `answer`, else a non-empty `result` (a calculator's),
+ * else its `snippet`.
+ */
 const answerOf = (box: AnswerBoxBlock | undefined): string | undefined =>
   box?.answer ?? (box?.result === "" ? undefined : box?.result) ?? box?.snippet;
 
+/**
+ * The text of the answer box, or of the first of an answer list when there is no
+ * single box.
+ */
 export const answerText = (body: SearchBody): string | undefined =>
   answerOf(body.answer_box ?? body.answer_box_list[0]);
 

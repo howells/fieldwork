@@ -1,3 +1,6 @@
+// The Exa adapter: calls Exa's REST API with `fetch` and returns normalized results.
+// Options and operation types are in exa/options.ts, request and result mapping in exa/parse.ts, response schemas in exa/response.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -88,6 +91,7 @@ export const exa = (config: ExaConfig = {}) => {
     retries: config.retries,
   });
 
+  /** Calls `/contents` for these URLs. A URL Exa could not read is in `statuses`, not an error. */
   const fetchContents = async (
     urls: string[],
     body: Record<string, unknown>,
@@ -100,6 +104,7 @@ export const exa = (config: ExaConfig = {}) => {
     return { body: z.parse(ContentsResponse, response), response };
   };
 
+  /** Reads one URL. Throws when Exa reports a failure for it or returns no result. */
   const readOne = async (
     url: string,
     body: Record<string, unknown>,

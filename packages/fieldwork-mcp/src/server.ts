@@ -1,3 +1,6 @@
+// The stdio MCP server: one MCP tool per Fieldwork tool. `register.ts` does the
+// registering, shared with the gateway's per-request servers in gateway/mcp.ts.
+
 import type { AnyAdapter, Fieldwork } from "@howells/fieldwork-sdk";
 import { toolsFor } from "@howells/fieldwork-sdk/tools";
 import type { ToolsOptions } from "@howells/fieldwork-sdk/tools";
@@ -14,6 +17,10 @@ export type FieldworkServerOptions = ToolsOptions;
  * capability, the Fieldwork instance offers. Tool errors come back as results
  * with `isError: true` and a structured body, so a model can read the code
  * and decide what to do next.
+ *
+ * Returns the server unconnected; the caller attaches a transport. It has no
+ * authentication of its own: whoever can call it can use every tool it
+ * registers, with the provider keys the process holds.
  */
 export const createFieldworkServer = (
   web: Fieldwork<AnyAdapter>,

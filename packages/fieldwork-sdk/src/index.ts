@@ -1,3 +1,6 @@
+// The package's root export: the client, the adapter contract, the router, the
+// error and the result types. Adapters and agent tools are separate entry points.
+
 export {
   type Adapter,
   type AnyAdapter,

@@ -1,3 +1,6 @@
+// Schemas for Tavily's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// parse.ts maps these to normalized results; the adapter in ../tavily.ts parses each response with one of them.
+
 import * as z from "zod/mini";
 
 import {
@@ -40,6 +43,7 @@ const Image = z.union([
   ),
 ]);
 
+/** A search result. `content` holds Tavily's passages and `raw_content` the page text. */
 const SearchResult = looseObject({
   content: optionalString,
   favicon: optionalString,
@@ -58,6 +62,7 @@ export const SearchResponse = looseObject({
   results: arrayOf(SearchResult),
 });
 
+/** A page from `/extract` or `/crawl`. `raw_content` is the page text, or passages when a query or instructions were given. */
 const PageResult = looseObject({
   favicon: optionalString,
   images: arrayOf(z.string()),
@@ -65,6 +70,7 @@ const PageResult = looseObject({
   url: optionalString,
 });
 
+/** A URL Tavily could not read, with its reason. */
 const FailedResult = looseObject({
   error: optionalString,
   url: optionalString,

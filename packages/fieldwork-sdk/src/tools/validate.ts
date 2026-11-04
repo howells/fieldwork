@@ -1,12 +1,11 @@
+// Validates a model's tool input against the schemas the tools advertise, with
+// messages the model can act on.
+
 import type { FieldSchema } from "../tool-specs/schema.js";
 import { isFlag, isJsonObject, isList, isNumber, isText } from "./json.js";
 import type { JsonObject, JsonValue } from "./json.js";
 
-/**
- * Checks a value against the schema subset the tools use and says what is
- * wrong in words a model can act on, or returns nothing when it is fine.
- */
-
+/** The shape only: 2026-02-31 passes and is the provider's to refuse. */
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 
 type Check = (
@@ -158,7 +157,12 @@ const typeProblem = (
   return undefined;
 };
 
-/** What is wrong with `value` as `name`, in full ("limit must be a whole number from 1 to 20"), or nothing. */
+/**
+ * What is wrong with `value` as `name`, in full ("limit must be a whole
+ * number from 1 to 20"), or nothing. Checks only the keywords `FieldSchema`
+ * has. A string must not be empty, and a schema with no `type` accepts any
+ * value. With `oneOf`, one option that passes is enough.
+ */
 export const problem: Check = (schema, value, name) => {
   if (schema.oneOf !== undefined) {
     const problems = schema.oneOf.map((option) => problem(option, value, name));

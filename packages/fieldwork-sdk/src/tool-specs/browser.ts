@@ -8,6 +8,13 @@ import {
 import { choice, flag, text, whole } from "./schema.js";
 import type { Spec } from "./types.js";
 
+/**
+ * The tools that drive a browser or convert a file: `run_browser_script`,
+ * `open_browser`, `close_browser` and `parse_document`. `toolsFor` leaves out
+ * the first three unless asked, since they start billed sessions with real
+ * effects; `parse_document` is a normal tool. Its `name` and `contentBase64`
+ * become the one file argument `parse` takes.
+ */
 export const BROWSER_SPECS: Spec[] = [
   {
     capability: "act",

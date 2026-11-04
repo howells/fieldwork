@@ -1,3 +1,6 @@
+// Maps normalized options to Exa's request bodies and Exa's responses to normalized results.
+// ../exa.ts calls these; the shapes of Exa's responses are parsed in response.ts and the option types are in options.ts.
+
 import { FieldworkError, invalidRequest } from "../../errors.js";
 import type { FieldworkErrorCode } from "../../errors.js";
 import type { Original } from "../../parse.js";
@@ -40,9 +43,16 @@ import type {
 
 export const provider = "exa";
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/u;
+/** The search types that take `additionalQueries`. */
 const DEEP_TYPES = new Set(["deep-lite", "deep", "deep-reasoning"]);
+/** The most URLs `readMany` sends in one call. */
 export const MAX_READ_URLS = 100;
 
+/**
+ * A `YYYY-MM-DD` date as a UTC date-time, at the start of the day or (for an
+ * upper bound) its last millisecond, so the filter covers the whole day. Any
+ * other value passes through.
+ */
 export const dateTime = (value: string | undefined, endOfDay: boolean) => {
   if (value === undefined || !DATE_ONLY.test(value)) {
     return value;
@@ -50,6 +60,7 @@ export const dateTime = (value: string | undefined, endOfDay: boolean) => {
   return endOfDay ? `${value}T23:59:59.999Z` : `${value}T00:00:00.000Z`;
 };
 
+/** The cost and request id Exa reports, with any warnings. */
 export const responseMeta = (body: MeteredBody, warnings?: string[]) =>
   meta({
     costUsd: body.costDollars.total,
@@ -57,6 +68,7 @@ export const responseMeta = (body: MeteredBody, warnings?: string[]) =>
     warnings,
   });
 
+/** Exa's `summary` content option. A schema asks for a structured summary and is sent even when `summary` is off. */
 const summaryOption = (
   summary: boolean | { query?: string } | undefined,
   schema?: JsonSchema
@@ -72,6 +84,7 @@ const summaryOption = (
 
 // --- search --------------------------------------------------------------
 
+/** Refuses option combinations Exa does not accept, before the request is sent. */
 export const checkSearch = (o: ExaSearchOptions) => {
   if (o.type === "lite") {
     const unsupported = (
@@ -112,6 +125,7 @@ export const checkSearch = (o: ExaSearchOptions) => {
   }
 };
 
+/** Exa's `highlights` option: `true`, or the query and length limit that steer the passages. */
 const highlightsOption = (
   highlights: true | ExaHighlightOptions | undefined
 ) =>
@@ -122,6 +136,10 @@ const highlightsOption = (
       })
     : true;
 
+/**
+ * The `contents` of a search request. Highlights are on unless `highlights` is
+ * false. Undefined when nothing is asked for.
+ */
 export const searchContents = (o: ExaSearchOptions) => {
   const contents = compact({
     highlights:
@@ -133,6 +151,10 @@ export const searchContents = (o: ExaSearchOptions) => {
   return Object.keys(contents).length > 0 ? contents : undefined;
 };
 
+/**
+ * A search result. `snippet` joins the highlights with " … ". Exa's `summary`
+ * is not mapped; it stays in `raw`.
+ */
 export const searchResult = (result: ResultBlock): SearchResult =>
   compact({
     author: result.author,
@@ -147,6 +169,11 @@ export const searchResult = (result: ResultBlock): SearchResult =>
     url: result.url ?? "",
   });
 
+/**
+ * The answer Exa generated from the results: text as it is (none when empty),
+ * or an object serialized as JSON text. Undefined when Exa sent none; the
+ * object itself stays in `raw`.
+ */
 export const generatedAnswer = (
   output: SearchBody["output"]
 ): string | undefined => {
@@ -161,6 +188,11 @@ export const generatedAnswer = (
 
 // --- contents ------------------------------------------------------------
 
+/**
+ * The `/contents` options for a read. Page text is always requested (capped
+ * when `maxCharacters` is set); `query` asks for highlights; links and image
+ * links default to 100 each, and `0` leaves them out.
+ */
 export const readBody = (o: ExaReadOptions) => {
   const links = o.linkLimit ?? 100;
   const images = o.imageLimit ?? 100;
@@ -180,6 +212,11 @@ export const readBody = (o: ExaReadOptions) => {
   });
 };
 
+/**
+ * The error code for a URL Exa failed to read. Exa reports this per URL in the
+ * response, not as an HTTP error: its `tag` decides first, then the HTTP
+ * status it saw.
+ */
 export const failureCode = (
   tag: string | undefined,
   httpStatus: number | undefined
@@ -196,6 +233,7 @@ export const failureCode = (
   return httpStatus === 408 || httpStatus === 504 ? "Timeout" : "ProviderError";
 };
 
+/** Why a URL failed, for an error message: Exa's tag, else its HTTP status, else the status text. */
 export const statusReason = (status: UrlStatusBlock): string => {
   const { httpStatusCode, tag } = status.error;
   return (
@@ -206,6 +244,7 @@ export const statusReason = (status: UrlStatusBlock): string => {
   );
 };
 
+/** The URLs Exa reported with a status other than `success`. A status left out is not a failure. */
 export const failedStatuses = (
   statuses: readonly UrlStatusBlock[]
 ): UrlStatusBlock[] =>
@@ -234,6 +273,7 @@ export const pageFrom = (url: string, result: ResultBlock): Omit<Page, "raw"> =>
 
 // --- research ------------------------------------------------------------
 
+/** Whether a run has the output asked for: the structured value, or the text. */
 const hasOutput = (run: RunBody, structured: boolean): boolean =>
   structured
     ? run.output.structured !== undefined && run.output.structured !== null
@@ -252,6 +292,7 @@ const runMeta = (run: RunBody) => {
   });
 };
 
+/** Refuses a budget the chosen `effort` does not take, before the run starts. */
 export const checkResearch = (o: ExaResearchOptions) => {
   const effort = o.effort ?? "auto";
   if (
@@ -272,6 +313,7 @@ export const checkResearch = (o: ExaResearchOptions) => {
   }
 };
 
+/** The body that starts an agent run. `continueFrom` is sent as `previousRunId`. */
 export const researchBody = (question: string, o: ExaResearchOptions) => {
   const budget = compact({
     maxCostDollars: o.maxCostDollars,
@@ -290,6 +332,13 @@ export const researchBody = (question: string, o: ExaResearchOptions) => {
   });
 };
 
+/**
+ * The result of a finished run. A run that did not complete and has no output
+ * throws `JobFailed` with Exa's error. Otherwise the result is `completed`
+ * only when the run completed and stopped for no reason or with
+ * `schema_satisfied`; any other finish is `partial`, with the stop reason.
+ * `continuationId` is the run's id once it has completed.
+ */
 export const researchResult = (
   id: string,
   entry: RunBlock,
@@ -336,6 +385,7 @@ export const researchResult = (
 
 // --- monitors ------------------------------------------------------------
 
+/** Exa's trigger period for an interval schedule: `hour`, `day` and `week` become `1h`, `1d` and `7d`. Exa has no cron. */
 const intervalPeriod = (
   schedule: NonNullable<ExaMonitorCreateOptions["schedule"]>
 ) => {
@@ -363,9 +413,11 @@ const intervalPeriod = (
   return value;
 };
 
+/** The trigger period for a monitor's schedule; undefined for a monitor with none. */
 export const period = (schedule: ExaMonitorCreateOptions["schedule"]) =>
   schedule === undefined ? undefined : intervalPeriod(schedule);
 
+/** A monitor from Exa's entry; `schedule` is its trigger period and `watch` its search query. */
 export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   const found = entry.value;
   return compact({
@@ -379,6 +431,7 @@ export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   });
 };
 
+/** What a run found: its generated text, or the failure when it failed. Undefined otherwise. */
 const eventSummary = (run: MonitorRunBlock): string | undefined => {
   const { text } = run.output.content;
   if (text !== undefined) {
@@ -390,6 +443,10 @@ const eventSummary = (run: MonitorRunBlock): string | undefined => {
   return undefined;
 };
 
+/**
+ * One run of a monitor as an event. `output` is set only when the run's
+ * content is a structured value rather than text.
+ */
 export const monitorEvent = (
   entry: Original<MonitorRunBlock>
 ): MonitorEvent => {

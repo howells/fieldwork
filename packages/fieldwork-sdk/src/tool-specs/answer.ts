@@ -32,12 +32,14 @@ import {
 import type { FieldSchema } from "./schema.js";
 import type { Field, Spec } from "./types.js";
 
+/** The required `question` input, the tool's one positional argument. */
 const question = (description: string): Field => ({
   name: "question",
   required: true,
   schema: text(description),
 });
 
+/** One question for `make_decisions`, in the three forms of the `DecisionQuestion` type: `yesno`, `choice` and `score`. */
 const decisionQuestion: FieldSchema = {
   oneOf: [
     object(
@@ -65,6 +67,11 @@ const decisionQuestion: FieldSchema = {
   ],
 };
 
+/**
+ * The tools that answer or decide: `answer_question`, `research_question`,
+ * `find_entities` and `make_decisions`. `research_question` and
+ * `find_entities` run as jobs, so they take `resume` where the provider does.
+ */
 export const ANSWER_SPECS: Spec[] = [
   {
     capability: "answer",

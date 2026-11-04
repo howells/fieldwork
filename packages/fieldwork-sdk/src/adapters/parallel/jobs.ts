@@ -1,3 +1,7 @@
+// Task and FindAll job plumbing for the Parallel adapter: starting a run, checking
+// it through `runJob`, and turning a run that stopped without a result into a
+// `JobFailed` error. The operations that use it are in ../parallel.ts.
+
 import * as z from "zod/mini";
 
 import { FieldworkError, withJob } from "../../errors.js";
@@ -21,6 +25,11 @@ import {
 } from "./response.js";
 import type { TaskResultBlock, TaskRunBlock } from "./response.js";
 
+/**
+ * The `JobFailed` error for a Task run that ended without a result: cancelled,
+ * failed with Parallel's message, or `action_required`, which waits on something
+ * Fieldwork cannot do and so never finishes. The run's warnings are appended.
+ */
 export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
   const run = entry.value;
   const status = run.status ?? "unknown";
@@ -45,6 +54,11 @@ export const stoppedRun = (id: string, entry: TaskRunBlock): FieldworkError => {
   });
 };
 
+/**
+ * A completed run's result. When the result endpoint answers `NotFound` for a run
+ * that failed or was cancelled, this raises that run's `JobFailed` instead; any
+ * other error passes through.
+ */
 export const taskResult = async (
   raw: RawClient,
   id: string,
@@ -69,7 +83,11 @@ export const taskResult = async (
   }
 };
 
-/** Runs a task to its result, or waits for the run named by `resume`. */
+/**
+ * Runs a task to its result, or waits for the run named by `resume`. A failed,
+ * cancelled or `action_required` run throws at once; queued, running and
+ * cancelling runs are polled again.
+ */
 export const runTask = async <Result>(
   raw: RawClient,
   body: Json,
@@ -115,6 +133,11 @@ export const runTask = async <Result>(
     settings
   );
 
+/**
+ * Starts a FindAll run and returns its id. With a `schema` it then adds the
+ * enrichment; if that request fails, the error carries the run's id, since the run
+ * already exists.
+ */
 export const startFindAll = async (
   raw: RawClient,
   objective: string,
@@ -158,7 +181,10 @@ export const startFindAll = async (
   return id;
 };
 
-/** The result of a FindAll run once it has stopped, or undefined while it runs. */
+/**
+ * The result of a FindAll run once it has stopped (completed, failed or
+ * cancelled), or undefined while it runs. `action_required` throws `JobFailed`.
+ */
 export const findAllResult = async (
   raw: RawClient,
   id: string,

@@ -1,6 +1,10 @@
 import { FieldworkError } from "./errors.js";
 import type { JsonSchema } from "./types.js";
 
+// Structured-output schemas: accepts a plain JSON Schema or a Standard Schema
+// (Zod, Valibot, ArkType), converts it for the provider (`jsonSchemaOf`) and
+// checks the provider's output against it (`checkOutput`).
+//
 // The Standard Schema interfaces below are copied from https://standardschema.dev
 // (MIT), as its authors ask libraries to do rather than depend on
 // @standard-schema/spec. The namespaces of the original are flattened into
@@ -150,6 +154,9 @@ const isStandard = (
  * The JSON Schema to send to a provider. A plain JSON Schema passes through as
  * given; a Standard Schema is converted to `target`, without its `$schema` key,
  * because the provider's docs, not the library, say which dialect it reads.
+ *
+ * Throws `InvalidRequest`, with the library's error as `cause`, when the
+ * library cannot write the schema as `target`.
  */
 export const jsonSchemaOf = (
   schema: OutputSchema<unknown>,
@@ -198,9 +205,10 @@ export interface OutputContext {
 
 /**
  * The provider's structured output as the caller's type. A Standard Schema
- * checks it and throws `ProviderError` listing the first issues with their
- * paths; the value returned is the schema's own output, so transforms and
- * defaults apply. A plain JSON Schema, or no schema, leaves it unchecked.
+ * checks it and throws `ProviderError` listing the first three issues with
+ * their paths, not `retryable` and carrying the context's `jobId`; the value
+ * returned is the schema's own output, so transforms and defaults apply. A
+ * plain JSON Schema, or no schema, leaves it unchecked.
  */
 export const checkOutput = async <T>(
   schema: OutputSchema<T> | undefined,

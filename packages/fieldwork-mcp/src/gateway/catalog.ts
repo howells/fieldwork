@@ -1,3 +1,6 @@
+// Builds the gateway's tool list from its Fieldwork clients, and picks the SDK
+// tool a call runs. http.ts advertises `tools`; execute.ts calls `select`.
+
 import { FieldworkError } from "@howells/fieldwork-sdk";
 import type {
   AnyAdapter,
@@ -11,16 +14,29 @@ import * as z from "zod/mini";
 
 import type { Provider } from "../config.js";
 
+/** The provider each capability uses when a call names none. */
 export type GatewayDefaults = Partial<Record<Capability, Provider>>;
 
+/**
+ * A tool as the gateway advertises it: one entry per tool name, covering every
+ * provider that serves it. Annotations and the output schema come from the
+ * first provider's tool.
+ */
 export interface GatewayTool {
   annotations: FieldworkTool["annotations"];
   capability: Capability;
+  /** Absent when `defaults` names no provider that serves the tool; every call must then set `provider`. */
   defaultProvider?: string;
   description: string;
+  /**
+   * A `oneOf` with a branch for the default provider, without `provider`, and
+   * one per provider, with `provider` fixed and required. Each branch holds
+   * only the options that provider accepts, and refuses any other property.
+   */
   inputSchema: JsonSchema;
   name: string;
   outputSchema: JsonSchema;
+  /** The providers that serve the tool, in client order. */
   providers: string[];
 }
 
@@ -29,6 +45,7 @@ const InputSchema = z.object({
   required: z.optional(z.array(z.string())),
 });
 
+/** One provider's input schema, with the gateway's `timeout` added. `explicit` fixes and requires `provider`. */
 const schemaFor = (
   tool: FieldworkTool,
   maxTimeout: number,
@@ -95,7 +112,15 @@ const describe = (
   ];
 };
 
-/** Each provider contributes its own schema and executor; no options are merged. */
+/**
+ * Each provider contributes its own schema and executor; no options are merged.
+ * Building it throws when two clients offer the same tool through the same
+ * provider.
+ *
+ * `select` returns the tool for a call's `provider`, or the default. It throws
+ * `Unsupported`, naming the providers that serve the tool, when there is none.
+ * It never substitutes another provider.
+ */
 export const gatewayCatalog = (
   clients: readonly Fieldwork<AnyAdapter>[],
   defaults: GatewayDefaults,

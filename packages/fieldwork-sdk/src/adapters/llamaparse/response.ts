@@ -1,3 +1,7 @@
+// Schemas for LlamaParse's responses. Each reads a response without failing: a missing or mistyped field is absent, not an error.
+// `documentBlocks` turns its items, boxes in page points, into the normalized blocks with boxes in fractions of the page.
+// The adapter in ../llamaparse.ts parses each response with one of these.
+
 import * as z from "zod/mini";
 
 import { enclosing } from "../../document.js";
@@ -87,6 +91,7 @@ export const JobResult = withOriginal(
   })
 );
 
+/** A parse job's result: `value` is what the schema read, `original` the response as it arrived, for `raw` and error causes. */
 export type JobResultBlock = z.output<typeof JobResult>;
 type ItemsPageBlock = z.output<typeof ItemsPage>;
 type ItemBlock = z.output<typeof Item>;

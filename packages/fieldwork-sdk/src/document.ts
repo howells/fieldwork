@@ -1,3 +1,6 @@
+// What the document parsers (LlamaParse, Reducto) share: media types, the size
+// limit check and the multipart file part.
+
 import { FieldworkError } from "./errors.js";
 import type { Box, DocumentInput } from "./types.js";
 

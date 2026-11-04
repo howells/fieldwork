@@ -1,3 +1,8 @@
+// Schemas for Perplexity's responses, built from the lenient blocks in
+// ../../parse.ts so a changed field reads as absent instead of failing.
+// ../perplexity.ts and ./parse.ts read the parsed values; the response as received
+// still goes in `raw`.
+
 import type * as z from "zod/mini";
 
 import {
@@ -32,11 +37,16 @@ export const SearchResponse = looseObject({
 /** An annotation on message text. Its `type` is kept as it arrived, since only an absent one or `url_citation` counts as a citation. */
 const Annotation = looseObject({ ...sourceShape, type: anything });
 
+/** One part of a message's content. */
 const MessagePart = looseObject({
   annotations: arrayOf(Annotation),
   text: optionalString,
 });
 
+/**
+ * One item of an Agent response's `output`: a `message` with `content`, or a list
+ * of pages in `results` (`search_results`) or `contents` (`fetch_url_results`).
+ */
 const OutputEntry = looseObject({
   content: arrayOf(MessagePart),
   contents: arrayOf(Source),
@@ -69,6 +79,10 @@ export const AgentRun = withOriginal(Agent);
 /** The reply to starting a run: its id as a string, and as it arrived. */
 export const AgentStart = looseObject({ id: withOriginal(optionalId) });
 
+/**
+ * One decision answer. `noul` is a yes/no probability; `probabilities` is keyed by
+ * choice, or by zero-based score level.
+ */
 const DecisionAnswer = looseObject({
   choice: optionalString,
   confidence: optionalNumber,

@@ -4,11 +4,10 @@ import type { CallOptions } from "../types.js";
 import { isJsonObject, isText } from "./json.js";
 import type { JsonObject, JsonValue } from "./json.js";
 
-/**
- * Finds the method a tool calls on a Fieldwork instance and builds the
- * arguments it takes: the positional fields, then one options object.
- */
+// Finds the method a tool calls on a Fieldwork instance and builds the
+// arguments it takes: the positional fields, then one options object.
 
+/** The file `parse` takes, decoded from the tool's base64 input. */
 export interface DocumentArgument {
   data: Uint8Array;
   name: string;
@@ -19,6 +18,7 @@ export interface OptionsArgument {
   [key: string]: JsonValue | AbortSignal | undefined;
 }
 
+/** One argument of a capability method: a positional value, the `parse` document or the trailing options object. */
 export type Argument =
   | JsonValue
   | DocumentArgument
@@ -56,6 +56,11 @@ export const operationFor = (
   return isGroup(entry) ? entry[spec.method] : undefined;
 };
 
+/**
+ * The `parse` file from the tool's `name` and base64 `contentBase64`.
+ *
+ * Throws `InvalidRequest` when either is not a string.
+ */
 const documentFrom = (
   name: JsonValue | undefined,
   content: JsonValue | undefined
@@ -72,7 +77,12 @@ const documentFrom = (
   };
 };
 
-/** The arguments for the spec's method, from validated input and the call settings. */
+/**
+ * The arguments for the spec's method, from validated input and the call
+ * settings: the `positional` fields in order, then one options object of the
+ * other fields and the call settings (`signal`, `timeout`, `retries`). `parse`
+ * is the exception: its two positional fields become one `DocumentArgument`.
+ */
 export const argumentsFor = (
   spec: Spec,
   values: JsonObject,

@@ -1,3 +1,6 @@
+// Turns a monitor's schedule into the cron expression Firecrawl takes, and checks the minimum gap between runs.
+// request.ts calls `cronFor` when it builds a monitor's body.
+
 import { invalidRequest } from "../../errors.js";
 import type { MonitorSchedule } from "../../types.js";
 import { provider } from "./shared.js";
@@ -11,6 +14,7 @@ const NAMED_CRON = new Map([
   ["week", "0 0 * * 0"],
 ]);
 
+/** The day counts that have a cron: every day, and every seven days (Sunday). */
 const DAILY_CRON = new Map([
   [1, "0 0 * * *"],
   [7, "0 0 * * 0"],
@@ -31,6 +35,7 @@ const rangeEnd = (
   return groups.to === undefined ? from : Number(groups.to);
 };
 
+/** The sorted values a minute or hour field matches (lists, ranges and steps), or undefined for a field it cannot read, such as one with names. */
 const cronValues = (field: string, max: number): number[] | undefined => {
   const values = new Set<number>();
   for (const part of field.split(",")) {
@@ -52,6 +57,7 @@ const cronValues = (field: string, max: number): number[] | undefined => {
   return [...values].toSorted((a, b) => a - b);
 };
 
+/** The minutes between runs within an hour, and across the hour boundary when two consecutive hours both run. */
 const runGaps = (minutes: number[], hours: number[] | undefined): number[] => {
   const gaps = minutes
     .slice(1)
@@ -65,6 +71,11 @@ const runGaps = (minutes: number[], hours: number[] | undefined): number[] => {
   return gaps;
 };
 
+/**
+ * Refuses an expression that is not five fields, or that can run less than
+ * `MIN_MINUTES` apart. A minute or hour field `cronValues` cannot read is not
+ * checked.
+ */
 const checkCron = (cron: string): string => {
   const fields = cron.trim().split(/\s+/u);
   if (fields.length !== 5) {
@@ -85,6 +96,7 @@ const checkCron = (cron: string): string => {
   return cron.trim();
 };
 
+/** The cron for every `count` hours. Only counts that divide 24 have one. */
 const hourlyCron = (count: number): string | undefined => {
   if (!Number.isInteger(count) || count < 1 || 24 % count !== 0) {
     return undefined;
@@ -95,6 +107,12 @@ const hourlyCron = (count: number): string | undefined => {
   return count === 24 ? "0 0 * * *" : `0 */${count} * * *`;
 };
 
+/**
+ * The cron expression for a schedule. A cron is checked and passed through. A
+ * named interval becomes a cron: `hour` (on the hour), `day`, `1d` (midnight),
+ * `week`, `7d` (midnight on Sunday), or `Nh` for an N that divides 24. Throws
+ * `InvalidRequest` for any other interval.
+ */
 export const cronFor = (schedule: MonitorSchedule): string => {
   if ("cron" in schedule) {
     return checkCron(schedule.cron);

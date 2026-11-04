@@ -1,3 +1,8 @@
+// Turns Parallel responses into Fieldwork results: evidence and citations, usage
+// units, decisions, FindAll entities and monitor events. The adapter in
+// ../parallel.ts and the job helpers in ./jobs.ts call these; the response shapes
+// are in ./response.ts.
+
 import { FieldworkError } from "../../errors.js";
 import type { Original } from "../../parse.js";
 import type {
@@ -34,13 +39,22 @@ import type {
   UsageBlock,
 } from "./response.js";
 
+/** The name this adapter reports in errors and results. */
 export const provider = "parallel";
 
+/**
+ * The object with undefined fields removed, or undefined when none is left, so an
+ * empty settings block is not sent.
+ */
 export const nonEmpty = <T extends Json>(value: T): T | undefined => {
   const result = compact(value);
   return Object.keys(result).length > 0 ? result : undefined;
 };
 
+/**
+ * Parallel's usage entries as a map of unit name to count, summing repeated names.
+ * An entry without a name or count is skipped.
+ */
 export const usageUnits = (entries: UsageBlock) => {
   const units = new Map<string, number>();
   for (const { count, name } of entries) {
@@ -51,6 +65,10 @@ export const usageUnits = (entries: UsageBlock) => {
   return Object.fromEntries(units);
 };
 
+/**
+ * The evidence Parallel gives for each field, as field sources. A missing `field`
+ * becomes an empty string.
+ */
 export const basis = (entries: readonly BasisBlock[]): FieldSource[] =>
   entries.map((entry) =>
     compact({
@@ -61,9 +79,11 @@ export const basis = (entries: readonly BasisBlock[]): FieldSource[] =>
     })
   );
 
+/** The unique citations across the fields' sources. */
 export const citedBy = (fields: FieldSource[]): Citation[] =>
   uniqueCitations(fields.flatMap((field) => field.citations));
 
+/** Meta for a Task result: the run id as `requestId`, and the run's warnings. */
 export const taskMeta = (result: TaskResultBlock) => {
   const { run } = result.value;
   return meta({ requestId: run.run_id, warnings: run.warnings });
@@ -76,6 +96,10 @@ export const responseMessages = (body: AnswerBody) => {
   return final.length > 0 ? final : messages;
 };
 
+/**
+ * A decision's probabilities without the entries Parallel left undefined, or
+ * undefined when none remain.
+ */
 export const probabilities = (
   chances: DecisionBlock["probabilities"]
 ): Record<string, number> | undefined => {
@@ -85,6 +109,7 @@ export const probabilities = (
   return entries.length > 0 ? Object.fromEntries(entries) : undefined;
 };
 
+/** The key with the highest probability; the first one wins a tie. */
 export const mostLikely = (chances: Record<string, number> | undefined) => {
   let best: string | undefined;
   for (const [key, chance] of Object.entries(chances ?? {})) {
@@ -95,6 +120,12 @@ export const mostLikely = (chances: Record<string, number> | undefined) => {
   return best;
 };
 
+/**
+ * One decision answer in the shape its question asks for. A `refusal` answer
+ * becomes `{ refusal }`. A `yesno` answer keeps only `probability`. A `score`
+ * answer's probabilities are keyed by the scale's own keys and its `choice` is the
+ * most likely of them; Parallel's numeric `score` stays in `raw`.
+ */
 export const decisionAnswer = (
   question: DecisionQuestion,
   answer: DecisionBlock
@@ -134,6 +165,11 @@ export const decisionAnswer = (
 /** Termination reasons that mean the run found everything it could. */
 export const FINISHED = new Set(["match_limit_met", "candidates_exhausted"]);
 
+/**
+ * A FindAll candidate as an entity, or undefined when Parallel discarded it.
+ * `matched` is true or false for the `matched` and `unmatched` statuses and unset
+ * for any other. Only `enrichment` outputs reach `data`; the rest stay in `raw`.
+ */
 export const candidate = (
   item: CandidateBlock
 ): Entity<unknown> | undefined => {
@@ -166,6 +202,10 @@ export const candidate = (
   });
 };
 
+/**
+ * A monitor from Parallel's entry. `watch` is the monitor's `settings.query` and
+ * `schedule` is Parallel's frequency string. A missing id throws.
+ */
 export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   const monitor = entry.value;
   return compact({
@@ -179,6 +219,12 @@ export const monitorInfo = (entry: MonitorBlock): MonitorInfo => {
   });
 };
 
+/**
+ * A monitor event by `event_type`. A `completion` is a run that found no change,
+ * with a fixed summary. An `error` takes its message as the summary. A `snapshot`
+ * reads `changed_output`; any other type reads `output`. Completions and errors
+ * are dated by `timestamp`, changes by `event_date`.
+ */
 export const monitorEvent = (entry: EventsBlock): MonitorEvent => {
   const event = entry.value;
   const type = event.event_type;
@@ -226,6 +272,10 @@ export const pageFrom = (
   });
 };
 
+/**
+ * Why one URL failed, as `type: HTTP status: content`. A missing type reads as
+ * "error"; missing parts are left out.
+ */
 export const extractFailure = (error: ExtractErrorBlock): string => {
   const status = error.http_status_code;
   return [
@@ -237,6 +287,7 @@ export const extractFailure = (error: ExtractErrorBlock): string => {
     .join(": ");
 };
 
+/** Meta for an Extract response: its id as `requestId`, usage units and warnings. */
 export const extractMeta = (body: ExtractBody) =>
   meta({
     requestId: body.extract_id.id,
@@ -244,6 +295,12 @@ export const extractMeta = (body: ExtractBody) =>
     warnings: body.warnings,
   });
 
+/**
+ * A finished FindAll run as a discovery. The run counts as stopped early when its
+ * status is not `completed` or its termination reason is not in `FINISHED`. Stopped
+ * early with at least one matched entity, it is `partial` with a `stopReason` and
+ * a warning; with none, it throws `JobFailed`. Discarded candidates are left out.
+ */
 export const discovery = (
   id: string,
   entry: FindAllResultBlock

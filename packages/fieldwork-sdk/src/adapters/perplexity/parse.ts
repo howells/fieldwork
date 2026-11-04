@@ -1,3 +1,7 @@
+// Request encoders and response readers for the Perplexity adapter: search
+// filters, the Agent API's research setup and response, and decisions.
+// ../perplexity.ts calls them; the response shapes are in ./response.ts.
+
 import { FieldworkError, invalidRequest } from "../../errors.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { OutputSchema } from "../../schema.js";
@@ -21,8 +25,11 @@ import type {
   DecisionAnswerBlock,
 } from "./response.js";
 
+/** The name this adapter reports in errors and results. */
 export const provider = "perplexity";
+/** The most queries one `/search` request takes, the first included. */
 export const MAX_QUERIES = 5;
+/** The Agent run statuses after which a run no longer changes. */
 export const TERMINAL = new Set([
   "completed",
   "failed",
@@ -30,6 +37,7 @@ export const TERMINAL = new Set([
   "cancelled",
 ]);
 
+/** Perplexity's MM/DD/YYYY form of a YYYY-MM-DD date. Refuses any other format. */
 const usDate = (name: string, date: string | undefined) => {
   if (date === undefined) {
     return date;
@@ -42,6 +50,10 @@ const usDate = (name: string, date: string | undefined) => {
   return `${month}/${day}/${year}`;
 };
 
+/**
+ * The filter fields `/search` and the `web_search` tool share. Refuses both domain
+ * lists together, since Perplexity has one list and marks exclusions with `-`.
+ */
 export const filterFields = (o: PerplexityFilters) => {
   refuseTogether(provider, { ...o }, "includeDomains", "excludeDomains");
   const domains = o.includeDomains ?? o.excludeDomains?.map((d) => `-${d}`);
@@ -58,6 +70,10 @@ export const filterFields = (o: PerplexityFilters) => {
   });
 };
 
+/**
+ * The `web_search` tool with the filters and `country` (as the user's location), or
+ * undefined when none is set, so the effort's own tool applies.
+ */
 const webSearchTool = (o: PerplexityFilters & { country?: string }) => {
   const filters = filterFields(o);
   const tool = compact({
@@ -71,11 +87,16 @@ const webSearchTool = (o: PerplexityFilters & { country?: string }) => {
   return Object.keys(tool).length > 1 ? tool : undefined;
 };
 
+/** Lower-cased language codes as a list, or undefined when there are none. */
 export const languageCodes = (language: string | string[] | undefined) => {
   const codes = [language ?? []].flat().map((code) => code.toLowerCase());
   return codes.length > 0 ? codes : undefined;
 };
 
+/**
+ * `JobFailed` once the run has an id, else `RateLimited` for a rate-limit error,
+ * else `ProviderError`.
+ */
 const errorCode = (jobId: string | undefined, rateLimited: boolean) => {
   if (jobId !== undefined && jobId !== "") {
     return "JobFailed";
@@ -83,6 +104,10 @@ const errorCode = (jobId: string | undefined, rateLimited: boolean) => {
   return rateLimited ? "RateLimited" : "ProviderError";
 };
 
+/**
+ * The error for an Agent response that failed, was cancelled or has no text. It
+ * carries `jobId` when given and is retryable for rate-limit and overloaded errors.
+ */
 export const responseError = (run: AgentRunBlock, jobId?: string) => {
   const { error, status } = run.value;
   const { type } = error;
@@ -102,6 +127,10 @@ export const responseError = (run: AgentRunBlock, jobId?: string) => {
   );
 };
 
+/**
+ * The citations in message annotations. Only `url_citation` annotations, or ones
+ * with no type, count.
+ */
 const annotated = (annotations: readonly AnnotationBlock[]): Citation[] =>
   annotations
     .filter(
@@ -110,6 +139,11 @@ const annotated = (annotations: readonly AnnotationBlock[]): Citation[] =>
     .map((found) => citationOf(found))
     .filter((source): source is Citation => source !== undefined);
 
+/**
+ * Reads an Agent response. `text` joins every message part. `cited` is the unique
+ * sources annotating that text. `retrieved` is the unique pages the run's
+ * `search_results` and `fetch_url_results` returned, as title and URL only.
+ */
 export const readResponse = (body: AgentBody) => {
   const parts: string[] = [];
   const cited: Citation[] = [];
@@ -141,6 +175,10 @@ export const readResponse = (body: AgentBody) => {
   };
 };
 
+/**
+ * Meta from an Agent response: cost in USD, token units and the id as `requestId`.
+ * `warnings` is one message.
+ */
 export const responseMeta = (body: AgentBody, warnings?: string) => {
   const { usage } = body;
   const input = usage.input_tokens_details;
@@ -159,6 +197,7 @@ export const responseMeta = (body: AgentBody, warnings?: string) => {
   });
 };
 
+/** The Agent `response_format` for a schema, named "output", or undefined. */
 export const responseFormat = (schema: OutputSchema<unknown> | undefined) =>
   schema
     ? {
@@ -167,6 +206,10 @@ export const responseFormat = (schema: OutputSchema<unknown> | undefined) =>
       }
     : undefined;
 
+/**
+ * The decision `state`. A string, object or array goes through as it is; a number
+ * or boolean is sent as text; anything else is refused.
+ */
 export const decisionState = (context: unknown) => {
   if (typeof context === "string" || (typeof context === "object" && context)) {
     return context;
@@ -180,6 +223,12 @@ export const decisionState = (context: unknown) => {
   );
 };
 
+/**
+ * The effort, model, step and tool fields of a research run. Refuses `models`
+ * outside one to five. With `model` or `models` and no `effort`, the run is built
+ * directly: `maxSteps` or 10 steps, with `web_search` and `fetch_url` tools.
+ * Otherwise the effort defaults to "high" and a tool is sent only to carry filters.
+ */
 export const researchSetup = (o: PerplexityResearchOptions) => {
   if (o.models && (o.models.length < 1 || o.models.length > 5)) {
     throw invalidRequest(provider, "models takes one to five models");
@@ -205,6 +254,11 @@ export const researchSetup = (o: PerplexityResearchOptions) => {
   };
 };
 
+/**
+ * A research run's output: the reply text, or its parsed JSON when a schema is set.
+ * Invalid JSON from a completed run throws the parse error; from a run cut short it
+ * throws `JobFailed`.
+ */
 export const researchOutput = (
   run: AgentRunBlock,
   reply: string,
@@ -229,6 +283,11 @@ export const researchOutput = (
   }
 };
 
+/**
+ * Perplexity's form of a normalized decision question: `yesno` is `noul`, `choice`
+ * takes its choices as criteria with no descriptions, and `score` takes the scale's
+ * labels, in order, as criteria.
+ */
 export const decisionQuestion = (question: DecisionQuestion) => {
   if (question.type === "yesno") {
     return { instructions: question.question, type: "noul" };
@@ -249,6 +308,11 @@ export const decisionQuestion = (question: DecisionQuestion) => {
   };
 };
 
+/**
+ * One decision answer. `noul` gives a `probability`. Otherwise the probabilities
+ * without undefined entries; for a score, Perplexity's level indexes are renamed to
+ * the scale's keys (`scores`). `choice` is Perplexity's, else the most likely.
+ */
 export const decisionAnswer = (
   found: DecisionAnswerBlock,
   scores: string[] | undefined

@@ -1,28 +1,31 @@
+// Inputs that several tools share. Each helper takes the providers whose
+// options type has the option with this meaning, and names the field as the
+// shared option name in the README's options table.
+
 import { choice, date, object, text, texts, url, whole } from "./schema.js";
 import type { Field, ProviderName } from "./types.js";
-
-/**
- * Inputs that several tools share. Each helper takes the providers whose
- * options type has the option with this meaning.
- */
 
 const RESUME_DESCRIPTION =
   "The jobId from an earlier call's error, when that call timed out or was cancelled. Waits for that job instead of starting and paying for a new one.";
 
+/** The required `url` input. */
 export const urlField = (description: string): Field => ({
   name: "url",
   required: true,
   schema: url(description),
 });
 
+/** The description of a `url` input that names a page. */
 export const PAGE_URL = "The page's full URL, including https://.";
 
+/** The `resume` input, for providers whose method accepts it: a `jobId` from an earlier error, to wait for that job again (see `runJob`). */
 export const resume = (providers: readonly ProviderName[]): Field => ({
   name: "resume",
   providers,
   schema: text(RESUME_DESCRIPTION),
 });
 
+/** The `limit` input: a whole number from 1 to `maximum`. */
 export const limit = (
   description: string,
   maximum: number,
@@ -36,6 +39,7 @@ export const limit = (
 const NOT_TOGETHER =
   "Firecrawl, Parallel and Perplexity refuse includeDomains and excludeDomains together.";
 
+/** The `includeDomains` input. `noun` names what is restricted ("results", "sources"); `note` adds a provider-specific caveat. */
 export const includeDomains = (
   noun: string,
   providers: readonly ProviderName[],
@@ -48,6 +52,7 @@ export const includeDomains = (
   ),
 });
 
+/** The `excludeDomains` input, worded as `includeDomains` is. */
 export const excludeDomains = (
   noun: string,
   providers: readonly ProviderName[],
@@ -60,12 +65,14 @@ export const excludeDomains = (
   ),
 });
 
+/** The `publishedAfter` input, a date. */
 export const publishedAfter = (providers: readonly ProviderName[]): Field => ({
   name: "publishedAfter",
   providers,
   schema: date("Only pages published on or after this date, YYYY-MM-DD."),
 });
 
+/** The `publishedBefore` input, a date. */
 export const publishedBefore = (providers: readonly ProviderName[]): Field => ({
   name: "publishedBefore",
   providers,
@@ -122,6 +129,7 @@ export const recency = (
     },
   ].filter((field) => field.providers.length > 0);
 
+/** The `country` input, a two-letter ISO code. `what` is the sentence's lead, such as "Search from". */
 export const country = (
   providers: readonly ProviderName[],
   what = "Prefer results for"
@@ -133,6 +141,7 @@ export const country = (
   }),
 });
 
+/** The `language` input, an ISO 639-1 code. */
 export const language = (providers: readonly ProviderName[]): Field => ({
   name: "language",
   providers,
@@ -141,6 +150,7 @@ export const language = (providers: readonly ProviderName[]): Field => ({
   ),
 });
 
+/** The `continueFrom` input: the `continuationId` of an earlier result. */
 export const continueFrom = (providers: readonly ProviderName[]): Field => ({
   name: "continueFrom",
   providers,
@@ -149,6 +159,7 @@ export const continueFrom = (providers: readonly ProviderName[]): Field => ({
   ),
 });
 
+/** The `schema` input, a JSON Schema object. Optional unless `required` is true. */
 export const schemaField = (
   description: string,
   providers?: readonly ProviderName[],
@@ -180,12 +191,14 @@ export const maxAgeAtLeast600 = (): Field => ({
   ),
 });
 
+/** The `id` input of a monitor, required. */
 export const monitorId: Field = {
   name: "id",
   required: true,
   schema: text("The monitor's id, from create_monitor or list_monitors."),
 };
 
+/** A condition for `find_entities`: a name and a description, as the `Condition` type has. */
 export const condition = object(
   {
     description: text("The condition in plain words."),

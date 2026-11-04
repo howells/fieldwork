@@ -1,3 +1,7 @@
+// Brave's option types, as exported from `@howells/fieldwork-sdk/brave`. The
+// search options are split by endpoint so an option an endpoint lacks is typed
+// `never`; ./parse.ts refuses it at runtime for callers without types.
+
 import type {
   Answer,
   CallOptions,
@@ -6,16 +10,19 @@ import type {
   SearchResponse,
 } from "../../types.js";
 
+/** Settings for `brave()`. */
 export interface BraveConfig {
   /** Defaults to the BRAVE_API_KEY environment variable. */
   apiKey?: string;
   /** Defaults to https://api.search.brave.com/res/v1. */
   baseUrl?: string;
+  /** Used in place of the global `fetch`. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
 }
 
+/** Brave's safe search levels, from "off" to the strictest. */
 export type BraveSafeSearch = "off" | "moderate" | "strict";
 
 /** Brave's named freshness windows start at a day; it has no hour window. */
@@ -41,7 +48,7 @@ export interface BraveSearchBase extends CallOptions {
   publishedAfter?: string;
   /** YYYY-MM-DD. Needs `publishedAfter`. Not combinable with `recency`. */
   publishedBefore?: string;
-  /** Web and news default to "moderate"; Brave's news default is "strict". */
+  /** Left unset, Brave applies its own default for the endpoint. */
   safesearch?: BraveSafeSearch;
 }
 
@@ -53,7 +60,10 @@ export type BraveResultType =
   | "discussions"
   | "locations";
 
-/** `/web/search`: web results, plus news, videos, discussions and locations. */
+/**
+ * `/web/search`: web results, plus news, videos, discussions and locations. This
+ * is the default search, so `vertical` may be left out.
+ */
 export interface BraveWebSearchOptions extends BraveSearchBase {
   vertical?: "web";
   content?: false;
@@ -126,7 +136,8 @@ export interface BraveVideoSearchOptions extends BraveSearchBase {
 
 /**
  * `/llm/context`: Brave fetches each result and returns the passages of its
- * text that fit the query, as `content`.
+ * text that fit the query, as `content`. `limit` is sent as both `count` and
+ * `maximum_number_of_urls`.
  */
 export interface BraveContentSearchOptions extends BraveSearchBase {
   content: true;
@@ -150,12 +161,18 @@ export interface BraveContentSearchOptions extends BraveSearchBase {
   goggles?: string | string[];
 }
 
+/**
+ * The options of `search`. `content: true` selects the LLM context endpoint;
+ * otherwise `vertical` picks web (the default), news or videos. An option the
+ * chosen endpoint does not take is refused before sending.
+ */
 export type BraveSearchOptions =
   | BraveWebSearchOptions
   | BraveNewsSearchOptions
   | BraveVideoSearchOptions
   | BraveContentSearchOptions;
 
+/** Options for `images` (`/images/search`). Images take no recency or date filter. */
 export interface BraveImageOptions extends CallOptions {
   /** Images to return, 1 to 200 (Brave's default is 50). Brave has no paging. */
   limit?: number;
@@ -166,6 +183,10 @@ export interface BraveImageOptions extends CallOptions {
   spellcheck?: boolean;
 }
 
+/**
+ * Options for `answer` (`POST /chat/completions`). The answer is always streamed,
+ * because Brave returns citations only on a stream.
+ */
 export interface BraveAnswerOptions extends CallOptions {
   /** Brave's answer model; "brave-pro" is its default. */
   model?: "brave" | "brave-pro";
@@ -185,6 +206,7 @@ export interface BraveAnswerOptions extends CallOptions {
   };
 }
 
+/** What Brave offers: search, images and answer. */
 export interface BraveOperations {
   search: (
     query: string,

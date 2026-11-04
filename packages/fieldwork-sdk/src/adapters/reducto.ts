@@ -1,3 +1,7 @@
+// The Reducto adapter: `parse` uploads a document, starts an asynchronous parse,
+// runs it through `runJob` and normalizes the result. reducto/response.ts holds the
+// response schemas and the block conversion.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -23,15 +27,19 @@ import {
 } from "./reducto/response.js";
 import type { JobResponseBlock } from "./reducto/response.js";
 
+/** Settings for `reducto()`. */
 export interface ReductoConfig {
   /** Defaults to the REDUCTO_API_KEY environment variable. */
   apiKey?: string;
+  /** Defaults to https://platform.reducto.ai. */
   baseUrl?: string;
+  /** Defaults to the global `fetch`. It also downloads a large result from the URL Reducto stores it at. A test passes a fake. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
 }
 
+/** Options for `parse`. */
 export interface ReductoParseOptions extends CallOptions {
   /** Return layout blocks with positions. */
   blocks?: boolean;
@@ -46,7 +54,9 @@ export interface ReductoParseOptions extends CallOptions {
   interval?: number;
 }
 
+/** What the Reducto adapter offers. */
 export interface ReductoOperations {
+  /** Uploads the file, starts the parse and waits for it. An error after the parse starts carries `jobId`. */
   parse: (
     document: DocumentInput,
     options?: ReductoParseOptions
@@ -57,6 +67,7 @@ const provider = "reducto";
 /** The largest file `/upload` takes, in megabytes. */
 const MAX_UPLOAD_MB = 100;
 
+/** Uploads the file, then starts the parse, and returns the job id. Refuses a file over the size limit before sending. */
 const startParse = async (
   raw: RawClient,
   document: DocumentInput,
@@ -84,6 +95,7 @@ const startParse = async (
   return requireJobId(provider, started.job_id);
 };
 
+/** The result once the job has completed, undefined while it runs; throws `JobFailed` when Reducto reports a failure. */
 const finished = (found: JobResponseBlock) => {
   const { error, reason, status } = found.value;
   if (status === "Failed") {

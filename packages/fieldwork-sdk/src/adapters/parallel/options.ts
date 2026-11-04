@@ -1,3 +1,8 @@
+// Parallel's option types, as exported from `@howells/fieldwork-sdk/parallel`, and
+// the encoders that turn them into Parallel request fields. The adapter in
+// ../parallel.ts calls the encoders; they refuse what Parallel rejects or ignores
+// before anything is sent.
+
 import { invalidRequest } from "../../errors.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { OutputSchema } from "../../schema.js";
@@ -22,10 +27,13 @@ import { compact, refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
 import { nonEmpty, provider } from "./parse.js";
 
+/** Settings for `parallel()`. */
 export interface ParallelConfig {
   /** Defaults to the PARALLEL_API_KEY environment variable. */
   apiKey?: string;
+  /** Defaults to https://api.parallel.ai. */
   baseUrl?: string;
+  /** Used in place of the global `fetch`. */
   fetch?: typeof fetch;
   /** Repeats of a request that can succeed on repeat; 2 unless set. `0` turns retrying off. */
   retries?: number;
@@ -55,14 +63,19 @@ export interface ParallelSources {
    * Parallel ignores `excludeDomains`, so passing both is refused.
    */
   includeDomains?: string[];
+  /** Same forms as `includeDomains`. Not combinable with it. */
   excludeDomains?: string[];
-  /** YYYY-MM-DD. */
+  /** YYYY-MM-DD. Sent as `after_date`; there is no `publishedBefore`. */
   publishedAfter?: string;
 }
 
 /** Task metadata: keys up to 16 characters, values up to 512. */
 export type ParallelMetadata = Record<string, string | number | boolean>;
 
+/**
+ * Options for `search` (`POST /v1/search`). A `maxAge` under 600 is refused. There
+ * is no `recency` or `publishedBefore`; use `publishedAfter`.
+ */
 export interface ParallelSearchOptions extends CallOptions, ParallelSources {
   /** What the search is for, in plain words. Defaults to the query. */
   objective?: string;
@@ -73,6 +86,7 @@ export interface ParallelSearchOptions extends CallOptions, ParallelSources {
    * `basic` or `advanced` (the default, richer retrieval).
    */
   mode?: "turbo" | "fast" | "basic" | "advanced";
+  /** Sent as `max_results`. */
   limit?: number;
   /** ISO 3166-1 alpha-2 code such as "GB", for geo-targeted results. */
   country?: string;
@@ -86,17 +100,24 @@ export interface ParallelSearchOptions extends CallOptions, ParallelSources {
   sessionId?: string;
 }
 
+/** Options for `images` (`POST /v1/images/search`). */
 export interface ParallelImagesOptions extends CallOptions {
   /** The images wanted, in plain words, up to 5,000 characters. Defaults to the query. */
   objective?: string;
   /** Up to 5 image queries; defaults to the query alone. */
   queries?: string[];
   mode?: "fast" | "advanced";
+  /** Sent as `max_results`. */
   limit?: number;
+  /** ISO 3166-1 alpha-2 code such as "GB", for geo-targeted results. */
   country?: string;
   sessionId?: string;
 }
 
+/**
+ * Options for `read` (`POST /v1/extract`). The page text comes back as `markdown`;
+ * `query` and `queries` add focused `excerpts`. A `maxAge` under 600 is refused.
+ */
 export interface ParallelReadOptions extends CallOptions {
   /** Return passages that answer this as `excerpts`. Sent as Parallel's `objective`. */
   query?: string;
@@ -104,7 +125,10 @@ export interface ParallelReadOptions extends CallOptions {
   queries?: string[];
   /** Seconds a cached copy may be old. Parallel's minimum is 600; lower values are refused. */
   maxAge?: number;
-  /** Cap on the characters of the page text returned for each URL. */
+  /**
+   * Cap on the characters of the page text returned for each URL. Without it,
+   * or at 0, the full content is requested with no cap.
+   */
   maxContentChars?: number;
   /** Cap on the characters of excerpts returned for each URL. */
   maxCharsPerResult?: number;
@@ -113,8 +137,16 @@ export interface ParallelReadOptions extends CallOptions {
   sessionId?: string;
 }
 
+/**
+ * Options for `readMany`: the same as `read`, applied to every URL. Parallel takes
+ * at most 20 URLs in one call.
+ */
 export type ParallelReadManyOptions = ParallelReadOptions;
 
+/**
+ * Options for `extract`: a Task run limited to the page's own URL, polled to
+ * completion. `resume` waits for an earlier run instead of starting another.
+ */
 export interface ParallelExtractOptions<T = unknown> extends CallOptions {
   /**
    * The values to extract. Without one, Parallel picks the fields itself (its
@@ -123,6 +155,10 @@ export interface ParallelExtractOptions<T = unknown> extends CallOptions {
    * checks `data`.
    */
   schema?: OutputSchema<T>;
+  /**
+   * Instructions for the run. Defaults to one that asks for the values in `schema`
+   * from this page only, or for the page's main facts when there is no schema.
+   */
   prompt?: string;
   /** Defaults to "base". */
   processor?: ParallelProcessor;
@@ -138,6 +174,10 @@ export interface ParallelExtractOptions<T = unknown> extends CallOptions {
   resume?: string;
 }
 
+/**
+ * Options for `answer` (`POST /v1/responses`, synchronous). `includeDomains` and
+ * `excludeDomains` are refused together.
+ */
 export interface ParallelAnswerOptions<T = unknown> extends CallOptions {
   /** The answer in the shape of this schema, in `output`. */
   schema?: OutputSchema<T>;
@@ -149,11 +189,16 @@ export interface ParallelAnswerOptions<T = unknown> extends CallOptions {
   continueFrom?: string;
   /** Only these domains are searched. Parallel allows one of the two lists. */
   includeDomains?: string[];
+  /** These domains are not searched. Not combinable with `includeDomains`. */
   excludeDomains?: string[];
   /** Up to 16 keys, keys up to 64 characters, values up to 512. */
   metadata?: Record<string, string>;
 }
 
+/**
+ * Options for `research`: a Task run polled to completion. `includeDomains` and
+ * `excludeDomains` are refused together.
+ */
 export interface ParallelResearchOptions<T = unknown>
   extends CallOptions, ParallelSources {
   /** Structured output in the shape of this schema; without one the output is report text. */
@@ -174,6 +219,12 @@ export interface ParallelResearchOptions<T = unknown>
   resume?: string;
 }
 
+/**
+ * Options for `discover`: a FindAll run (`/v1beta/findall`) that finds entities
+ * matching every condition, polled to completion. A run that stops early with at
+ * least one match returns `status: "partial"`; one that ends with no match throws
+ * `JobFailed`.
+ */
 export interface ParallelDiscoverOptions<T = unknown> extends CallOptions {
   /** What kind of entity to find, such as "companies" or "people". */
   entityType: string;
@@ -203,6 +254,12 @@ export interface ParallelDiscoverOptions<T = unknown> extends CallOptions {
   resume?: string;
 }
 
+/**
+ * Options for `decide` (`POST /v1/decisions`, synchronous). Parallel takes 1 to 100
+ * questions named with letters, numbers, underscores and hyphens. A choice
+ * question needs 2 to 255 distinct choices and a score scale 2 to 10 levels. All
+ * three are refused before sending.
+ */
 export interface ParallelDecideOptions extends CallOptions {
   /** ISO 3166-1 alpha-2 code for geo-targeted search. */
   country?: string;
@@ -210,11 +267,17 @@ export interface ParallelDecideOptions extends CallOptions {
   includeExcerpts?: boolean;
 }
 
+/** The event types a monitor webhook can subscribe to. */
 export type ParallelWebhookEvent =
   | "monitor.event.detected"
   | "monitor.execution.completed"
   | "monitor.execution.failed";
 
+/**
+ * Options for `monitor.create`. A `query` makes an event-stream monitor that
+ * searches the web on each run; a `taskRunId` makes a snapshot monitor of that
+ * Task run's output. Pass one of the two. `webhookEvents` needs a `webhookUrl`.
+ */
 export interface ParallelMonitorCreateOptions
   extends CallOptions, ParallelSources {
   /**
@@ -224,17 +287,22 @@ export interface ParallelMonitorCreateOptions
   query?: string;
   /**
    * Watch the output of an earlier Task run for changes instead of a query.
-   * Cannot be combined with `query`, `schema`, `includeBackfill`, `country` or
-   * the domain filters.
+   * Cannot be combined with `query`, `schema`, `includeBackfill`, `country`,
+   * `includeDomains`, `excludeDomains` or `publishedAfter`.
    */
   taskRunId?: string;
-  /** Parallel runs at a fixed interval from 1 hour to 30 days; cron is refused. */
+  /**
+   * Parallel runs at a fixed interval from 1 hour to 30 days; cron is refused.
+   * `every` is "hour", "day", "week", or a count such as "6h" (up to 720h) or
+   * "3d" (up to 30d).
+   */
   schedule: MonitorSchedule;
   /** Events come back in the shape of this schema. Events are not checked against a Standard Schema. */
   schema?: OutputSchema<unknown>;
   /** The first run returns a sample of recent events (a preview, not exhaustive). */
   includeBackfill?: boolean;
   country?: string;
+  /** Where Parallel sends webhook events. */
   webhookUrl?: string;
   /** Needs `webhookUrl`. Parallel sends every event type when omitted. */
   webhookEvents?: ParallelWebhookEvent[];
@@ -244,6 +312,10 @@ export interface ParallelMonitorCreateOptions
   metadata?: Record<string, string>;
 }
 
+/**
+ * Options for `monitor.events`: one page of a monitor's events. Pass the result's
+ * `next` as `cursor` for the following page.
+ */
 export interface ParallelMonitorEventsOptions extends CallOptions {
   cursor?: string;
   /** 1 to 100. Parallel defaults to 20. */
@@ -260,6 +332,11 @@ export interface ParallelMonitorEventsOptions extends CallOptions {
  */
 export type ParallelDiscovery<T> = Discovery<T> & { stopReason?: string };
 
+/**
+ * What Parallel offers: search, images, read, readMany, extract, answer, research,
+ * discover, decide and monitor. `extract`, `research` and `discover` run as jobs
+ * and accept `resume`.
+ */
 export interface ParallelOperations {
   search: (
     query: string,
@@ -312,8 +389,14 @@ export interface ParallelOperations {
 export const MIN_MAX_AGE_SECONDS = 600;
 /** The most URLs one Extract call takes. */
 export const MAX_EXTRACT_URLS = 20;
+/** The characters Parallel allows in a decision question's name. */
 export const QUESTION_NAME = /^[A-Za-z0-9_-]+$/u;
 
+/**
+ * Parallel's `source_policy`, or undefined when no filter is set. Refuses both
+ * domain lists together, since Parallel ignores the exclude list when an include
+ * list is present.
+ */
 export const sourcePolicy = (o: ParallelSources) => {
   refuseTogether(provider, o, "includeDomains", "excludeDomains");
   return nonEmpty({
@@ -323,6 +406,10 @@ export const sourcePolicy = (o: ParallelSources) => {
   });
 };
 
+/**
+ * Parallel's `fetch_policy` for a `maxAge`, rounded up to whole seconds. Refuses a
+ * value under the minimum: Parallel has no setting that always fetches fresh.
+ */
 export const fetchPolicy = (maxAge: number | undefined) => {
   if (maxAge !== undefined && maxAge < MIN_MAX_AGE_SECONDS) {
     throw invalidRequest(
@@ -335,11 +422,20 @@ export const fetchPolicy = (maxAge: number | undefined) => {
     : { max_age_seconds: Math.ceil(maxAge) };
 };
 
+/**
+ * Parallel's JSON output spec (`type: "json"`) for a schema, as Tasks and monitors
+ * take it.
+ */
 export const jsonOutput = (schema: OutputSchema<unknown>) => ({
   json_schema: jsonSchemaOf(schema),
   type: "json",
 });
 
+/**
+ * Parallel's form of a normalized decision question: `yesno` is `noul`, `choice`
+ * keeps its type and `score` takes the scale's labels, in order, as criteria.
+ * Refuses a choice or score count outside Parallel's limits.
+ */
 export const decisionQuestion = (
   name: string,
   question: DecisionQuestion
@@ -384,8 +480,13 @@ export const decisionQuestion = (
   );
 };
 
+/** Parallel's short form of each named schedule. */
 export const NAMED_FREQUENCY = { day: "1d", hour: "1h", week: "1w" } as const;
 
+/**
+ * Parallel's `frequency` string for a schedule: a named interval, or `<n>h` up to
+ * 720 or `<n>d` up to 30. Refuses cron and anything outside 1 hour to 30 days.
+ */
 export const frequency = (schedule: MonitorSchedule): string => {
   if ("cron" in schedule) {
     throw invalidRequest(
@@ -411,6 +512,10 @@ export const frequency = (schedule: MonitorSchedule): string => {
   return schedule.every;
 };
 
+/**
+ * The `/v1/extract` body that `read` and `readMany` share. It always asks for
+ * `full_content`, capped only when `maxContentChars` is a non-zero number.
+ */
 export const extractBody = (urls: string[], o: ParallelReadOptions) =>
   compact({
     advanced_settings: compact({

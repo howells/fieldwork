@@ -1,3 +1,8 @@
+// The Brave adapter. `search` picks an endpoint from its options (web, news, videos
+// or LLM context), `images` calls `/images/search`, and `answer` streams
+// `/chat/completions`. Option types are in ./brave/options.ts, request encoders and
+// result readers in ./brave/parse.ts, and response schemas in ./brave/response.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";

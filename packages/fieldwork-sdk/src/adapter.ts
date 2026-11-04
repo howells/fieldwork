@@ -1,3 +1,7 @@
+// The contract between a provider's adapter and `Fieldwork`: what an adapter
+// is, and `defineAdapter` to write one. Adapters are in adapters/; `Fieldwork`
+// (fieldwork.ts) binds one, and `router` (router.ts) composes several.
+
 import type { RawClient } from "./http.js";
 import type { Capability } from "./types.js";
 
@@ -21,7 +25,9 @@ export interface Adapter<
   Ops extends Operations = Operations,
   Raw = RawClient,
 > {
+  /** The provider's name, such as "exa"; "router" for a router. It becomes `Fieldwork.provider`. */
   readonly name: Name;
+  /** The capabilities the provider offers. Their absence is what makes `Fieldwork` refuse a call with `Unsupported`. */
   readonly operations: Ops;
   /** The provider's HTTP API, for anything Fieldwork does not wrap. */
   readonly raw: Raw;

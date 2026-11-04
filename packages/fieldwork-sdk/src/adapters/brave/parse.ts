@@ -1,3 +1,8 @@
+// Request encoders and result readers for the Brave adapter: which options each
+// search endpoint takes, freshness and goggles encoding, the normalized results of
+// each endpoint, and the tags in a streamed answer. ../brave.ts calls them; the
+// response shapes are in ./response.ts.
+
 import * as z from "zod/mini";
 
 import { invalidRequest } from "../../errors.js";
@@ -14,8 +19,10 @@ import type {
   ResultItem,
 } from "./response.js";
 
+/** The name this adapter reports in errors and results. */
 export const provider = "brave";
 
+/** Brave's `freshness` codes: past day, week, month and year. */
 const FRESHNESS: Record<BraveRecency, string> = {
   day: "pd",
   month: "pm",
@@ -23,6 +30,7 @@ const FRESHNESS: Record<BraveRecency, string> = {
   year: "py",
 };
 
+/** The options every search endpoint takes (`BraveSearchBase`). */
 const SHARED = [
   "limit",
   "country",
@@ -79,8 +87,14 @@ const ALLOWED = {
   ],
 } as const;
 
+/** The endpoint a search goes to. */
 type Mode = keyof typeof ALLOWED;
 
+/**
+ * The endpoint for a search: `content: true` is the LLM context endpoint; otherwise
+ * `vertical` picks web (the default), news or videos. Any other `vertical`, which
+ * only an untyped caller can pass, is refused.
+ */
 export const modeOf = (o: SearchInput): Mode => {
   if (o.content === true) {
     return "context";
@@ -97,6 +111,10 @@ export const modeOf = (o: SearchInput): Mode => {
   );
 };
 
+/**
+ * Refuses every set option the endpoint does not take, naming all of them. An
+ * option set to undefined passes.
+ */
 export const refuseUnsupported = (mode: Mode, o: SearchInput) => {
   const refused = Object.entries(o)
     .filter(
@@ -113,8 +131,15 @@ export const refuseUnsupported = (mode: Mode, o: SearchInput) => {
   }
 };
 
+/** Today's date in UTC, as YYYY-MM-DD. */
 const today = () => new Date().toISOString().slice(0, 10);
 
+/**
+ * Brave's `freshness` value: a code for `recency`, or `<after>to<before>` for
+ * dates, with `before` defaulting to today (UTC). Refuses `recency` with either
+ * date, `publishedBefore` without `publishedAfter`, a recency Brave has no window
+ * for (such as "hour") and dates that are not YYYY-MM-DD.
+ */
 export const freshness = (o: SearchInput): string | undefined => {
   refuseTogether(provider, o, "recency", "publishedAfter");
   refuseTogether(provider, o, "recency", "publishedBefore");
@@ -147,6 +172,10 @@ export const freshness = (o: SearchInput): string | undefined => {
   return `${after}to${before}`;
 };
 
+/**
+ * The goggles as a list, so each is sent as its own `goggles` parameter. Refuses
+ * more than three.
+ */
 export const gogglesOf = (
   value: string | string[] | undefined
 ): string[] | undefined => {
@@ -162,6 +191,10 @@ export const gogglesOf = (
 
 type Param = string | number | boolean | string[] | undefined;
 
+/**
+ * The path with its parameters as a query string. Undefined parameters are left
+ * out and an array repeats its key.
+ */
 export const withQuery = (
   path: string,
   params: Record<string, Param>
@@ -179,10 +212,16 @@ export const withQuery = (
   return query === "" ? path : `${path}?${query}`;
 };
 
+/** Brave takes country codes in upper case. */
 export const upper = (value: string | undefined) => value?.toUpperCase();
 
+/** Brave takes language codes in lower case. */
 export const lower = (value: string | undefined) => value?.toLowerCase();
 
+/**
+ * Warnings from a response's `query` block: the spell-corrected query Brave
+ * searched, and strict safe search hiding results.
+ */
 export const warningsOf = (query: QueryBlock) => {
   const warnings: string[] = [];
   if (query.altered !== undefined) {
@@ -196,6 +235,12 @@ export const warningsOf = (query: QueryBlock) => {
   return warnings;
 };
 
+/**
+ * A web, news, video or discussion item as a result, of the given `kind`. The
+ * snippet is the description followed by any extra snippets, split by blank
+ * lines. `image` prefers the thumbnail's original over its resized `src`. An item
+ * with no URL is dropped.
+ */
 export const result = (
   r: ResultItem,
   kind: string
@@ -217,6 +262,10 @@ export const result = (
   });
 };
 
+/**
+ * A `locations` item as a `place` result: its address, coordinates (Brave sends
+ * `[latitude, longitude]`), rating and review count.
+ */
 export const placeResult = (r: ResultItem): SearchResult | undefined => {
   const base = result(r, "place");
   if (!base) {
@@ -236,6 +285,7 @@ export const placeResult = (r: ResultItem): SearchResult | undefined => {
   });
 };
 
+/** The section's items through `map`, without the ones it drops. */
 export const section = (
   items: ResultItem[],
   map: (item: ResultItem) => SearchResult | undefined
@@ -244,6 +294,11 @@ export const section = (
     .map((item) => map(item))
     .filter((item): item is SearchResult => item !== undefined);
 
+/**
+ * A grounding item as a result. The passages are the `content`; the description,
+ * favicon and image come from the source entry keyed by the item's URL. The title
+ * is the item's `title`, then its `name`, then the source's.
+ */
 const contextResult = (
   r: ContextItemBlock,
   kind: string,
@@ -264,6 +319,10 @@ const contextResult = (
   });
 };
 
+/**
+ * The results of an LLM context response: generic items as `web`, and the `poi`
+ * and `map` items as `place`.
+ */
 export const parseContext = ({
   grounding,
   sources,
@@ -303,7 +362,9 @@ export const completionText = (completion: CompletionBlock): string => {
   return choice?.message.content ?? choice?.delta.content ?? "";
 };
 
+/** Brave's inline `<citation>` tag in answer text; `body` captures its JSON. */
 export const CITATION_TAG = /<citation>(?<body>[\s\S]*?)<\/citation>/gu;
+/** Brave's inline `<usage>` tag in answer text; `body` captures its JSON. */
 export const USAGE_TAG = /<usage>(?<body>[\s\S]*?)<\/usage>/gu;
 
 /** The JSON inside a tag, which Brave sometimes encodes twice, read through `schema`. */
@@ -330,6 +391,10 @@ export const tagBodies = <Schema extends z.ZodMiniType>(
     parseTag(match.groups?.body ?? "", schema)
   );
 
+/**
+ * One citation per URL from the answer's `<citation>` tags, with each distinct
+ * snippet as an excerpt.
+ */
 export const answerCitations = (content: string): Citation[] => {
   const byUrl = new Map<string, string[]>();
   for (const item of tagBodies(content, CITATION_TAG, CitationTag)) {

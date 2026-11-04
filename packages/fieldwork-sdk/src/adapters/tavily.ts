@@ -1,3 +1,6 @@
+// The Tavily adapter: calls Tavily's REST API with `fetch` and returns normalized results.
+// Options and operation types are in tavily/options.ts, request and result mapping in tavily/parse.ts, response schemas in tavily/response.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";

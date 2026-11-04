@@ -1,3 +1,6 @@
+// Request bodies for Firecrawl's v2 API, built from normalized options.
+// The adapter in ../firecrawl.ts sends them; responses are parsed in response.ts and shapes.ts.
+
 import {
   documentPart,
   MEDIA_TYPES,
@@ -39,6 +42,7 @@ export const PAGE_SIZE = 100;
 /** The longest query a search monitor takes. */
 const MAX_MONITOR_QUERY = 256;
 
+/** Firecrawl's `qdr:` units, for each named recency window. */
 const RECENCY = {
   day: "d",
   hour: "h",
@@ -49,6 +53,7 @@ const RECENCY = {
 
 const DATE = /^(?<year>\d{4})-(?<month>\d{2})-(?<day>\d{2})$/u;
 
+/** The page-fetching fields every scrape takes. `maxAge` goes out in milliseconds, and the rest as they are. */
 export const pageBody = (o: FirecrawlPageSettings) =>
   compact({
     actions: o.actions,
@@ -63,6 +68,7 @@ export const pageBody = (o: FirecrawlPageSettings) =>
     waitFor: o.waitFor,
   });
 
+/** The formats a read asks for: Markdown always, then `include`, then `query` as highlights (the default) or a question. */
 export const readFormats = (o: FirecrawlReadSettings): unknown[] => {
   const query =
     o.query === undefined
@@ -75,11 +81,13 @@ export const readFormats = (o: FirecrawlReadSettings): unknown[] => {
   return ["markdown", ...(o.include ?? []), ...query];
 };
 
+/** The scrape body for a read: its formats and page settings. */
 export const readBody = (o: FirecrawlReadSettings) => ({
   formats: readFormats(o),
   ...pageBody(o),
 });
 
+/** Firecrawl's date filter takes MM/DD/YYYY; the options take YYYY-MM-DD. */
 const usDate = (value: string): string => {
   const groups = DATE.exec(value)?.groups;
   if (!groups) {
@@ -90,6 +98,11 @@ const usDate = (value: string): string => {
 
 type SearchSettings = Omit<FirecrawlSearchOptions, keyof CallOptions>;
 
+/**
+ * The `tbs` time filter: `tbs` as given, else `recency` as `qdr:`, else the
+ * published dates as a `cdr:1` range with `cd_min` and `cd_max`. Refuses
+ * `tbs`, `recency` and the dates in combination.
+ */
 const timeFilter = (o: SearchSettings): string | undefined => {
   refuseTogether(provider, o, "tbs", "recency", "publishedAfter");
   refuseTogether(provider, o, "tbs", "recency", "publishedBefore");
@@ -115,6 +128,7 @@ const timeFilter = (o: SearchSettings): string | undefined => {
     .join(",");
 };
 
+/** The `/search` body. `content` asks for each result's Markdown. Refuses `includeDomains` with `excludeDomains`, and `gov` with another category. */
 export const searchBody = (query: string, o: SearchSettings) => {
   refuseTogether(provider, o, "includeDomains", "excludeDomains");
   if (o.categories?.includes("gov") === true && o.categories.length > 1) {
@@ -139,6 +153,7 @@ export const searchBody = (query: string, o: SearchSettings) => {
   });
 };
 
+/** The `/search` body for images: the `images` source alone. */
 export const imagesBody = (
   query: string,
   o: Omit<FirecrawlImagesOptions, keyof CallOptions>
@@ -167,6 +182,7 @@ export const mapBody = (
     url,
   });
 
+/** The `/crawl` body. `scrapeOptions` is built like a read's body. */
 export const crawlBody = (
   url: string,
   o: Omit<FirecrawlCrawlOptions, keyof CallOptions>
@@ -189,6 +205,7 @@ export const crawlBody = (
     url,
   });
 
+/** The `/agent` body. `continueFrom` is sent as `threadId`, and `country` as `location`. */
 export const researchBody = (
   question: string,
   o: Omit<FirecrawlResearchOptions, keyof CallOptions>
@@ -208,6 +225,7 @@ export const researchBody = (
     urls: o.urls,
   });
 
+/** The body that opens a browser session. `activityTtl` falls back to `ttl`. */
 export const sessionBody = (o: FirecrawlSessionSettings) =>
   compact({
     activityTtl: o.activityTtl ?? o.ttl,
@@ -219,6 +237,11 @@ export const sessionBody = (o: FirecrawlSessionSettings) =>
     ttl: o.ttl,
   });
 
+/**
+ * Refuses session settings given together with `session`, since that session
+ * is already open. Returns the call's `timeout` as whole seconds for the
+ * script's limit (at least 1), and refuses one over `MAX_SCRIPT_SECONDS`.
+ */
 export const checkAct = (
   o: Omit<FirecrawlActOptions, keyof CallOptions>,
   timeout: number | undefined
@@ -239,6 +262,11 @@ export const checkAct = (
   return seconds;
 };
 
+/**
+ * The request that runs a script. The request waits `REPORT_GRACE_MS` longer
+ * than the script's own limit, so Firecrawl reports a timeout before the client
+ * gives up.
+ */
 export const scriptRequest = (
   code: string,
   language: FirecrawlActOptions["language"],
@@ -252,6 +280,10 @@ export const scriptRequest = (
     call.timeout === undefined ? undefined : call.timeout + REPORT_GRACE_MS,
 });
 
+/**
+ * The multipart body of a `/parse` call. Refuses a file type it does not know,
+ * a file over `MAX_PARSE_MB` and a `timeout` over `MAX_PARSE_MS`.
+ */
 export const parseForm = (
   document: DocumentInput,
   o: Omit<FirecrawlParseOptions, keyof CallOptions>,
@@ -293,6 +325,11 @@ export const parseForm = (
   return form;
 };
 
+/**
+ * A monitor's target: a scrape of `urls`, or a search for `query`. Refuses
+ * search-only options with `urls`, no `urls` and no `query`, and a search query
+ * over `MAX_MONITOR_QUERY` characters.
+ */
 const monitorTarget = (o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) => {
   const searchOnly = [
     o.searchWindow,
@@ -328,6 +365,7 @@ const monitorTarget = (o: Omit<FirecrawlMonitorOptions, keyof CallOptions>) => {
   });
 };
 
+/** The `/monitor` body. `query` is also the monitor's `goal`, and the name defaults to the query or first URL, cut to 256 characters. */
 export const monitorBody = (
   o: Omit<FirecrawlMonitorOptions, keyof CallOptions>
 ): Json => {

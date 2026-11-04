@@ -1,3 +1,6 @@
+// Flag parsing and provider construction for the stdio server. The gateway reuses
+// `PROVIDERS` and `adapterFor` to build its clients from the environment.
+
 import {
   CAPABILITIES,
   Fieldwork,
@@ -29,6 +32,7 @@ export const PROVIDERS = [
   "llamaparse",
   "reducto",
 ] as const;
+/** The name of a provider the server can serve. */
 export type Provider = (typeof PROVIDERS)[number];
 
 /** API keys given directly; a provider without one reads its key from the environment. */
@@ -39,6 +43,7 @@ export interface ServerConfig {
   /** Capabilities left out by default that the flags ask for. */
   allow: Capability[];
   help: boolean;
+  /** Long text one result may return; the tools default to 20,000. */
   maxCharacters?: number;
   /** The Browserbase project new sessions belong to. */
   browserbaseProject?: string;
@@ -49,6 +54,7 @@ export interface ServerConfig {
   version: boolean;
 }
 
+/** The `--help` text. Every flag error appends it. */
 export const USAGE = `Usage: fieldwork-mcp [options]
 
 Serves Fieldwork's tools over MCP on stdin and stdout.
@@ -132,7 +138,13 @@ const readFlag = (config: ServerConfig, flag: string, args: string[]) => {
   }
 };
 
-/** Reads the command line. Configuration is flags only; the environment holds keys. */
+/**
+ * Reads the command line. Configuration is flags only; the environment holds keys.
+ *
+ * A flag's value is the next argument; `--flag=value` is not understood. The
+ * whole line is read before anything acts on `help` or `version`, so a bad
+ * flag throws `InvalidRequest` (with the usage text) even beside `--help`.
+ */
 export const parseArgs = (argv: readonly string[]): ServerConfig => {
   const config: ServerConfig = {
     allow: [],
@@ -179,6 +191,12 @@ export const adapterFor = (
 /**
  * Builds the Fieldwork instance the configuration names. A route to a
  * provider that lacks the capability throws `Unsupported`.
+ *
+ * `keys` gives a provider's key directly; the stdio server passes none, so
+ * each adapter reads its own from the environment and throws `Unauthorized`
+ * at startup when it is missing. Only the providers the configuration names
+ * are built. Throws `InvalidRequest` for `provider` together with per-capability
+ * routes, or for neither.
  */
 export const fieldworkFor = (
   config: ServerConfig,

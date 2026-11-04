@@ -18,6 +18,7 @@ import { flag, text, url } from "./schema.js";
 import type { FieldSchema } from "./schema.js";
 import type { Field, ProviderName, Spec } from "./types.js";
 
+/** A named interval or a whole number of hours or days, as `MonitorSchedule`'s `every`. */
 const EVERY = "^(hour|day|week|[1-9][0-9]*h|[1-9][0-9]*d)$";
 
 const every: FieldSchema = {
@@ -49,6 +50,11 @@ const closed = (schema: FieldSchema): FieldSchema => ({
 const SCHEDULE_NOTE =
   "How often the monitor checks. Give exactly one of every or cron.";
 
+/**
+ * The `schedule` input in the two forms providers take: Exa and Parallel an
+ * `every` interval only, Firecrawl an interval or a cron expression. Two fields
+ * of one name, because the accepted values differ.
+ */
 const schedules: Field[] = [
   {
     name: "schedule",
@@ -73,18 +79,27 @@ const schedules: Field[] = [
 const DOMAIN_NOTE =
   "Firecrawl takes domain lists only for a monitor that searches: give a query and no urls.";
 
+/** Every provider with a monitor. */
 const MONITOR_PROVIDERS: readonly ProviderName[] = [
   "exa",
   "firecrawl",
   "parallel",
 ];
 
+/** The `cursor` input of `list_monitor_events`: the `next` of the previous page. */
 const cursor: Field = {
   name: "cursor",
   providers: MONITOR_PROVIDERS,
   schema: text("The next value from the previous page of events."),
 };
 
+/**
+ * The tools that manage monitors, `create_monitor`, `get_monitor`,
+ * `list_monitors`, `delete_monitor` and `list_monitor_events`, which call the
+ * methods of the `monitor` group, and `check_usage`, which calls `usage`.
+ * `toolsFor` leaves out the monitor tools unless asked, since a monitor keeps
+ * running and billing.
+ */
 export const MONITOR_SPECS: Spec[] = [
   {
     capability: "monitor",

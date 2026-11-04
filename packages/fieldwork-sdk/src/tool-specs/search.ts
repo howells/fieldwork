@@ -14,6 +14,11 @@ import { IMAGES_OUTPUT, SEARCH_OUTPUT } from "./outputs.js";
 import { flag, text } from "./schema.js";
 import type { Spec } from "./types.js";
 
+/**
+ * The search tools, `search_web` and `search_images`. Each option lists the
+ * providers whose options type takes it; the tools test sends every one and
+ * checks it reaches the provider's request.
+ */
 export const SEARCH_SPECS: Spec[] = [
   {
     capability: "search",

@@ -1,3 +1,6 @@
+// Shapes a tool's result for a model: drops `raw` and cuts long text to a
+// shared character budget.
+
 import { isJsonObject, isList, isText } from "./json.js";
 import type { JsonObject, JsonValue } from "./json.js";
 
@@ -45,6 +48,7 @@ interface Budget {
   remaining: number;
 }
 
+/** The text whole if it is short or the budget covers it; otherwise cut to what is left of the budget, with a note of how much was shown. Short text spends nothing. */
 const cut = (value: string, budget: Budget): string => {
   if (value.length <= SHORT_TEXT) {
     return value;
@@ -56,6 +60,12 @@ const cut = (value: string, budget: Budget): string => {
     : `${value.slice(0, kept)}\n\n[cut: ${kept} of ${value.length} characters shown]`;
 };
 
+/**
+ * Applies `cut` and the `raw` rule through a value. Fields are visited in
+ * `rank` order so the answer or page text gets the budget first, but each
+ * object keeps its own key order. `verbatim` is set inside `VERBATIM` keys and
+ * stays set below them.
+ */
 const shape = (
   value: JsonValue | undefined,
   verbatim: boolean,

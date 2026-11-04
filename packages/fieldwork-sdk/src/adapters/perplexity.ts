@@ -1,3 +1,9 @@
+// The Perplexity adapter. `search` calls `/search`; `answer` and `research` call
+// the Agent API (`/v1/agent`), `answer` synchronously and `research` as a
+// background run that is polled; `decide` calls `/v1/decisions`. The request
+// encoders and response readers are in ./perplexity/parse.ts, the option types in
+// ./perplexity/options.ts and the response schemas in ./perplexity/response.ts.
+
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
@@ -64,6 +70,11 @@ export type {
   PerplexitySearchOptions,
 } from "./perplexity/options.js";
 
+/**
+ * `/search`. The query and any `queries` go in one request and come back as one
+ * flat list. Refuses more than five queries in all, and a `limit` over 20 unless
+ * `searchType` is "people".
+ */
 const search = async (
   raw: RawClient,
   query: string,
@@ -112,6 +123,11 @@ const search = async (
   };
 };
 
+/**
+ * A synchronous Agent API call at the "fast" effort unless `effort` says
+ * otherwise. An `incomplete` response returns its text with a warning; a failed or
+ * cancelled one, or one with no text, throws.
+ */
 const answer = async <T>(
   raw: RawClient,
   question: string,
@@ -155,6 +171,7 @@ const answer = async <T>(
   });
 };
 
+/** Starts a background Agent API run and returns its id. */
 const startResearch = async (
   raw: RawClient,
   question: string,
@@ -181,6 +198,12 @@ const startResearch = async (
   return requireJobId(provider, created.id);
 };
 
+/**
+ * Polls a research run until it reaches a terminal status. A `completed` run
+ * returns `completed`. An `incomplete` or `cancelled` one that left text returns
+ * `partial` with that status as `stopReason`. A `failed` run, or one with no text,
+ * throws `JobFailed`. The run's id is also its `continuationId`.
+ */
 const research = async <T>(
   raw: RawClient,
   question: string,
@@ -228,6 +251,10 @@ const research = async <T>(
   );
 };
 
+/**
+ * `/v1/decisions`. Perplexity returns no citations, so `citations` is always empty.
+ * Score answers are keyed by the caller's scale keys.
+ */
 const decide = async (
   raw: RawClient,
   context: unknown,

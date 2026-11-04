@@ -1,3 +1,7 @@
+// Schemas for SerpApi's responses, built from the lenient blocks in ../../parse.ts
+// so a changed field reads as absent instead of failing. ../serpapi.ts and
+// ./parse.ts read the parsed values; the response as received still goes in `raw`.
+
 import * as z from "zod/mini";
 
 import {
@@ -49,6 +53,7 @@ const storyShape = {
   title: optionalString,
 };
 
+/** A news story. */
 const Story = looseObject(storyShape);
 
 /** A news result: a story, or a group with a `highlight` and `stories`. */
@@ -58,6 +63,10 @@ const NewsResult = looseObject({
   stories: arrayOf(Story),
 });
 
+/**
+ * A shopping result. `extracted_price` is the numeric price, `price` the formatted
+ * one.
+ */
 const ShoppingItem = looseObject({
   extracted_price: optionalScalar,
   link: optionalString,
@@ -70,6 +79,7 @@ const ShoppingItem = looseObject({
   title: optionalString,
 });
 
+/** A Google Maps place, from `local_results` or a single `place_results`. */
 const Place = looseObject({
   address: optionalString,
   description: optionalString,
@@ -92,6 +102,7 @@ const AnswerBox = looseObject({
   snippet: optionalString,
 });
 
+/** A Google Images result: `original` is the full image, `link` its source page. */
 const ImageItem = looseObject({
   link: optionalString,
   original: optionalString,
