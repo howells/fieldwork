@@ -3,9 +3,9 @@
 One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. Two packages:
 
 - `packages/fieldwork-sdk`, published as `@howells/fieldwork-sdk`: the client, the adapters and agent tool definitions (`/tools`).
-- `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: an MCP server over stdio that serves those tools.
+- `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: those tools as an MCP server over stdio, and as an HTTP gateway (`src/gateway/`) with a JSON API, remote MCP and a public OpenAPI description, behind a bearer key per agent. The docs site deploys the gateway at `/api/v1` and `/mcp`.
 
-Plans, decisions and evidence live on Linear (material-instruments, MG-2960; the agent-readiness audit is MG-2961) until Fieldwork has its own Linear home.
+Plans, decisions and evidence live on Linear (material-instruments, MG-2960; the latest agent-readiness audit is MG-2990) until Fieldwork has its own Linear home.
 
 ## Commands
 
@@ -53,4 +53,4 @@ Never:
 2. Add the entry to `tsdown.config.ts` and the subpath to `package.json` `exports`.
 3. In `src/tool-specs/<group>.ts`, add the provider to the `providers` list of each tool option it supports. The tools test proves each listed option reaches the provider's request.
 4. Add request and result tests, and a block in `tests/live/providers.live.ts`.
-5. Add the provider to the capability table and the keys table in the README, and to `PROVIDERS` in `packages/fieldwork-mcp/src/config.ts`.
+5. Add the provider to the capability table and the keys table in the README and the MCP README; to `PROVIDERS`, the factory map and the key list in the usage text in `packages/fieldwork-mcp/src/config.ts`; to `KEY_NAMES` in `src/gateway/environment.ts`; and update the provider count in `tests/server.test.ts`.

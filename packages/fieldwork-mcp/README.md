@@ -1,6 +1,6 @@
 # Fieldwork MCP server
 
-Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio.
+Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio, or from an [HTTP gateway](#http-gateway) as a JSON API and remote MCP.
 
 ```sh
 npx -y @howells/fieldwork-mcp --provider firecrawl
@@ -129,3 +129,7 @@ const server = createFieldworkServer(new Fieldwork({ adapter: firecrawl() }), {
 `allow` names capabilities that are left out by default (`act`, `browser`, `monitor`) to include as well. `server` is an `McpServer` from `@modelcontextprotocol/server`; connect it to any transport.
 
 Node 22 or later.
+
+## HTTP gateway
+
+`gatewayFromEnvironment(process.env)` returns one `fetch` handler that serves the same tools at `/api/v1/tools/{name}` and as MCP at `/mcp`, behind a bearer key per agent: `FIELDWORK_API_KEY` for the owner and `FIELDWORK_AGENT_<NAME>_API_KEY` for each agent. Only providers with a key are served. `GET /api/v1/openapi.json` describes the running gateway without a key. `createFieldworkGateway` takes the same parts as code. See [HTTP gateway](https://fieldwork-sdk.dev/docs/http-gateway).
