@@ -15,6 +15,8 @@ pnpm build && pnpm typecheck && pnpm lint:ratchet && pnpm test   # the gate; run
 pnpm test:live                                            # real provider calls; ask first
 ```
 
+Every provider key, and the OpenRouter key, lives in the git-ignored `.env.local` at the repo root, which `pnpm test:live` loads. Production uses the same keys, set on the Vercel project. A provider with no key is skipped.
+
 Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config switches a rule off. `pnpm lint` lists every finding. The gate is `pnpm lint:ratchet`, which fails when any package's count for a rule rises above `lint-baseline.json`. When you lower a count, run `pnpm lint:rebaseline` and commit the baseline with the fix. Never rebaseline to absorb a rise.
 
 `pnpm test` uses a fake `fetch` and costs nothing. Every adapter change needs a test in `packages/fieldwork-sdk/tests/` that checks the request the provider receives and the normalized result.
