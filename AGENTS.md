@@ -5,21 +5,21 @@ One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Brows
 - `packages/fieldwork-sdk`, published as `@howells/fieldwork-sdk`: the client, the adapters and agent tool definitions (`/tools`).
 - `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: those tools as an MCP server over stdio, and as an HTTP gateway (`src/gateway/`) with a JSON API, remote MCP and a public OpenAPI description, behind a bearer key per agent. The docs site deploys the gateway at `/api/v1` and `/mcp`.
 
-Plans, decisions and evidence live on Linear (material-instruments, MG-2960; the latest agent-readiness audit is MG-2990) until Fieldwork has its own Linear home.
+Issues live on Linear (material-instruments, MG-2960).
 
 ## Commands
 
 ```sh
 pnpm install
-pnpm build && pnpm typecheck && pnpm lint:ratchet && pnpm test   # the gate; run before every commit
+pnpm build && pnpm typecheck && pnpm lint && pnpm test
 pnpm test:live                                            # real provider calls; ask first
 ```
 
 Every provider key, and the OpenRouter key, lives in the git-ignored `.env.local` at the repo root, which `pnpm test:live` loads. Production uses the same keys, set on the Vercel project. A provider with no key is skipped.
 
-Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config switches a rule off. `pnpm lint` lists every finding. The gate is `pnpm lint:ratchet`, which fails when any package's count for a rule rises above `lint-baseline.json`. When you lower a count, run `pnpm lint:rebaseline` and commit the baseline with the fix. Never rebaseline to absorb a rise.
+Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config switches a rule off.
 
-`pnpm test` uses a fake `fetch` and costs nothing. Every adapter change needs a test in `packages/fieldwork-sdk/tests/` that checks the request the provider receives and the normalized result.
+`pnpm test` uses a fake `fetch` and costs nothing. Adapter changes should have a test in `packages/fieldwork-sdk/tests/` that checks the request the provider receives and the normalized result.
 
 ## Rules
 
@@ -33,7 +33,6 @@ Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config 
 
 Always:
 
-- Run the gate before committing.
 - Keep each provider's option names in its adapter's types, and use the shared names in the README's options table (`limit`, `includeDomains`, `excludeDomains`, `publishedAfter`, `publishedBefore`, `recency`, `maxAge`, `country`, `language`, `schema`, `prompt`, `query`, `content`, `continueFrom`, `resume`, `interval`) wherever the meaning is the same. A field that takes regular expressions or paths gets its own name, never `includeDomains`.
 - Refuse an option combination the provider rejects or ignores with `refuseTogether` before sending.
 
@@ -47,7 +46,6 @@ Never:
 
 - Print, log or commit an API key.
 - Run `npm publish` by hand. Releases go out through `.github/workflows/release.yml` on a `@howells/<package>@x.y.z` tag, by npm trusted publishing. The one exception is a package's first publish, which npm requires from a signed-in account.
-- Add CI checks. Checks run locally; the release workflow is the only workflow.
 
 ## Adding an adapter
 

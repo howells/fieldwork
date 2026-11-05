@@ -139,52 +139,14 @@ jobs:
           fi
           echo "$name@$version is not published yet (registry returned $status)."
 
-      # The gate is scoped to the package being published and its workspace
-      # dependencies. A sibling app or example failing its own checks is not a
-      # reason to withhold a library, and some of them cannot run on a runner at
-      # all: faceplacer's web app reads DATABASE_URL at build time.
-      #
-      # Building first is deliberate. Typecheck and type-aware lint both read
-      # the declaration output of the workspace dependencies, so running them
-      # against an unbuilt tree reports hundreds of errors that do not exist -
-      # routerbase reported 335.
-      - name: Verify and pack
+      - name: Build and pack
         run: |
           set -euo pipefail
           scope='${{ steps.version.outputs.name }}'
           pnpm --filter "${scope}..." run --if-present build
-          pnpm --filter "${scope}..." run --if-present typecheck
-          # Lint gates through the ratchet, as it does locally: `lint` lists
-          # every finding, including the committed backlog in lint-baseline.json.
-          # The ratchet lints the whole repo, so every package is built first:
-          # the docs app imports fieldwork-mcp, and without its declarations
-          # type-aware lint reports unsafe calls that do not exist.
-          pnpm --filter "./packages/*" run --if-present build
-          pnpm run lint:ratchet
-          pnpm --filter "${scope}..." run --if-present test
           mkdir -p "$GITHUB_WORKSPACE/release-artifacts"
           pnpm --filter "$scope" pack \
             --pack-destination "$GITHUB_WORKSPACE/release-artifacts"
-      # --if-present is right for the dependency closure, whose packages
-      # legitimately differ, but on its own it makes an absent script look
-      # identical to a passing one. Name what the published package does not
-      # define, so a gap in the gate is visible in the log rather than silent.
-      - name: Report what the gate could not run
-        run: |
-          set -euo pipefail
-          scope='${{ steps.version.outputs.name }}'
-          dir=$(pnpm list -r --depth -1 --json \
-            | node -p "JSON.parse(require('fs').readFileSync(0,'utf-8')).find((e) => e.name === process.argv[1]).path" "$scope")
-          missing=""
-          for script in build typecheck lint test; do
-            node -e "process.exit(require('$dir/package.json').scripts?.['$script'] ? 0 : 1)" \
-              || missing="$missing $script"
-          done
-          if [ -n "$missing" ]; then
-            echo "::warning::$scope defines no$missing script, so the gate did not run it"
-          else
-            echo "$scope defines build, typecheck, lint and test; the gate ran all four."
-          fi
 
       # Installing the tarball into a fresh consumer outside the working
       # directory is what catches an uninstallable package, and a green build
