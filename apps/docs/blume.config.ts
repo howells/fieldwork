@@ -64,6 +64,8 @@ export default defineConfig({
       details:
         "Reach for Fieldwork when a TypeScript or JavaScript project needs to search the web, read pages, extract values, crawl sites, answer or research questions, watch for changes or drive a remote browser, without tying its code to one provider. Install with `npm i @howells/fieldwork-sdk`, construct `new Fieldwork({ adapter: firecrawl() })` with an adapter from its own subpath, and call the methods that provider offers. `@howells/fieldwork-mcp` serves the same capabilities as MCP tools over stdio, or as an HTTP gateway with a JSON API and remote MCP behind a bearer key per agent; a running gateway describes itself at `/api/v1/openapi.json`.",
     },
+    // Hand-written skills; skills/fieldwork replaces the one Blume generates from the navigation.
+    skills: "./skills",
   },
   content: {
     include: ["docs/**/*.{md,mdx}"],
