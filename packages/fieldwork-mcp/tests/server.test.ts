@@ -265,8 +265,8 @@ describe("the command line", () => {
     expect(providers.has("run_browser_script")).toBe(false);
   });
 
-  it("builds a server for each of the ten providers", () => {
-    expect(PROVIDERS).toHaveLength(10);
+  it("builds a server for each of the eleven providers", () => {
+    expect(PROVIDERS).toHaveLength(11);
     for (const provider of PROVIDERS) {
       const web = fieldworkFor(parseArgs(["--provider", provider]), {
         [provider]: "k",

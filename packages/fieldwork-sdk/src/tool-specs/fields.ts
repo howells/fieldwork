@@ -2,7 +2,16 @@
 // options type has the option with this meaning, and names the field as the
 // shared option name in the README's options table.
 
-import { choice, date, object, text, texts, url, whole } from "./schema.js";
+import {
+  choice,
+  date,
+  flag,
+  object,
+  text,
+  texts,
+  url,
+  whole,
+} from "./schema.js";
 import type { Field, ProviderName } from "./types.js";
 
 const RESUME_DESCRIPTION =
@@ -206,3 +215,12 @@ export const condition = object(
   },
   ["name", "description"]
 );
+
+/** The `stealth` input: a browser that hides automation and solves CAPTCHAs, for sites that block bots. */
+export const stealth = (providers: readonly ProviderName[]): Field => ({
+  name: "stealth",
+  providers,
+  schema: flag(
+    "Use a stealth browser that hides automation and solves CAPTCHAs. Use when a site blocks or challenges the plain browser."
+  ),
+});

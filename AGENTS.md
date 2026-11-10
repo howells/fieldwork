@@ -1,6 +1,6 @@
 # fieldwork
 
-One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. Two packages:
+One API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. Two packages:
 
 - `packages/fieldwork-sdk`, published as `@howells/fieldwork-sdk`: the client, the adapters and agent tool definitions (`/tools`).
 - `packages/fieldwork-mcp`, published as `@howells/fieldwork-mcp`: those tools as an MCP server over stdio, and as an HTTP gateway (`src/gateway/`) with a JSON API, remote MCP and a public OpenAPI description, behind a bearer key per agent. The docs site deploys the gateway at `/api/v1` and `/mcp`.
@@ -26,7 +26,7 @@ Lint is the bare `@howells/lint/oxlint/core` preset in every package; no config 
 - A provider that lacks a capability or option is never called for it. No fallbacks and no emulation: the adapter omits the method, the types refuse the call, the runtime throws `Unsupported`, and the tool schema leaves the option out.
 - Every result keeps the provider's response in `raw`. Tools strip it; the SDK never does.
 - An error raised after a job starts carries `jobId`, and every asynchronous method accepts `resume`. Run every job through `runJob` in `src/job.ts`, which holds both; never poll by hand.
-- Zod is the only runtime dependency. Adapters still call each provider's REST API with `fetch`. Adding any other dependency needs Daniel's sign-off. Use `zod/mini` in `src`.
+- Zod and Turndown (Kernel's HTML to Markdown) are the only runtime dependencies. Adapters still call each provider's REST API with `fetch`. Adding any other dependency needs Daniel's sign-off. Use `zod/mini` in `src`.
 - Configuration is flags and arguments; the environment holds API keys only.
 
 ## Boundaries

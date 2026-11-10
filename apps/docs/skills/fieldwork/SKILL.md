@@ -1,11 +1,11 @@
 ---
 name: fieldwork
-description: "Search the web, read and extract pages, map and crawl sites, answer and research questions, and parse documents through Fieldwork's one API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto, by remote MCP, stdio MCP or the TypeScript SDK. Use for live-web lookups, crawls, structured extraction, PDFs and batch enrichment scripts."
+description: "Search the web, read and extract pages, map and crawl sites, answer and research questions, and parse documents through Fieldwork's one API over Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto, by remote MCP, stdio MCP or the TypeScript SDK. Use for live-web lookups, crawls, structured extraction, PDFs and batch enrichment scripts."
 ---
 
 # Fieldwork
 
-One set of tools over ten web providers. Each tool runs on exactly one provider. Nothing falls back: a provider that lacks a capability or option is never called for it, and an error never switches provider.
+One set of tools over eleven web providers. Each tool runs on exactly one provider. Nothing falls back: a provider that lacks a capability or option is never called for it, and an error never switches provider.
 
 ## Rules
 
@@ -53,7 +53,7 @@ Climb only as far as the job needs.
 7. **`answer_question`** for one short factual answer with sources; **`research_question`** for many sources compared, as a report or as `schema` output. Research runs for minutes and costs the most; `status: "partial"` with `stopReason` still has usable output. Ask a follow-up with `continueFrom: <continuationId>` instead of starting over.
 8. **`find_entities`** for a list of companies or products meeting every condition (Parallel). **`make_decisions`** to classify facts you supply, each answer with a probability (Parallel, Perplexity).
 9. **`parse_document`** for a file you hold: `name` with its extension and `contentBase64`. A PDF at a public URL is a `read_page` call, not a parse. Larger files go through the SDK, `web.parse({ name, data })`.
-10. **Browser** only when clicking or typing changes what the page shows. Browserbase's `read_page` is a plain fetch that runs no JavaScript. `open_browser` (Browserbase, Firecrawl) returns a CDP URL for Playwright; call `close_browser` when done, because it bills until closed or its `ttl` expires. `run_browser_script` runs one script in a fresh Firecrawl session.
+10. **Browser** only when clicking or typing changes what the page shows. Browserbase's `read_page` is a plain fetch that runs no JavaScript; Kernel's `read_page` loads the page in a real browser, for specs that only appear once JavaScript runs (add `stealth` when a site blocks it). `open_browser` (Browserbase, Firecrawl, Kernel) returns a CDP URL for Playwright; call `close_browser` when done, because it bills until closed or its `ttl` (Kernel: `idleTimeout`) runs out. `run_browser_script` runs one script in a fresh Firecrawl session.
 11. **Monitors** for anything checked repeatedly, instead of reading the same page on a schedule. A monitor bills until `delete_monitor`. Exa and Parallel watch a query; Firecrawl also watches given `urls`.
 
 ## Providers
@@ -62,7 +62,7 @@ Climb only as far as the job needs.
 | --- | --- | --- |
 | Search | Exa | Parallel for the official page of an exact thing; SerpApi for Google's own ranking, and its verticals through the SDK's `engine` |
 | Images | Brave | SerpApi |
-| Read | Firecrawl | Exa for clean full text and PDFs at a URL; Browserbase with `country` to fetch through a proxy |
+| Read | Firecrawl | Exa for clean full text and PDFs at a URL; Browserbase with `country` to fetch through a proxy; Kernel when the content loads with JavaScript |
 | Extract | Firecrawl | Parallel when each field needs its citation (`fields`) |
 | Answer | Exa | Parallel to restrict cited domains; Perplexity |
 | Research | Exa | Parallel when each field needs its source |
@@ -74,7 +74,7 @@ Climb only as far as the job needs.
 ## Cost
 
 - Crawls, `read_pages` and PDFs bill per page. Research and crawl jobs cost the most; browsers bill for as long as they are open. Set `limit`, crawl a section rather than a site, and take the cheaper tool when it does the job.
-- Run `check_usage` (Firecrawl, Tavily, SerpApi, Browserbase) before a large crawl or batch. Results carry `meta.usage` when the provider reports cost.
+- Run `check_usage` (Firecrawl, Tavily, SerpApi, Browserbase) before a large crawl or batch. Results carry `meta.usage` when the provider reports cost; a Kernel read reports the browser time it billed as `units.uptime_ms`.
 - For long PDFs through Firecrawl in the SDK, cap pages with `parsers: [{ type: "pdf", maxPages: 20 }]`.
 - An error with a `jobId` is never `retryable`; `RateLimited` comes with `retryAfter` seconds. The SDK already repeats a 429, 5xx or dropped connection twice before throwing.
 

@@ -122,11 +122,11 @@ export const GUIDE_TASKS: GuideTask[] = [
   },
   {
     capabilities: ["browser", "act"],
-    choices: ["Firecrawl", "Browserbase"],
+    choices: ["Firecrawl", "Browserbase", "Kernel"],
     docs: "/docs/monitors-and-browsers",
     group: "explore",
     id: "interactive-page",
-    providers: ["Firecrawl", "Browserbase"],
+    providers: ["Firecrawl", "Browserbase", "Kernel"],
     title: "Use an interactive page",
     why: "Use a browser only when clicking or typing changes what the page shows.",
   },

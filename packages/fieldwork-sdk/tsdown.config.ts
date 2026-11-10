@@ -9,6 +9,7 @@ export default defineConfig({
     exa: "src/adapters/exa.ts",
     firecrawl: "src/adapters/firecrawl.ts",
     index: "src/index.ts",
+    kernel: "src/adapters/kernel.ts",
     llamaparse: "src/adapters/llamaparse.ts",
     parallel: "src/adapters/parallel.ts",
     perplexity: "src/adapters/perplexity.ts",

@@ -1,6 +1,6 @@
 # Fieldwork MCP server
 
-Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio, or from an [HTTP gateway](#http-gateway) as a JSON API and remote MCP.
+Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio, or from an [HTTP gateway](#http-gateway) as a JSON API and remote MCP.
 
 ```sh
 npx -y @howells/fieldwork-mcp --provider firecrawl
@@ -37,6 +37,7 @@ Each provider reads its key from the environment.
 | `brave` | `BRAVE_API_KEY` | `search`, `images`, `answer` |
 | `serpapi` | `SERPAPI_API_KEY` | `search`, `images`, `usage` |
 | `browserbase` | `BROWSERBASE_API_KEY`; the project comes from `--browserbase-project` when the key has several | `search`, `read`, `browser`, `usage` |
+| `kernel` | `KERNEL_API_KEY` | `read`, `browser` |
 | `llamaparse` | `LLAMA_CLOUD_API_KEY` | `parse` |
 | `reducto` | `REDUCTO_API_KEY` | `parse` |
 
@@ -91,7 +92,7 @@ Each tool serves one capability, or one method of `browser` or `monitor`. The la
 | --- | --- | --- |
 | `search_web` | Ranked pages for a query. | all eight |
 | `search_images` | Images for a query, with the page each appears on. | Firecrawl, Tavily, Parallel, Brave, SerpApi |
-| `read_page` | One page as Markdown. | Exa, Firecrawl, Tavily, Parallel, Browserbase |
+| `read_page` | One page as Markdown. Kernel loads it in a real browser, so JavaScript runs. | Exa, Firecrawl, Tavily, Parallel, Browserbase, Kernel |
 | `read_pages` | Several pages in one call; pages that fail come back in `failed`. | Exa, Firecrawl, Tavily, Parallel |
 | `extract_values` | The values a JSON Schema asks for, from one page. | Exa, Firecrawl, Parallel |
 | `read_product` | A product page's variants, from its structured data. | Firecrawl |
@@ -104,8 +105,8 @@ Each tool serves one capability, or one method of `browser` or `monitor`. The la
 | `parse_document` | A PDF, DOCX, XLSX, PPTX, HTML or CSV file as Markdown. | Firecrawl, LlamaParse, Reducto |
 | `check_usage` | Credits used and remaining. | Firecrawl, Tavily, SerpApi, Browserbase |
 | `run_browser_script` | A script run in a remote browser. Only with `--allow-act`. | Firecrawl |
-| `open_browser` | A remote browser to drive over CDP. Only with `--allow-browser`. | Firecrawl, Browserbase |
-| `close_browser` | Closes a browser opened with `open_browser`. Only with `--allow-browser`. | Firecrawl, Browserbase |
+| `open_browser` | A remote browser to drive over CDP. Only with `--allow-browser`. | Firecrawl, Browserbase, Kernel |
+| `close_browser` | Closes a browser opened with `open_browser`. Only with `--allow-browser`. | Firecrawl, Browserbase, Kernel |
 | `create_monitor` | A monitor that checks the web on a schedule. Only with `--allow-monitor`. | Exa, Firecrawl, Parallel |
 | `get_monitor`, `list_monitors`, `delete_monitor` | Read, list and delete monitors. Only with `--allow-monitor`. | Exa, Firecrawl, Parallel |
 | `list_monitor_events` | What a monitor found. Only with `--allow-monitor`. | Exa, Firecrawl, Parallel |

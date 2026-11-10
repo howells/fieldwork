@@ -1,7 +1,7 @@
 {
   "name": "@howells/fieldwork-sdk",
   "version": "0.5.2",
-  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto.",
+  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.",
   "keywords": [
     "agents",
     "brave",
@@ -10,6 +10,7 @@
     "exa",
     "extraction",
     "firecrawl",
+    "kernel",
     "llamaparse",
     "monitoring",
     "parallel",
@@ -75,6 +76,10 @@
       "types": "./dist/browserbase.d.ts",
       "import": "./dist/browserbase.js"
     },
+    "./kernel": {
+      "types": "./dist/kernel.d.ts",
+      "import": "./dist/kernel.js"
+    },
     "./llamaparse": {
       "types": "./dist/llamaparse.d.ts",
       "import": "./dist/llamaparse.js"
@@ -101,12 +106,14 @@
     "test:live": "vitest run --config vitest.live.config.ts"
   },
   "dependencies": {
+    "turndown": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {
     "@howells/lint": "catalog:",
     "@howells/typescript-config": "catalog:",
     "@types/node": "catalog:",
+    "@types/turndown": "catalog:",
     "tsdown": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

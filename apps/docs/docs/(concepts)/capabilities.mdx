@@ -1,31 +1,31 @@
 ---
 title: Capabilities
-description: Which of Fieldwork's 17 capabilities each of the ten providers offers, and how an instance reports them at run time.
+description: Which of Fieldwork's 17 capabilities each of the eleven providers offers, and how an instance reports them at run time.
 ---
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
 
 Not sure which to use? See the [provider guide](/tools).
 
-|  | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
-| `search` | ● | ● | ● | ● | ● | ● | ● | ● |
-| `images` |  | ● | ● | ● |  | ● | ● |  |
-| `read` | ● | ● | ● | ● |  |  |  | ● |
-| `readMany` | ● | ● | ● | ● |  |  |  |  |
-| `extract` | ● | ● |  | ● |  |  |  |  |
-| `product` |  | ● |  |  |  |  |  |  |
-| `map` |  | ● | ● |  |  |  |  |  |
-| `crawl` |  | ● | ● |  |  |  |  |  |
-| `answer` | ● |  | ● | ● | ● | ● |  |  |
-| `research` | ● | ● | ● | ● | ● |  |  |  |
-| `discover` |  |  |  | ● |  |  |  |  |
-| `decide` |  |  |  | ● | ● |  |  |  |
-| `act` |  | ● |  |  |  |  |  |  |
-| `browser` |  | ● |  |  |  |  |  | ● |
-| `parse` |  | ● |  |  |  |  |  |  |
-| `monitor` | ● | ● |  | ● |  |  |  |  |
-| `usage` |  | ● | ● |  |  |  | ● | ● |
+|  | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | Kernel |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `search` | ● | ● | ● | ● | ● | ● | ● | ● |  |
+| `images` |  | ● | ● | ● |  | ● | ● |  |  |
+| `read` | ● | ● | ● | ● |  |  |  | ● | ● |
+| `readMany` | ● | ● | ● | ● |  |  |  |  |  |
+| `extract` | ● | ● |  | ● |  |  |  |  |  |
+| `product` |  | ● |  |  |  |  |  |  |  |
+| `map` |  | ● | ● |  |  |  |  |  |  |
+| `crawl` |  | ● | ● |  |  |  |  |  |  |
+| `answer` | ● |  | ● | ● | ● | ● |  |  |  |
+| `research` | ● | ● | ● | ● | ● |  |  |  |  |
+| `discover` |  |  |  | ● |  |  |  |  |  |
+| `decide` |  |  |  | ● | ● |  |  |  |  |
+| `act` |  | ● |  |  |  |  |  |  |  |
+| `browser` |  | ● |  |  |  |  |  | ● | ● |
+| `parse` |  | ● |  |  |  |  |  |  |  |
+| `monitor` | ● | ● |  | ● |  |  |  |  |  |
+| `usage` |  | ● | ● |  |  |  | ● | ● |  |
 
 LlamaParse and Reducto parse documents, and only that.
 

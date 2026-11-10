@@ -1,6 +1,6 @@
 # Fieldwork
 
-One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, LlamaParse and Reducto.
+One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.
 
 ```sh
 npm i @howells/fieldwork-sdk
@@ -24,25 +24,25 @@ Swap the adapter to switch providers. Everything below the constructor stays the
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. `new Fieldwork({ adapter: tavily() }).act(...)` is a type error, because Tavily has no browser. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent. Nothing falls back to another provider, and nothing is emulated: a provider without an answer endpoint has no `answer`, even though search plus a model could imitate one.
 
-| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | LlamaParse | Reducto |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |  |  |
-| `images(query)` |  | yes | yes | yes |  | yes | yes |  |  |  |
-| `read(url)` | yes | yes | yes | yes |  |  |  | yes |  |  |
-| `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |  |  |
-| `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |  |  |
-| `product(url)` |  | yes |  |  |  |  |  |  |  |  |
-| `map(url)` |  | yes | yes |  |  |  |  |  |  |  |
-| `crawl(url)` |  | yes | yes |  |  |  |  |  |  |  |
-| `answer(question)` | yes |  | yes | yes | yes | yes |  |  |  |  |
-| `research(question)` | yes | yes | yes | yes | yes |  |  |  |  |  |
-| `discover(objective, { entityType, conditions })` |  |  |  | yes |  |  |  |  |  |  |
-| `decide(context, questions)` |  |  |  | yes | yes |  |  |  |  |  |
-| `act(code)` |  | yes |  |  |  |  |  |  |  |  |
-| `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes |  |  |
-| `parse(document)` |  | yes |  |  |  |  |  |  | yes | yes |
-| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |  |  |
-| `usage()` |  | yes | yes |  |  |  | yes | yes |  |  |
+| Method | Exa | Firecrawl | Tavily | Parallel | Perplexity | Brave | SerpApi | Browserbase | Kernel | LlamaParse | Reducto |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |
+| `images(query)` |  | yes | yes | yes |  | yes | yes |  |  |  |  |
+| `read(url)` | yes | yes | yes | yes |  |  |  | yes | yes |  |  |
+| `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |  |  |  |
+| `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |  |  |  |
+| `product(url)` |  | yes |  |  |  |  |  |  |  |  |  |
+| `map(url)` |  | yes | yes |  |  |  |  |  |  |  |  |
+| `crawl(url)` |  | yes | yes |  |  |  |  |  |  |  |  |
+| `answer(question)` | yes |  | yes | yes | yes | yes |  |  |  |  |  |
+| `research(question)` | yes | yes | yes | yes | yes |  |  |  |  |  |  |
+| `discover(objective, { entityType, conditions })` |  |  |  | yes |  |  |  |  |  |  |  |
+| `decide(context, questions)` |  |  |  | yes | yes |  |  |  |  |  |  |
+| `act(code)` |  | yes |  |  |  |  |  |  |  |  |  |
+| `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes | yes |  |  |
+| `parse(document)` |  | yes |  |  |  |  |  |  |  | yes | yes |
+| `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |  |  |  |
+| `usage()` |  | yes | yes |  |  |  | yes | yes |  |  |  |
 
 `web.capabilities` and `web.supports("crawl")` report the same table at runtime.
 
@@ -265,9 +265,10 @@ On a router, `raw` is keyed by provider name.
 | `brave()`       | `BRAVE_API_KEY`       |
 | `serpapi()`     | `SERPAPI_API_KEY`     |
 | `browserbase()` | `BROWSERBASE_API_KEY` |
+| `kernel()`      | `KERNEL_API_KEY`      |
 | `llamaparse()`  | `LLAMA_CLOUD_API_KEY` |
 | `reducto()`     | `REDUCTO_API_KEY`     |
 
 Pass `apiKey` (and Browserbase's `projectId`) to override, and `fetch` to supply your own. Requests follow redirects only within the provider's origin; a redirect to any other host, scheme or port fails before the key is sent there.
 
-ESM only, Node 22 or later. The one dependency is Zod.
+ESM only, Node 22 or later. The dependencies are Zod and, for Kernel's Markdown, Turndown.

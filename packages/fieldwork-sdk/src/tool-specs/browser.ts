@@ -1,4 +1,4 @@
-import { country, resume } from "./fields.js";
+import { country, resume, stealth } from "./fields.js";
 import {
   ACT_OUTPUT,
   CLOSE_BROWSER_OUTPUT,
@@ -68,6 +68,16 @@ export const BROWSER_SPECS: Spec[] = [
           21_600
         ),
       },
+      {
+        name: "idleTimeout",
+        providers: ["kernel"],
+        schema: whole(
+          "Seconds without a CDP or live-view connection before the session closes by itself, 10 to 259200. Defaults to 60.",
+          10,
+          259_200
+        ),
+      },
+      stealth(["kernel"]),
       country(["firecrawl"], "Browse from"),
     ],
     idempotent: false,

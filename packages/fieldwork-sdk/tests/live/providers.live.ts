@@ -17,6 +17,7 @@ import { brave } from "../../src/adapters/brave.js";
 import { browserbase } from "../../src/adapters/browserbase.js";
 import { exa } from "../../src/adapters/exa.js";
 import { firecrawl } from "../../src/adapters/firecrawl.js";
+import { kernel } from "../../src/adapters/kernel.js";
 import { llamaparse } from "../../src/adapters/llamaparse.js";
 import { parallel } from "../../src/adapters/parallel.js";
 import { perplexity } from "../../src/adapters/perplexity.js";
@@ -419,6 +420,25 @@ describe.skipIf(!has("BROWSERBASE_API_KEY"))("browserbase, live", () => {
   it("reports usage", async () => {
     const usage = await web().usage();
     expect(usage.raw).toBeDefined();
+  });
+});
+
+describe.skipIf(!has("KERNEL_API_KEY"))("kernel, live", () => {
+  const web = lazy(() => new Fieldwork({ adapter: kernel() }));
+  it("reads a page whose specs load with JavaScript", async () => {
+    const page = await web().read(PRODUCT, { timeout: 180_000 });
+    expect(page.statusCode).toBe(200);
+    expect(page.title).toMatch(/Portmore Aqua/iu);
+    expect(page.markdown).toMatch(/Portmore Aqua/iu);
+    expect(page.meta?.usage?.units?.uptime_ms).toBeGreaterThan(0);
+  }, 200_000);
+  it("opens and closes a browser", async () => {
+    const session = await web().browser.open({ headless: true });
+    try {
+      expect(session.cdpUrl).toMatch(/^wss?:/u);
+    } finally {
+      await web().browser.close(session.id);
+    }
   });
 });
 

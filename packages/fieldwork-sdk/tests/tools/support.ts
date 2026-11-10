@@ -3,6 +3,7 @@ import { brave } from "../../src/adapters/brave.js";
 import { browserbase } from "../../src/adapters/browserbase.js";
 import { exa } from "../../src/adapters/exa.js";
 import { firecrawl } from "../../src/adapters/firecrawl.js";
+import { kernel } from "../../src/adapters/kernel.js";
 import { llamaparse } from "../../src/adapters/llamaparse.js";
 import { parallel } from "../../src/adapters/parallel.js";
 import { perplexity } from "../../src/adapters/perplexity.js";
@@ -41,6 +42,10 @@ const FACTORIES = new Map<string, Factory>([
   [
     "firecrawl",
     (fetchImpl) => firecrawl({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
+  ],
+  [
+    "kernel",
+    (fetchImpl) => kernel({ apiKey: "k", fetch: fetchImpl, retries: 0 }),
   ],
   [
     "llamaparse",
@@ -120,6 +125,7 @@ const SAMPLES = new Map<string, JsonValue>([
   ["excludeDomains", ["b.test"]],
   ["find_entities.limit", 20],
   ["id", "id-1"],
+  ["idleTimeout", 120],
   ["includeDomains", ["a.test"]],
   ["language", "en"],
   ["limit", 3],
@@ -139,6 +145,7 @@ const SAMPLES = new Map<string, JsonValue>([
   ["run_browser_script.language", "python"],
   ["schedule", { every: "day" }],
   ["schema", SCHEMA],
+  ["stealth", true],
   ["ttl", 120],
   ["url", "https://a.test/p"],
   ["urls", ["https://a.test/1"]],
@@ -234,6 +241,7 @@ const CREATED: JsonObject = {
   id: "job-1",
   job_id: "job-1",
   run_id: "job-1",
+  session_id: "job-1",
   success: true,
 };
 

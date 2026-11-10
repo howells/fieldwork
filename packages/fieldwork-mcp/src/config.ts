@@ -12,6 +12,7 @@ import { brave } from "@howells/fieldwork-sdk/brave";
 import { browserbase } from "@howells/fieldwork-sdk/browserbase";
 import { exa } from "@howells/fieldwork-sdk/exa";
 import { firecrawl } from "@howells/fieldwork-sdk/firecrawl";
+import { kernel } from "@howells/fieldwork-sdk/kernel";
 import { llamaparse } from "@howells/fieldwork-sdk/llamaparse";
 import { parallel } from "@howells/fieldwork-sdk/parallel";
 import { perplexity } from "@howells/fieldwork-sdk/perplexity";
@@ -29,6 +30,7 @@ export const PROVIDERS = [
   "brave",
   "serpapi",
   "browserbase",
+  "kernel",
   "llamaparse",
   "reducto",
 ] as const;
@@ -69,7 +71,7 @@ Choose providers with one of:
 Providers: ${PROVIDERS.join(", ")}.
 Keys come from EXA_API_KEY, FIRECRAWL_API_KEY, TAVILY_API_KEY,
 PARALLEL_API_KEY, PERPLEXITY_API_KEY, BRAVE_API_KEY, SERPAPI_API_KEY,
-BROWSERBASE_API_KEY, LLAMA_CLOUD_API_KEY and REDUCTO_API_KEY.
+BROWSERBASE_API_KEY, KERNEL_API_KEY, LLAMA_CLOUD_API_KEY and REDUCTO_API_KEY.
 
 Tools that start remote browsers or create lasting, billed resources are off
 unless you ask for them:
@@ -170,6 +172,7 @@ const FACTORIES = {
     browserbase({ apiKey, projectId: settings.browserbaseProject }),
   exa: (apiKey: string | undefined) => exa({ apiKey }),
   firecrawl: (apiKey: string | undefined) => firecrawl({ apiKey }),
+  kernel: (apiKey: string | undefined) => kernel({ apiKey }),
   llamaparse: (apiKey: string | undefined) => llamaparse({ apiKey }),
   parallel: (apiKey: string | undefined) => parallel({ apiKey }),
   perplexity: (apiKey: string | undefined) => perplexity({ apiKey }),

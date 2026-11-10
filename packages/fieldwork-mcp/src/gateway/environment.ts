@@ -16,6 +16,7 @@ const KEY_NAMES: Record<Provider, string> = {
   browserbase: "BROWSERBASE_API_KEY",
   exa: "EXA_API_KEY",
   firecrawl: "FIRECRAWL_API_KEY",
+  kernel: "KERNEL_API_KEY",
   llamaparse: "LLAMA_CLOUD_API_KEY",
   parallel: "PARALLEL_API_KEY",
   perplexity: "PERPLEXITY_API_KEY",

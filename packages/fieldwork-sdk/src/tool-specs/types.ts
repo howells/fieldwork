@@ -10,6 +10,7 @@ export type ProviderName =
   | "browserbase"
   | "exa"
   | "firecrawl"
+  | "kernel"
   | "llamaparse"
   | "parallel"
   | "perplexity"

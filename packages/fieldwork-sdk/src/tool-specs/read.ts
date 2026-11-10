@@ -6,6 +6,7 @@ import {
   maxAgeAtLeast600,
   resume,
   schemaField,
+  stealth,
   urlField,
 } from "./fields.js";
 import {
@@ -52,6 +53,7 @@ export const READ_SPECS: Spec[] = [
       maxAge(["exa", "firecrawl"]),
       maxAgeAtLeast600(),
       country(["browserbase"], "Fetch the page through a proxy in"),
+      stealth(["kernel"]),
     ],
     idempotent: true,
     name: "read_page",
