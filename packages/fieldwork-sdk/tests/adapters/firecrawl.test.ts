@@ -668,6 +668,29 @@ describe("firecrawl extract", () => {
       /no JSON.*page too long/u
     );
   });
+
+  it("fails as NotFound, as read does, when the page answered 404 or 410", async () => {
+    const gone = (statusCode: number) => ({
+      body: {
+        data: {
+          json: { sku: "invented from the error page" },
+          metadata: { statusCode, url },
+        },
+        success: true,
+      },
+    });
+    const { web } = client(gone(404), gone(410));
+    await expect(web.extract(url, { schema })).rejects.toMatchObject({
+      code: "NotFound",
+      message: `firecrawl could not read ${url}: the page returned 404`,
+      provider: "firecrawl",
+      status: 404,
+    });
+    await expect(web.extract(url, { schema })).rejects.toMatchObject({
+      code: "NotFound",
+      status: 410,
+    });
+  });
 });
 
 describe("firecrawl product", () => {
@@ -929,6 +952,63 @@ describe("firecrawl crawl", () => {
     });
   });
 
+  it("lists pages that answered 404 or 410 as failed, after the job's own failures", async () => {
+    const { web } = client(
+      {
+        body: {
+          data: [
+            {
+              markdown: "a",
+              metadata: { statusCode: 200, url: "https://s.test/a" },
+            },
+            {
+              markdown: "gone",
+              metadata: { statusCode: 404, url: "https://s.test/b" },
+            },
+            {
+              markdown: "removed",
+              metadata: { statusCode: 410, url: "https://s.test/c" },
+            },
+          ],
+          status: "completed",
+          total: 4,
+        },
+      },
+      {
+        body: {
+          errors: [{ error: "403", id: "e", url: "https://s.test/x" }],
+          robotsBlocked: ["https://s.test/private"],
+        },
+      }
+    );
+    const crawl = await web.crawl("https://s.test", { resume: "c9" });
+    expect(crawl.pages.map((page) => page.url)).toStrictEqual([
+      "https://s.test/a",
+    ]);
+    expect(crawl.failed).toStrictEqual([
+      { error: "403", url: "https://s.test/x" },
+      { error: "the page returned 404", url: "https://s.test/b" },
+      { error: "the page returned 410", url: "https://s.test/c" },
+    ]);
+    expect(crawl).toMatchObject({
+      id: "c9",
+      meta: { requestId: "c9" },
+      raw: {
+        batches: [
+          {
+            data: [
+              { markdown: "a" },
+              { markdown: "gone" },
+              { markdown: "removed" },
+            ],
+          },
+        ],
+      },
+      robotsBlocked: ["https://s.test/private"],
+      total: 4,
+    });
+  });
+
   it("keeps the job id when the crawl ends failed or cancelled", async () => {
     const { web } = client(
       { body: { id: "c4", success: true } },
@@ -937,6 +1017,58 @@ describe("firecrawl crawl", () => {
     await expect(
       web.crawl("https://s.test", { interval: 1 })
     ).rejects.toMatchObject({ code: "JobFailed", jobId: "c4" });
+  });
+
+  it("fails at once, with the job id, on a status Firecrawl does not document", async () => {
+    const { web, calls } = client(
+      { body: { id: "c6", success: true } },
+      { body: { status: "paused" } }
+    );
+    await expect(
+      web.crawl("https://s.test", { interval: 1 })
+    ).rejects.toMatchObject({
+      cause: { status: "paused" },
+      code: "ProviderError",
+      jobId: "c6",
+      message: expect.stringContaining('"paused"'),
+    });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("keeps checking a crawl whose reply has no status, which Firecrawl does not promise", async () => {
+    const { web } = client(
+      { body: { id: "c7", success: true } },
+      { body: { success: true } },
+      { body: { data: [], status: "completed" } },
+      { body: { errors: [] } }
+    );
+    await expect(
+      web.crawl("https://s.test", { interval: 1 })
+    ).resolves.toMatchObject({ id: "c7", pages: [] });
+  });
+
+  it("follows a next link given as a path", async () => {
+    const { web, calls } = client(
+      {
+        body: {
+          data: [{ markdown: "a", metadata: { url: "https://s.test/a" } }],
+          next: "/v2/crawl/c8?skip=1",
+          status: "completed",
+        },
+      },
+      {
+        body: {
+          data: [{ markdown: "b", metadata: { url: "https://s.test/b" } }],
+          status: "completed",
+        },
+      },
+      { body: { errors: [] } }
+    );
+    const crawl = await web.crawl("https://s.test", { resume: "c8" });
+    expect(crawl.pages).toHaveLength(2);
+    expect(nth(calls, 1).url.href).toBe(
+      "https://api.firecrawl.dev/v2/crawl/c8?skip=1"
+    );
   });
 
   it("resumes a crawl by job id", async () => {
@@ -1045,6 +1177,32 @@ describe("firecrawl research", () => {
       jobId: "r3",
       message: expect.stringContaining("site blocked"),
     });
+  });
+
+  it("throws JobFailed with the job id when a completed run has no output", async () => {
+    const { web } = client(
+      { body: { id: "r5", success: true } },
+      { body: { status: "completed", success: true } }
+    );
+    await expect(web.research("x", { interval: 1 })).rejects.toMatchObject({
+      cause: { status: "completed", success: true },
+      code: "JobFailed",
+      jobId: "r5",
+      message: expect.stringContaining("r5"),
+    });
+  });
+
+  it("fails at once, with the job id, on a run status Firecrawl does not document", async () => {
+    const { web, calls } = client(
+      { body: { id: "r6", success: true } },
+      { body: { status: "queued", success: true } }
+    );
+    await expect(web.research("x", { interval: 1 })).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "r6",
+      message: expect.stringContaining('"queued"'),
+    });
+    expect(calls).toHaveLength(2);
   });
 
   it("resumes a run by id without starting another", async () => {

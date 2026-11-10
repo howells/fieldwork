@@ -383,6 +383,36 @@ describe("brave adapter", () => {
       ]);
     });
 
+    it("treats content: false on news and videos as asking for no content", async () => {
+      const { web, calls } = setup(
+        { body: { results: [] } },
+        { body: { results: [] } }
+      );
+      await web.search("oak", { content: false, vertical: "news" });
+      await web.search("oak", { content: false, vertical: "videos" });
+      expect(nth(calls, 0).url.pathname).toBe("/res/v1/news/search");
+      expect(nth(calls, 1).url.pathname).toBe("/res/v1/videos/search");
+      expect(Object.fromEntries(nth(calls, 0).url.searchParams)).toStrictEqual({
+        q: "oak",
+      });
+      expect(Object.fromEntries(nth(calls, 1).url.searchParams)).toStrictEqual({
+        q: "oak",
+      });
+    });
+
+    it("refuses content: true on news and videos, before sending", async () => {
+      const { web, calls } = setup();
+      await expect(
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { content: true, vertical: "news" })
+      ).rejects.toMatchObject({ code: "InvalidRequest" });
+      await expect(
+        // @ts-expect-error the types refuse this combination
+        web.search("oak", { content: true, vertical: "videos" })
+      ).rejects.toMatchObject({ code: "InvalidRequest" });
+      expect(calls).toHaveLength(0);
+    });
+
     it("refuses options an endpoint does not take, before sending", async () => {
       const { web, calls } = setup();
       await expect(

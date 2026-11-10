@@ -13,6 +13,13 @@ import {
 } from "../src/index.js";
 import { fakeFetch, nth } from "./helpers.js";
 
+/** What a group capability the provider lacks looks like to an untyped caller. */
+interface MissingGroup {
+  then?: unknown;
+  [Symbol.toPrimitive]?: unknown;
+  create: () => Promise<never>;
+}
+
 describe("a Fieldwork instance", () => {
   it("exposes only the capabilities its provider offers", () => {
     const web = new Fieldwork({
@@ -50,6 +57,23 @@ describe("a Fieldwork instance", () => {
     // oxlint-disable-next-line typescript/no-unsafe-call -- calling the missing method is the point of the test
     const attempt = web.act("return 1");
     await expect(attempt).rejects.toMatchObject({
+      code: "Unsupported",
+      provider: "tavily",
+    });
+    expect(calls).toHaveLength(0);
+  });
+
+  it("keeps a missing group inert to await and inspection, while its methods refuse", async () => {
+    const { fetch, calls } = fakeFetch();
+    const web = new Fieldwork({
+      adapter: tavily({ apiKey: "k", fetch, retries: 0 }),
+    });
+    // @ts-expect-error Tavily has no monitor, so the group does not exist on this instance.
+    const group: MissingGroup = web.monitor;
+    expect(group.then).toBeUndefined();
+    expect(group[Symbol.toPrimitive]).toBeUndefined();
+    await expect(Promise.resolve(group)).resolves.toBe(group);
+    await expect(group.create()).rejects.toMatchObject({
       code: "Unsupported",
       provider: "tavily",
     });

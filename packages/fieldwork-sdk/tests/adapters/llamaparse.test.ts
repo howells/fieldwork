@@ -322,6 +322,22 @@ describe("llamaparse parse", () => {
     });
   });
 
+  it.each([
+    { job: { id: "pjb-1", status: "QUEUED" } },
+    { job: { id: "pjb-1" } },
+  ])(
+    "fails at once, with the job id, on a missing or undocumented status: %j",
+    async (reply) => {
+      const { web, calls } = client({ body: { id: "pjb-1" } }, { body: reply });
+      await expect(web.parse(sheet, { interval: 1 })).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "pjb-1",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("asks for page pictures and returns each page's address", async () => {
     const { web, calls } = client(
       { body: { id: "pjb-1" } },

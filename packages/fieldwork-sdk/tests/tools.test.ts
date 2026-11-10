@@ -12,17 +12,9 @@ import { isText } from "../src/tools/json.js";
 import { problem } from "../src/tools/validate.js";
 import { fakeFetch } from "./helpers.js";
 import { rich, undeclared } from "./tools/fixtures.js";
-import { baseInput, webFor } from "./tools/support.js";
+import { baseInput, toolNamed, webFor } from "./tools/support.js";
 
 const names = (tools: { name: string }[]) => tools.map((tool) => tool.name);
-
-const toolNamed = (tools: FieldworkTool[], name: string): FieldworkTool => {
-  const found = tools.find((tool) => tool.name === name);
-  if (found === undefined) {
-    throw new Error(`no tool named ${name}`);
-  }
-  return found;
-};
 
 const specNamed = (name: string): Spec => {
   const found = SPECS.find((spec) => spec.name === name);

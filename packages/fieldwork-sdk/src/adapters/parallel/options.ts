@@ -144,8 +144,12 @@ export interface ParallelReadOptions extends CallOptions {
 export type ParallelReadManyOptions = ParallelReadOptions;
 
 /**
- * Options for `extract`: a Task run limited to the page's own URL, polled to
- * completion. `resume` waits for an earlier run instead of starting another.
+ * Options for `extract`: a Task run, polled to completion, whose input names
+ * the URL and whose `source_policy.include_domains` holds one entry, the URL's
+ * hostname and path with any trailing slash dropped. The scheme, credentials,
+ * port, query string and fragment are not sent there, so the run is scoped by
+ * hostname and path, not by the exact URL. `resume` waits for an earlier run
+ * instead of starting another.
  */
 export interface ParallelExtractOptions<T = unknown> extends CallOptions {
   /**

@@ -228,11 +228,25 @@ export const parallel = (config: ParallelConfig = {}) => {
       });
       const body = z.parse(DecisionsResponse, response);
       const result: Record<string, DecisionAnswer> = {};
+      const unanswered: string[] = [];
       for (const [name, question] of entries) {
-        const answer = body.answers[name];
-        if (answer !== undefined) {
-          result[name] = decisionAnswer(question, answer);
+        // Own keys only, so a question named like an Object method is not answered by it.
+        const found = Object.hasOwn(body.answers, name)
+          ? body.answers[name]
+          : undefined;
+        const answer = found && decisionAnswer(question, found);
+        if (answer === undefined) {
+          unanswered.push(name);
+        } else {
+          result[name] = answer;
         }
+      }
+      if (unanswered.length > 0) {
+        throw new FieldworkError(
+          "ProviderError",
+          `parallel returned no complete answer for ${unanswered.join(", ")}`,
+          { cause: response, provider }
+        );
       }
       return compact({
         answers: result,
@@ -274,6 +288,13 @@ export const parallel = (config: ParallelConfig = {}) => {
 
     async extract<T>(url: string, options?: ParallelExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);
+      // Checked before anything is sent: new URL would throw a bare TypeError.
+      if (!URL.canParse(url)) {
+        throw invalidRequest(
+          provider,
+          `cannot extract ${url}: it is not a URL`
+        );
+      }
       const target = new URL(url);
       return await runTask(
         raw,
@@ -289,7 +310,7 @@ export const parallel = (config: ParallelConfig = {}) => {
           },
           metadata: o.metadata,
           processor: o.processor ?? "base",
-          // Limits the Task's sources to this page (host and path, no query string).
+          // Scopes the Task's sources by hostname and path; scheme, port, query and fragment are dropped.
           source_policy: {
             include_domains: [
               `${target.hostname}${target.pathname}`.replace(/\/$/u, ""),

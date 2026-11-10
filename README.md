@@ -109,7 +109,7 @@ A job that stopped early but produced output, for example on a credit or step li
 
 ### Long jobs
 
-Research, discovery, crawls, batch reads and Parallel extraction are polled until they finish. Pass `timeout` and `signal` to bound or cancel any call.
+Research, discovery, crawls, batch reads and Parallel extraction are polled until they finish. A job status the provider does not document throws `ProviderError` with `jobId` at once, instead of polling until the timeout. Pass `timeout` and `signal` to bound or cancel any call.
 
 When a job outlasts `timeout`, or `signal` stops the wait, the provider keeps running it and charging for it. The error carries the job's id as `jobId`; pass it back as `resume` to collect the result instead of starting another job:
 
@@ -190,11 +190,11 @@ Every failure is a `FieldworkError`. It carries:
 | `NotFound` | The page, product or job does not exist. | Check the URL or id. |
 | `InvalidRequest` | The input was refused, by Fieldwork or by the provider. | Correct the input; the message says what is wrong. |
 | `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
-| `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat. |
+| `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat when `retryable` is true. |
 | `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
 | `ProviderError` | Any other provider failure. | Repeat when `retryable` is true (5xx and network failures). |
 
-An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job.
+An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job. Nor is a failure, other than a rate limit, of the request that starts a job, session or monitor: the provider may already have started it, so check before repeating.
 
 ## Agent tools
 

@@ -5,7 +5,11 @@
 import { FieldworkError, invalidRequest } from "../../errors.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { OutputSchema } from "../../schema.js";
-import type { Citation, DecisionQuestion } from "../../types.js";
+import type {
+  Citation,
+  DecisionAnswer,
+  DecisionQuestion,
+} from "../../types.js";
 import {
   citationOf,
   compact,
@@ -29,13 +33,6 @@ import type {
 export const provider = "perplexity";
 /** The most queries one `/search` request takes, the first included. */
 export const MAX_QUERIES = 5;
-/** The Agent run statuses after which a run no longer changes. */
-export const TERMINAL = new Set([
-  "completed",
-  "failed",
-  "incomplete",
-  "cancelled",
-]);
 
 /** Perplexity's MM/DD/YYYY form of a YYYY-MM-DD date. Refuses any other format. */
 const usDate = (name: string, date: string | undefined) => {
@@ -309,26 +306,30 @@ export const decisionQuestion = (question: DecisionQuestion) => {
 };
 
 /**
- * One decision answer. `noul` gives a `probability`. Otherwise the probabilities
- * without undefined entries; for a score, Perplexity's level indexes are renamed to
- * the scale's keys (`scores`). `choice` is Perplexity's, else the most likely.
+ * One decision answer in the shape its question asks for, or undefined when
+ * Perplexity left out the part the question needs: a `yesno` answer's `noul`,
+ * or a `choice` or `score` answer's choice. `noul` gives a `probability`.
+ * Otherwise the probabilities without undefined entries; for a score,
+ * Perplexity's level indexes are renamed to the scale's keys. `choice` is
+ * Perplexity's, else the most likely.
  */
 export const decisionAnswer = (
   found: DecisionAnswerBlock,
-  scores: string[] | undefined
-) => {
-  if (found.type === "noul") {
-    return compact({ probability: found.noul });
+  question: DecisionQuestion
+): DecisionAnswer | undefined => {
+  if (question.type === "yesno") {
+    return found.noul === undefined ? undefined : { probability: found.noul };
   }
   let probabilities = Object.fromEntries(
     Object.entries(found.probabilities).filter(
       (entry): entry is [string, number] => entry[1] !== undefined
     )
   );
-  if (found.type === "score") {
+  if (question.type === "score") {
+    const scores = Object.keys(question.scale);
     probabilities = Object.fromEntries(
       Object.entries(probabilities).map(([index, probability]) => [
-        scores?.[Number(index)] ?? index,
+        scores[Number(index)] ?? index,
         probability,
       ])
     );
@@ -336,9 +337,8 @@ export const decisionAnswer = (
   const top = Object.entries(probabilities).toSorted(
     (a, b) => b[1] - a[1]
   )[0]?.[0];
-  return compact({
-    choice: found.choice ?? top,
-    confidence: found.confidence,
-    probabilities,
-  });
+  const choice = found.choice ?? top;
+  return choice === undefined
+    ? undefined
+    : compact({ choice, confidence: found.confidence, probabilities });
 };

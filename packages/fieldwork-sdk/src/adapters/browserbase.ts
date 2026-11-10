@@ -67,7 +67,12 @@ export interface BrowserbaseReadOptions extends CallOptions {
    * content stays in `raw`, with a warning.
    */
   format?: "markdown" | "raw";
-  /** Follow HTTP redirects. Browserbase defaults to false. */
+  /**
+   * Follow HTTP redirects. Browserbase defaults to false, which returns the
+   * 3xx response itself; Fieldwork defaults to true so a read of an http, www
+   * or trailing-slash URL returns the page. `false` returns the redirect
+   * response, with a warning.
+   */
   allowRedirects?: boolean;
   /** Skip TLS certificate verification, for self-signed or expired certificates. */
   allowInsecureSsl?: boolean;
@@ -310,7 +315,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
         ...call,
         body: compact({
           allowInsecureSsl: o.allowInsecureSsl,
-          allowRedirects: o.allowRedirects,
+          allowRedirects: o.allowRedirects ?? true,
           contextId: o.contextId,
           format,
           proxies: fetchProxies(o),
@@ -321,15 +326,28 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
       const { content } = body;
       const binary = body.encoding === "base64";
       const contentType = body.contentType ?? "";
+      const redirected =
+        o.allowRedirects === false &&
+        body.statusCode !== undefined &&
+        body.statusCode >= 300 &&
+        body.statusCode < 400;
+      const warnings = [
+        ...(binary
+          ? ["the response is binary; its Base64 content is in raw"]
+          : []),
+        ...(redirected
+          ? [
+              `the page answered with a ${body.statusCode} redirect and allowRedirects is false, so nothing was followed`,
+            ]
+          : []),
+      ];
       return presentPage(
         provider,
         compact({
           markdown: format === "markdown" && !binary ? content : undefined,
           meta: meta({
             requestId: body.id,
-            warnings: binary
-              ? ["the response is binary; its Base64 content is in raw"]
-              : undefined,
+            warnings: warnings.length > 0 ? warnings : undefined,
           }),
           raw: response,
           rawHtml:

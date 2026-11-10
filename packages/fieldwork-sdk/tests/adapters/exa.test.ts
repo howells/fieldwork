@@ -663,6 +663,38 @@ describe("exa research", () => {
     ).rejects.toMatchObject({ code: "JobFailed", jobId: "run_6" });
   });
 
+  it("throws JobFailed with the job id when a completed run has no output", async () => {
+    const empty = {
+      id: "run_9",
+      output: { grounding: [], structured: null, text: "" },
+      status: "completed",
+    };
+    const { web } = client(started("run_9"), { body: empty });
+    await expect(web.research("Report", { interval: 1 })).rejects.toMatchObject(
+      {
+        cause: empty,
+        code: "JobFailed",
+        jobId: "run_9",
+        message: expect.stringContaining("run_9"),
+      }
+    );
+  });
+
+  it.each([{ id: "run_10", status: "paused" }, { id: "run_10" }])(
+    "fails at once, with the job id, on a missing or undocumented status: %j",
+    async (body) => {
+      const { web, calls } = client(started("run_10"), { body });
+      await expect(
+        web.research("Report", { interval: 1 })
+      ).rejects.toMatchObject({
+        cause: body,
+        code: "ProviderError",
+        jobId: "run_10",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("resumes a run by id without starting another", async () => {
     const { web, calls } = client({
       body: {

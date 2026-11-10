@@ -87,8 +87,16 @@ const unsupported = (provider: string, capability: Capability): Bound => {
   if (!GROUP_CAPABILITIES.includes(capability)) {
     return refuse;
   }
-  // Every method of a group the provider lacks refuses the same way.
-  return new Proxy({}, { get: () => refuse });
+  // Every method of a group the provider lacks refuses the same way. `then`
+  // and symbol keys are absent, so awaiting or inspecting the group is inert.
+  return new Proxy(
+    {},
+    {
+      get: (_target, key) =>
+        // oxlint-disable-next-line anti-slop/no-runtime-typeof -- a property key is a string or a symbol; only a string names a method
+        typeof key === "symbol" || key === "then" ? undefined : refuse,
+    }
+  );
 };
 
 /**

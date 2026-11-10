@@ -4,7 +4,7 @@
 
 import { codeForStatus, FieldworkError } from "./errors.js";
 import type { CallOptions } from "./types.js";
-import { record } from "./util.js";
+import { checkCallSettings, record } from "./util.js";
 
 /** Options for one request through an adapter's `raw` client. */
 export interface RequestOptions extends CallOptions {
@@ -18,7 +18,7 @@ export interface RequestOptions extends CallOptions {
    * The request creates a job, session or monitor that the provider bills for
    * or keeps. After a 5xx or a dropped connection the provider may already
    * have created it, so only a rate limit, which it has certainly not acted
-   * on, is retried.
+   * on, is retried, and any other failure is thrown not `retryable`.
    */
   creates?: boolean;
   /** The endpoint answers in text, such as an event stream, so its body is returned as a string. */
@@ -71,12 +71,15 @@ export const DEFAULT_RETRIES = 2;
 /**
  * Waits `ms`. When `signal` aborts it resolves early rather than rejecting, so
  * the caller checks the signal afterwards. A signal already aborted on entry
- * returns at once.
+ * returns at once. The abort listener is removed when the wait ends, so a
+ * signal shared by many polls does not collect them.
  */
 export const sleep = async (ms: number, signal?: AbortSignal) => {
   if (signal?.aborted === true) {
     return;
   }
+  // Aborting `cleanup` removes the listener from `signal`.
+  const cleanup = new AbortController();
   await new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal?.addEventListener(
@@ -85,9 +88,10 @@ export const sleep = async (ms: number, signal?: AbortSignal) => {
         clearTimeout(timer);
         resolve();
       },
-      { once: true }
+      { once: true, signal: cleanup.signal }
     );
   });
+  cleanup.abort();
 };
 
 /** The longest wait between attempts; a provider asking for longer gets the error instead. */
@@ -149,6 +153,29 @@ export const stopped = (
     message,
     options
   );
+
+/**
+ * The error a request that creates something throws. After anything but a
+ * rate limit the provider may already have created it, and the error carries
+ * no `jobId` to resume, so it is not `retryable`: repeating the call could
+ * start and charge for a second one.
+ */
+const createFailure = (error: FieldworkError): FieldworkError => {
+  if (!error.retryable || error.code === "RateLimited") {
+    return error;
+  }
+  return new FieldworkError(
+    error.code,
+    `${error.message}; ${error.provider ?? "the provider"} may already have created it, so check before repeating the call`,
+    {
+      cause: error.cause,
+      provider: error.provider,
+      retryAfter: error.retryAfter,
+      retryable: false,
+      status: error.status,
+    }
+  );
+};
 
 /** The error for a fetch that threw: stopped by the signal (`Timeout` or `Aborted`), timed out on its own, or a lost connection, which can succeed on repeat. */
 const transportError = (
@@ -215,6 +242,8 @@ export const createRawClient = (config: ClientConfig): RawClient => {
       path: string,
       options: RequestOptions = {}
     ): Promise<T> {
+      const retries = options.retries ?? config.retries ?? DEFAULT_RETRIES;
+      checkCallSettings({ retries, timeout: options.timeout });
       const url = new URL(config.baseUrl.replace(/\/$/u, "") + path);
       for (const [key, value] of Object.entries(options.query ?? {})) {
         if (value !== undefined) {
@@ -283,7 +312,6 @@ export const createRawClient = (config: ClientConfig): RawClient => {
           }
         );
       };
-      const retries = options.retries ?? config.retries ?? DEFAULT_RETRIES;
       // A wait that would outlast the call's timeout only delays the same error.
       const deadline =
         options.timeout === undefined
@@ -306,7 +334,7 @@ export const createRawClient = (config: ClientConfig): RawClient => {
             wait === undefined ||
             (deadline !== undefined && Date.now() + wait >= deadline)
           ) {
-            throw error;
+            throw options.creates === true ? createFailure(error) : error;
           }
           await sleep(wait, signal);
           if (options.signal?.aborted === true) {
@@ -441,8 +469,22 @@ export const retryAfterSeconds = (
     : Math.max(0, Math.ceil((date - now) / 1000));
 };
 
-/** An id as one path segment, so a caller's `resume` cannot reach another endpoint. */
-export const segment = (id: string): string => encodeURIComponent(id);
+/**
+ * An id as one path segment, so a caller's `resume` cannot reach another
+ * endpoint.
+ *
+ * Throws `InvalidRequest` for an empty id, "." or "..", which survive encoding
+ * and which the URL parser would resolve to another path.
+ */
+export const segment = (id: string): string => {
+  if (id === "" || id === "." || id === "..") {
+    throw new FieldworkError(
+      "InvalidRequest",
+      `${JSON.stringify(id)} is not an id: pass the id the provider returned`
+    );
+  }
+  return encodeURIComponent(id);
+};
 
 /**
  * The API key: `given`, else the environment variable. An empty `given` is

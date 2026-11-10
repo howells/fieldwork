@@ -70,6 +70,83 @@ describe("a call's timeout", () => {
   });
 });
 
+/** A fetch that never answers and rejects with the signal's reason once it aborts, as a real fetch does. */
+const hangingFetch: typeof fetch = async (_input, init = {}) => {
+  const { signal } = init;
+  if (!signal) {
+    throw new Error("a hanging request needs a signal to stop it");
+  }
+  await once(signal, "abort");
+  throw signal.reason;
+};
+
+describe("a call's settings", () => {
+  it("reports a creating request stopped by its own deadline as not retryable", async () => {
+    const raw = client(hangingFetch);
+    await expect(
+      raw.request("POST", "/jobs", { creates: true, timeout: 20 })
+    ).rejects.toMatchObject({
+      code: "Timeout",
+      message: expect.stringContaining("may already have created it"),
+      retryable: false,
+    });
+  });
+
+  it.each([Number.POSITIVE_INFINITY, Number.NaN, -1, 1.5, 2 ** 31, 2 ** 32])(
+    "refuses a timeout of %d before sending anything",
+    async (timeout) => {
+      let calls = 0;
+      const fetchImpl: typeof fetch = async () => {
+        calls += 1;
+        return Response.json({ results: [] });
+      };
+      const web = new Fieldwork({
+        adapter: reducto({ apiKey: "k", fetch: fetchImpl }),
+      });
+      await expect(web.parse(sheet, { timeout })).rejects.toMatchObject({
+        code: "InvalidRequest",
+        message: expect.stringContaining("from 0 to 2147483647"),
+      });
+      await expect(
+        client(fetchImpl).request("GET", "/x", { timeout })
+      ).rejects.toMatchObject({ code: "InvalidRequest" });
+      expect(calls).toBe(0);
+    }
+  );
+
+  it.each([Number.POSITIVE_INFINITY, Number.NaN, -1])(
+    "refuses %d retries before sending anything",
+    async (retries) => {
+      let calls = 0;
+      const fetchImpl: typeof fetch = async () => {
+        calls += 1;
+        return Response.json({});
+      };
+      await expect(
+        client(fetchImpl).request("GET", "/x", { retries })
+      ).rejects.toMatchObject({ code: "InvalidRequest" });
+      const raw = createRawClient({
+        baseUrl: "https://api.test",
+        fetch: fetchImpl,
+        headers: {},
+        provider: "test",
+        retries,
+      });
+      await expect(raw.request("GET", "/x")).rejects.toMatchObject({
+        code: "InvalidRequest",
+      });
+      expect(calls).toBe(0);
+    }
+  );
+
+  it("still stops a call with a timeout of 0 as a timeout", async () => {
+    const raw = client(hangingFetch);
+    await expect(
+      raw.request("GET", "/slow", { timeout: 0 })
+    ).rejects.toMatchObject({ code: "Timeout" });
+  });
+});
+
 describe("reading a response", () => {
   it("turns a connection lost mid-body into a Fieldwork error", async () => {
     const broken = new ReadableStream({

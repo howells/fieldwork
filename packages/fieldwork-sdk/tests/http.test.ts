@@ -1,7 +1,10 @@
+import { getEventListeners } from "node:events";
+
 import { describe, expect, it } from "vitest";
 
 import { exa } from "../src/adapters/exa.js";
 import { serpapi } from "../src/adapters/serpapi.js";
+import { segment, sleep } from "../src/http.js";
 import { Fieldwork } from "../src/index.js";
 import { fakeFetch } from "./helpers.js";
 
@@ -108,5 +111,38 @@ describe("redirects", () => {
       message: expect.stringContaining("more than 5"),
     });
     expect(calls).toHaveLength(6);
+  });
+});
+
+describe(sleep, () => {
+  it("leaves no abort listener on the signal after waiting", async () => {
+    const controller = new AbortController();
+    for (let count = 0; count < 5; count += 1) {
+      // oxlint-disable-next-line no-await-in-loop -- each sleep must finish before the next, as polls do
+      await sleep(1, controller.signal);
+    }
+    expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
+  });
+
+  it("resolves early when the signal aborts, and at once when it already has", async () => {
+    const controller = new AbortController();
+    const started = Date.now();
+    const waiting = sleep(10_000, controller.signal);
+    controller.abort();
+    await expect(waiting).resolves.toBeUndefined();
+    await expect(sleep(10_000, controller.signal)).resolves.toBeUndefined();
+    expect(Date.now() - started).toBeLessThan(1000);
+  });
+});
+
+describe(segment, () => {
+  it.each(["", ".", ".."])("refuses %j, which is no id", (id) => {
+    expect(() => segment(id)).toThrow(
+      expect.objectContaining({ code: "InvalidRequest" })
+    );
+  });
+
+  it("encodes an id with a slash as one segment", () => {
+    expect(segment("a/../b")).toBe("a%2F..%2Fb");
   });
 });

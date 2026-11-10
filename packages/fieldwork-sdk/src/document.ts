@@ -53,14 +53,19 @@ export const refuseLarger = (
   }
 };
 
+/** Whether the bytes sit on an ArrayBuffer rather than a SharedArrayBuffer. */
+const onArrayBuffer = (bytes: Uint8Array): bytes is Uint8Array<ArrayBuffer> =>
+  bytes.buffer instanceof ArrayBuffer;
+
 /** The file's bytes as a multipart part, with the content type its extension names. */
 export const documentPart = (document: DocumentInput): Blob => {
-  // A Uint8Array may sit on a SharedArrayBuffer, which a Blob part does not
-  // type; copying it puts the bytes on an ArrayBuffer.
+  // A Blob cannot take bytes on a SharedArrayBuffer, so only those are copied
+  // onto an ArrayBuffer; the Blob copies everything else once itself.
+  const { data } = document;
   const part =
-    document.data instanceof Uint8Array
-      ? new Uint8Array(document.data)
-      : document.data;
+    data instanceof Uint8Array && !onArrayBuffer(data)
+      ? new Uint8Array(data)
+      : data;
   return new Blob([part], {
     type: mediaTypeOf(document.name) ?? "application/octet-stream",
   });

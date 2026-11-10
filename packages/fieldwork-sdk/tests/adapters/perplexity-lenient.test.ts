@@ -106,7 +106,6 @@ describe("perplexity adapter with a response of the wrong shape", () => {
     });
     expect(response.answers).toStrictEqual({
       mood: { choice: "mixed", probabilities: { mixed: 0.6 } },
-      odd: { probabilities: {} },
     });
     expect(response.meta).toBeUndefined();
   });

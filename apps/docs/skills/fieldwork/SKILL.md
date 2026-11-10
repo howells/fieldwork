@@ -74,7 +74,7 @@ Climb only as far as the job needs.
 ## Cost
 
 - Crawls, `read_pages` and PDFs bill per page. Research and crawl jobs cost the most; browsers bill for as long as they are open. Set `limit`, crawl a section rather than a site, and take the cheaper tool when it does the job.
-- Run `check_usage` (Firecrawl, Tavily, SerpApi, Browserbase) before a large crawl or batch. Results carry `meta.usage` when the provider reports cost; a Kernel read reports the browser time it billed as `units.uptime_ms`.
+- Run `check_usage` (Firecrawl, Tavily, SerpApi, Browserbase) before a large crawl or batch. Results carry `meta.usage` when the provider reports cost; a Kernel read reports the browser time it billed as `units.uptime_ms`, or a warning in `meta.warnings` when Kernel does not report it within 15 seconds or the browser could not be deleted.
 - For long PDFs through Firecrawl in the SDK, cap pages with `parsers: [{ type: "pdf", maxPages: 20 }]`.
 - An error with a `jobId` is never `retryable`; `RateLimited` comes with `retryAfter` seconds. The SDK already repeats a 429, 5xx or dropped connection twice before throwing.
 

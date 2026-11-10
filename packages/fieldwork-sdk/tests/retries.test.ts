@@ -77,6 +77,48 @@ describe("retries", () => {
     expect(failed.calls).toHaveLength(1);
   });
 
+  it("reports a failed request that creates something as not retryable, except a rate limit", async () => {
+    const failed = connect([{ ...now, status: 500 }]);
+    await expect(
+      failed.web.raw.request("POST", "/agent/runs", { creates: true })
+    ).rejects.toMatchObject({
+      code: "ProviderError",
+      message: expect.stringContaining("may already have created it"),
+      provider: "exa",
+      retryable: false,
+      status: 500,
+    });
+
+    const dropped = new TypeError("fetch failed");
+    const web = new Fieldwork({
+      adapter: exa({
+        apiKey: "k",
+        fetch: async () => {
+          throw dropped;
+        },
+      }),
+    });
+    await expect(
+      web.raw.request("POST", "/agent/runs", { creates: true })
+    ).rejects.toMatchObject({
+      cause: dropped,
+      code: "ProviderError",
+      message: expect.stringContaining("may already have created it"),
+      retryable: false,
+    });
+
+    const limited = connect([
+      { headers: { "retry-after": "120" }, status: 429 },
+    ]);
+    await expect(
+      limited.web.raw.request("POST", "/agent/runs", { creates: true })
+    ).rejects.toMatchObject({
+      code: "RateLimited",
+      retryAfter: 120,
+      retryable: true,
+    });
+  });
+
   it("returns a rate limit at once when the provider asks for a long wait", async () => {
     const { calls, web } = connect([
       { headers: { "retry-after": "120" }, status: 429 },

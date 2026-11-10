@@ -3,6 +3,8 @@
 
 import { FieldworkError, invalidRequest } from "../../errors.js";
 import type { FieldworkErrorCode } from "../../errors.js";
+import { jobState, requireOutput } from "../../job.js";
+import type { JobStates } from "../../job.js";
 import type { Original } from "../../parse.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type {
@@ -332,9 +334,27 @@ export const researchBody = (question: string, o: ExaResearchOptions) => {
   });
 };
 
+// Exa's run statuses (exa.ai/docs/reference/agent-api/get-a-run), which always
+// include one.
+const RUN_STATES: JobStates = {
+  done: ["completed"],
+  failed: ["failed", "cancelled"],
+  running: ["queued", "running"],
+};
+
+/** The run once it has stopped, undefined while it runs. A failed or cancelled run can still carry partial output, so `researchResult` decides what it amounts to. */
+export const runState = (id: string, entry: RunBlock): RunBlock | undefined =>
+  jobState(provider, id, RUN_STATES, {
+    original: entry.original,
+    value: entry.value.status,
+  }) === "running"
+    ? undefined
+    : entry;
+
 /**
  * The result of a finished run. A run that did not complete and has no output
- * throws `JobFailed` with Exa's error. Otherwise the result is `completed`
+ * throws `JobFailed` with Exa's error, and so does a completed run without
+ * it. Otherwise the result is `completed`
  * only when the run completed and stopped for no reason or with
  * `schema_satisfied`; any other finish is `partial`, with the stop reason.
  * `continuationId` is the run's id once it has completed.
@@ -375,7 +395,10 @@ export const researchResult = (
     fields: fields.length > 0 ? fields : undefined,
     id,
     meta: runMeta(run),
-    output: structured ? output.structured : output.text,
+    output: requireOutput(provider, id, {
+      original: entry.original,
+      value: structured ? output.structured : output.text,
+    }),
     raw: entry.original,
     sources: uniqueCitations(fields.flatMap((field) => field.citations)),
     status: finished ? ("completed" as const) : ("partial" as const),

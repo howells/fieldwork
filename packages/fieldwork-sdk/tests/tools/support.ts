@@ -13,6 +13,7 @@ import { tavily } from "../../src/adapters/tavily.js";
 import { Fieldwork } from "../../src/fieldwork.js";
 import type { Field, Spec } from "../../src/tool-specs/types.js";
 import { EXCLUDED_BY_DEFAULT, toolsFor } from "../../src/tools.js";
+import type { FieldworkTool } from "../../src/tools.js";
 import { isJsonObject, isList, isText } from "../../src/tools/json.js";
 import type { JsonObject, JsonValue } from "../../src/tools/json.js";
 import type { Capability } from "../../src/types.js";
@@ -83,6 +84,18 @@ export const webFor = (
     throw new Error(`unknown provider ${provider}`);
   }
   return new Fieldwork({ adapter: factory(fetchImpl) });
+};
+
+/** The tool with this name, or an error naming the one missing. */
+export const toolNamed = (
+  tools: FieldworkTool[],
+  name: string
+): FieldworkTool => {
+  const found = tools.find((tool) => tool.name === name);
+  if (found === undefined) {
+    throw new Error(`no tool named ${name}`);
+  }
+  return found;
 };
 
 /** The providers that have a capability, read from the adapters themselves. */

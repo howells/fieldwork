@@ -490,6 +490,35 @@ describe("parallel extract", () => {
       retryable: false,
     });
   });
+
+  it("raises JobFailed with the run id when a completed run has no content", async () => {
+    const result = {
+      output: { basis: [], type: "json" },
+      run: run("completed"),
+    };
+    const { web } = connect(
+      { body: run("queued") },
+      { body: run("completed") },
+      { body: result }
+    );
+    await expect(
+      web.extract(url, { interval: 1, schema })
+    ).rejects.toMatchObject({
+      cause: result,
+      code: "JobFailed",
+      jobId: "trun_1",
+    });
+  });
+
+  it("refuses a URL it cannot parse as InvalidRequest, before sending", async () => {
+    const { web, calls } = connect();
+    await expect(web.extract("not a url", { schema })).rejects.toMatchObject({
+      code: "InvalidRequest",
+      message: "parallel cannot extract not a url: it is not a URL",
+      provider: "parallel",
+    });
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe("parallel answer", () => {
@@ -821,6 +850,31 @@ describe("parallel research", () => {
     });
   });
 
+  it("raises JobFailed when a completed run has no content", async () => {
+    const { web } = connect(
+      { body: run("queued") },
+      { body: run("completed") },
+      { body: { output: { basis: [], type: "text" }, run: run("completed") } }
+    );
+    await expect(web.research("q", { interval: 1 })).rejects.toMatchObject({
+      code: "JobFailed",
+      jobId: "trun_1",
+    });
+  });
+
+  it.each([run("paused"), { run_id: "trun_1" }])(
+    "fails at once on a missing or undocumented run status: %j",
+    async (reply) => {
+      const { web, calls } = connect({ body: run("queued") }, { body: reply });
+      await expect(web.research("q", { interval: 1 })).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "trun_1",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("resumes a run without creating another", async () => {
     const { web, calls } = connect(
       { body: run("completed") },
@@ -1096,6 +1150,24 @@ describe("parallel discover", () => {
     });
   });
 
+  it.each([findall("paused"), { findall_id: "findall_1" }])(
+    "fails at once on a missing or undocumented run status: %j",
+    async (reply) => {
+      const { web, calls } = connect(
+        { body: findall("queued") },
+        { body: reply }
+      );
+      await expect(
+        web.discover("x", { conditions, entityType: "companies", interval: 1 })
+      ).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "findall_1",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("carries the job id when the enrichment is rejected", async () => {
     const { web } = connect(
       { body: findall("queued") },
@@ -1130,7 +1202,11 @@ describe("parallel decide", () => {
   it("maps the question types to Parallel's and sends the context as state", async () => {
     const { web, calls } = connect({
       body: {
-        answers: {},
+        answers: {
+          durability: { probabilities: { "0": 1 }, type: "score" },
+          finish: { choice: "matte", type: "choice" },
+          outdoor: { noul: 0.9, type: "noul" },
+        },
         citations: [],
         decision_id: "decisions_1",
         mode: "fast",
@@ -1239,6 +1315,46 @@ describe("parallel decide", () => {
     expect(decisions.meta).toStrictEqual({
       requestId: "decisions_1",
       usage: { units: { input_tokens: 100 } },
+    });
+  });
+
+  it("fails naming every question left unanswered or answered without its value", async () => {
+    const body = {
+      answers: {
+        durability: { legend: {}, probabilities: {}, type: "score" },
+        finish: { confidence: 0.4, probabilities: {}, type: "choice" },
+        outdoor: { type: "noul" },
+        warranty: { type: "refusal" },
+      },
+      citations: [],
+      decision_id: "decisions_2",
+    };
+    const { web } = connect({ body });
+    await expect(
+      web.decide(
+        {},
+        {
+          durability: {
+            question: "Durable?",
+            scale: { "1": "Fragile", "2": "Tough" },
+            type: "score",
+          },
+          finish: {
+            choices: ["glossy", "matte"],
+            question: "Finish?",
+            type: "choice",
+          },
+          outdoor: { question: "Outdoor?", type: "yesno" },
+          rating: { question: "Rated?", type: "yesno" },
+          warranty: { question: "Warranted?", type: "yesno" },
+        }
+      )
+    ).rejects.toMatchObject({
+      cause: body,
+      code: "ProviderError",
+      message:
+        "parallel returned no complete answer for durability, finish, outdoor, rating",
+      provider: "parallel",
     });
   });
 

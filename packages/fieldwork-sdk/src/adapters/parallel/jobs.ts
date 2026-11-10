@@ -7,10 +7,10 @@ import * as z from "zod/mini";
 import { FieldworkError, withJob } from "../../errors.js";
 import { segment } from "../../http.js";
 import type { RawClient } from "../../http.js";
-import { runJob } from "../../job.js";
-import type { JobSettings } from "../../job.js";
+import { jobState, requireOutput, runJob, startJob } from "../../job.js";
+import type { JobSettings, JobStates } from "../../job.js";
 import type { CallOptions } from "../../types.js";
-import { compact, requireJobId } from "../../util.js";
+import { compact } from "../../util.js";
 import type { Json } from "../../util.js";
 import type { ParallelDiscoverOptions } from "./options.js";
 import { jsonOutput } from "./options.js";
@@ -24,6 +24,24 @@ import {
   TaskStart,
 } from "./response.js";
 import type { TaskResultBlock, TaskRunBlock } from "./response.js";
+
+// Parallel's run statuses, the same for Task and FindAll runs, which always
+// include one (TaskRun and FindAllRunStatus in
+// github.com/parallel-web/parallel-sdk-typescript, src/resources/task-run.ts
+// and src/resources/beta/findall.ts). `action_required` waits on something
+// Fieldwork cannot do, so it never finishes on its own.
+const RUNNING = ["queued", "running", "cancelling"];
+const TASK_STATES: JobStates = {
+  done: ["completed"],
+  failed: ["failed", "cancelled", "action_required"],
+  running: RUNNING,
+};
+// A failed or cancelled FindAll run still has the candidates it found.
+const FINDALL_STATES: JobStates = {
+  done: ["completed", "failed", "cancelled"],
+  failed: ["action_required"],
+  running: RUNNING,
+};
 
 /**
  * The `JobFailed` error for a Task run that ended without a result: cancelled,
@@ -86,7 +104,8 @@ export const taskResult = async (
 /**
  * Runs a task to its result, or waits for the run named by `resume`. A failed,
  * cancelled or `action_required` run throws at once; queued, running and
- * cancelling runs are polled again.
+ * cancelling runs are polled again; any other status throws `ProviderError`.
+ * A completed run whose result has no `output.content` throws `JobFailed`.
  */
 export const runTask = async <Result>(
   raw: RawClient,
@@ -102,32 +121,31 @@ export const runTask = async <Result>(
           TaskRun,
           await raw.request("GET", `/v1/tasks/runs/${segment(id)}`, request)
         );
-        const { status } = run.value;
-        if (
-          status === "failed" ||
-          status === "cancelled" ||
-          status === "action_required"
-        ) {
+        const state = jobState(provider, id, TASK_STATES, {
+          original: run.original,
+          value: run.value.status,
+        });
+        if (state === "failed") {
           throw stoppedRun(id, run);
         }
-        // queued, running and cancelling are still going.
-        return status === "completed"
+        return state === "done"
           ? await taskResult(raw, id, request)
           : undefined;
       },
-      finish,
+      finish: async (result, id) => {
+        requireOutput(provider, id, {
+          original: result.original,
+          value: result.value.output.content,
+        });
+        return await finish(result, id);
+      },
       start: async () =>
-        requireJobId(
-          provider,
-          z.parse(
-            TaskStart,
-            await raw.request("POST", "/v1/tasks/runs", {
-              body,
-              creates: true,
-              retries: settings.retries,
-              signal: settings.signal,
-            })
-          ).run_id
+        await startJob(
+          raw,
+          "/v1/tasks/runs",
+          { body, retries: settings.retries, signal: settings.signal },
+          TaskStart,
+          (reply) => reply.run_id
         ),
     },
     settings
@@ -144,10 +162,10 @@ export const startFindAll = async (
   o: ParallelDiscoverOptions,
   call: CallOptions
 ): Promise<string> => {
-  const created = z.parse(
-    FindAllStart,
-    await raw.request("POST", "/v1beta/findall/runs", {
-      creates: true,
+  const id = await startJob(
+    raw,
+    "/v1beta/findall/runs",
+    {
       ...call,
       body: compact({
         entity_type: o.entityType,
@@ -161,9 +179,10 @@ export const startFindAll = async (
         metadata: o.metadata,
         objective,
       }),
-    })
+    },
+    FindAllStart,
+    (reply) => reply.findall_id
   );
-  const id = requireJobId(provider, created.findall_id);
   if (o.schema) {
     try {
       await raw.request("POST", `/v1beta/findall/runs/${segment(id)}/enrich`, {
@@ -183,7 +202,8 @@ export const startFindAll = async (
 
 /**
  * The result of a FindAll run once it has stopped (completed, failed or
- * cancelled), or undefined while it runs. `action_required` throws `JobFailed`.
+ * cancelled), or undefined while it runs. `action_required` throws `JobFailed`,
+ * and a status Parallel does not document throws `ProviderError`.
  */
 export const findAllResult = async (
   raw: RawClient,
@@ -194,17 +214,18 @@ export const findAllResult = async (
     FindAllRun,
     await raw.request("GET", `/v1beta/findall/runs/${segment(id)}`, request)
   );
-  const { status } = run.value.status;
-  if (status === "action_required") {
+  const state = jobState(provider, id, FINDALL_STATES, {
+    original: run.original,
+    value: run.value.status.status,
+  });
+  if (state === "failed") {
     throw new FieldworkError(
       "JobFailed",
       `parallel FindAll run ${id} stopped with status action_required: it is waiting for an action Fieldwork cannot take, so it will not finish on its own. Open the run in the Parallel console to see what it needs`,
       { cause: run.original, provider }
     );
   }
-  const stopped =
-    status === "completed" || status === "failed" || status === "cancelled";
-  return stopped
+  return state === "done"
     ? z.parse(
         FindAllResult,
         await raw.request(

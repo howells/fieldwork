@@ -434,6 +434,22 @@ describe("perplexity research", () => {
     });
   });
 
+  it.each([{ id: "r", status: "paused" }, { id: "r" }])(
+    "fails at once, with the run id, on a missing or undocumented status: %j",
+    async (reply) => {
+      const { web, calls } = client(
+        { body: { id: "r", status: "queued" } },
+        { body: reply }
+      );
+      await expect(web.research("SKU", wait)).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "r",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("sends a model chain with the default tools and ten steps", async () => {
     const { web, calls } = client(
       { body: { id: "r", status: "queued" } },
@@ -746,6 +762,52 @@ describe("perplexity decide", () => {
       usage: { units: { inputTokens: 367, outputTokens: 3 } },
     });
     expect(decisions.raw).toMatchObject({ model: "pplx-decider-latest" });
+  });
+
+  it("answers only the questions asked and fails naming any left unanswered", async () => {
+    const extra = {
+      ...reply,
+      answers: { ...reply.answers, unasked: { noul: 0.5, type: "noul" } },
+    };
+    const partial = {
+      ...reply,
+      answers: { mood: reply.answers.mood },
+    };
+    const { web } = client({ body: extra }, { body: partial });
+    const decisions = await web.decide("The battery died.", questions);
+    expect(Object.keys(decisions.answers)).toStrictEqual([
+      "defect",
+      "mood",
+      "severity",
+    ]);
+    await expect(
+      web.decide("The battery died.", questions)
+    ).rejects.toMatchObject({
+      cause: partial,
+      code: "ProviderError",
+      message: "perplexity returned no complete answer for defect, severity",
+      provider: "perplexity",
+    });
+  });
+
+  it("fails naming any question answered without its probability or choice", async () => {
+    const body = {
+      ...reply,
+      answers: {
+        defect: { confidence: 0.5, type: "noul" },
+        mood: { confidence: 0.4, probabilities: {}, type: "choice" },
+        severity: reply.answers.severity,
+      },
+    };
+    const { web } = client({ body });
+    await expect(
+      web.decide("The battery died.", questions)
+    ).rejects.toMatchObject({
+      cause: body,
+      code: "ProviderError",
+      message: "perplexity returned no complete answer for defect, mood",
+      provider: "perplexity",
+    });
   });
 
   it("refuses a context that is not text, an object or a list", async () => {

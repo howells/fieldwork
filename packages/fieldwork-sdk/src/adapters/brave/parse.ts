@@ -56,6 +56,7 @@ const ALLOWED = {
   news: [
     ...SHARED,
     "vertical",
+    "content",
     "offset",
     "extraSnippets",
     "spellcheck",
@@ -66,6 +67,7 @@ const ALLOWED = {
   videos: [
     ...SHARED,
     "vertical",
+    "content",
     "offset",
     "spellcheck",
     "uiLanguage",

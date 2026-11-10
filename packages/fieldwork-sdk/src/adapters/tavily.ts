@@ -6,10 +6,11 @@ import * as z from "zod/mini";
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
-import { runJob } from "../job.js";
+import { jobState, requireOutput, runJob, startJob } from "../job.js";
+import type { JobStates } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { Citation } from "../types.js";
-import { callSettings, compact, requireJobId } from "../util.js";
+import { callSettings, compact } from "../util.js";
 import type {
   TavilyConfig,
   TavilyOperations,
@@ -52,6 +53,14 @@ export type {
   TavilySearchDepth,
   TavilySearchOptions,
 } from "./tavily/options.js";
+
+// Tavily's research statuses, always sent
+// (docs.tavily.com/documentation/api-reference/endpoint/research-get).
+const RESEARCH_STATES: JobStates = {
+  done: ["completed"],
+  failed: ["failed"],
+  running: ["pending", "in_progress"],
+};
 
 /**
  * An adapter for Tavily: search, images, read, readMany, map, crawl, answer, research and usage. Pass it to `new Fieldwork({ adapter })`.
@@ -245,26 +254,26 @@ export const tavily = (config: TavilyConfig = {}) => {
               { ...request, query: { include_usage: true } }
             );
             const parsed = z.parse(ResearchRun, current);
-            if (parsed.status === "failed") {
+            const state = jobState(provider, id, RESEARCH_STATES, {
+              original: current,
+              value: parsed.status,
+            });
+            if (state === "failed") {
               throw new FieldworkError(
                 "JobFailed",
                 `tavily research ${id} failed`,
                 { cause: current, provider }
               );
             }
-            return parsed.status === "completed"
+            return state === "done"
               ? { body: parsed, response: current }
               : undefined;
           },
           finish: async ({ body: run, response }, id) => {
-            const { content } = run;
-            if (content === undefined || content === null || content === "") {
-              throw new FieldworkError(
-                "JobFailed",
-                `tavily research ${id} finished without output`,
-                { cause: response, provider }
-              );
-            }
+            const content = requireOutput(provider, id, {
+              original: response,
+              value: run.content,
+            });
             return compact({
               id,
               meta: responseMeta(run),
@@ -279,29 +288,26 @@ export const tavily = (config: TavilyConfig = {}) => {
             });
           },
           start: async () =>
-            requireJobId(
-              provider,
-              z.parse(
-                ResearchStart,
-                await raw.request("POST", "/research", {
-                  creates: true,
-                  ...call,
-                  body: compact({
-                    citation_format: o.citationFormat,
-                    exclude_domains: o.excludeDomains,
-                    files,
-                    include_domains: o.includeDomains,
-                    input: question,
-                    model: o.model,
-                    output_length: o.outputLength,
-                    output_schema:
-                      o.schema === undefined
-                        ? undefined
-                        : jsonSchemaOf(o.schema),
-                    stream: false,
-                  }),
-                })
-              ).request_id
+            await startJob(
+              raw,
+              "/research",
+              {
+                ...call,
+                body: compact({
+                  citation_format: o.citationFormat,
+                  exclude_domains: o.excludeDomains,
+                  files,
+                  include_domains: o.includeDomains,
+                  input: question,
+                  model: o.model,
+                  output_length: o.outputLength,
+                  output_schema:
+                    o.schema === undefined ? undefined : jsonSchemaOf(o.schema),
+                  stream: false,
+                }),
+              },
+              ResearchStart,
+              (reply) => reply.request_id
             ),
         },
         { ...call, interval: o.interval, resume: o.resume }

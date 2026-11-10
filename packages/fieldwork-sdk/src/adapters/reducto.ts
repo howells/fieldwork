@@ -9,7 +9,8 @@ import { documentPart, refuseLarger } from "../document.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
-import { runJob } from "../job.js";
+import { jobState, runJob, startJob } from "../job.js";
+import type { JobStates } from "../job.js";
 import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
 import {
   callSettings,
@@ -90,24 +91,37 @@ const startParse = async (
     UploadResponse,
     await raw.request("POST", "/upload", { creates: true, ...call, form })
   );
-  const started = z.parse(
-    ParseStart,
-    await raw.request("POST", "/parse_async", {
-      creates: true,
+  return await startJob(
+    raw,
+    "/parse_async",
+    {
       ...call,
       body: compact({
         input: requireJobId(provider, uploaded.file_id),
         settings: o.wordBoxes === true ? { return_citations: true } : undefined,
       }),
-    })
+    },
+    ParseStart,
+    (reply) => reply.job_id
   );
-  return requireJobId(provider, started.job_id);
+};
+
+// Reducto's job statuses, always sent (docs.reducto.ai/api-reference/get-job).
+// The docs do not say what `Idle` means; it is not finished, so it is polled.
+const JOB_STATES: JobStates = {
+  done: ["Completed"],
+  failed: ["Failed"],
+  running: ["Pending", "Idle"],
 };
 
 /** The result once the job has completed, undefined while it runs; throws `JobFailed` when Reducto reports a failure. */
-const finished = (found: JobResponseBlock) => {
+const finished = (id: string, found: JobResponseBlock) => {
   const { error, reason, status } = found.value;
-  if (status === "Failed") {
+  const state = jobState(provider, id, JOB_STATES, {
+    original: found.original,
+    value: status,
+  });
+  if (state === "failed") {
     const why = reason ?? error.message;
     throw new FieldworkError(
       "JobFailed",
@@ -115,7 +129,7 @@ const finished = (found: JobResponseBlock) => {
       { cause: found.original, provider }
     );
   }
-  return status === "Completed" ? found : undefined;
+  return state === "done" ? found : undefined;
 };
 
 /** The parse output, fetched from where Reducto put it when it was too large to return. */
@@ -160,6 +174,7 @@ const parse = async (
     {
       check: async (id, request) =>
         finished(
+          id,
           z.parse(
             JobResponse,
             await raw.request("GET", `/job/${segment(id)}`, request)

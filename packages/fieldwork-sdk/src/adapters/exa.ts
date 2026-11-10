@@ -6,7 +6,7 @@ import * as z from "zod/mini";
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
-import { runJob } from "../job.js";
+import { runJob, startJob } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
 import {
@@ -15,7 +15,6 @@ import {
   compact,
   hours,
   parseJson,
-  requireJobId,
   uniqueCitations,
 } from "../util.js";
 import type {
@@ -43,6 +42,7 @@ import {
   researchBody,
   researchResult,
   responseMeta,
+  runState,
   searchContents,
   searchResult,
   statusReason,
@@ -336,18 +336,14 @@ export const exa = (config: ExaConfig = {}) => {
       return await runJob(
         provider,
         {
-          check: async (id, request) => {
-            const current = z.parse(
-              RunEntry,
-              await raw.request("GET", `/agent/runs/${segment(id)}`, request)
-            );
-            const { status } = current.value;
-            return status === "completed" ||
-              status === "failed" ||
-              status === "cancelled"
-              ? current
-              : undefined;
-          },
+          check: async (id, request) =>
+            runState(
+              id,
+              z.parse(
+                RunEntry,
+                await raw.request("GET", `/agent/runs/${segment(id)}`, request)
+              )
+            ),
           finish: async (run, id) => {
             // A resumed run echoes the request it was started with.
             const { outputSchema } = run.value.request;
@@ -361,16 +357,12 @@ export const exa = (config: ExaConfig = {}) => {
             };
           },
           start: async () =>
-            requireJobId(
-              provider,
-              z.parse(
-                RunStart,
-                await raw.request("POST", "/agent/runs", {
-                  creates: true,
-                  ...call,
-                  body: researchBody(question, o),
-                })
-              ).id
+            await startJob(
+              raw,
+              "/agent/runs",
+              { ...call, body: researchBody(question, o) },
+              RunStart,
+              (reply) => reply.id
             ),
         },
         { ...call, interval: o.interval, resume: o.resume }

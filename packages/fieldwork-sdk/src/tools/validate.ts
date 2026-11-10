@@ -8,6 +8,10 @@ import type { JsonObject, JsonValue } from "./json.js";
 /** The shape only: 2026-02-31 passes and is the provider's to refuse. */
 const DATE = /^\d{4}-\d{2}-\d{2}$/u;
 
+/** Only http and https: "file:///x", "localhost:3000" and "a.com:80/p" parse as URLs with other schemes. */
+const isWebUrl = (value: string): boolean =>
+  URL.canParse(value) && ["http:", "https:"].includes(new URL(value).protocol);
+
 type Check = (
   schema: FieldSchema,
   value: JsonValue,
@@ -25,7 +29,7 @@ const textProblem = (
   if (schema.enum !== undefined && !schema.enum.includes(value)) {
     return `${name} must be one of ${schema.enum.join(", ")}`;
   }
-  if (schema.format === "uri" && !URL.canParse(value)) {
+  if (schema.format === "uri" && !isWebUrl(value)) {
     return `${name} must be a full URL, including https://`;
   }
   if (schema.format === "date" && !DATE.test(value)) {

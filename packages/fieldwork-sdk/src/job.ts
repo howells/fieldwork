@@ -2,9 +2,14 @@
 // each carries `jobId` on its errors and accepts `resume`. Adapters never poll
 // by hand.
 
+import * as z from "zod/mini";
+
 import { FieldworkError, withJob } from "./errors.js";
 import { sleep, stopped } from "./http.js";
+import type { RawClient, RequestOptions } from "./http.js";
+import type { Original } from "./parse.js";
 import type { CallOptions } from "./types.js";
+import { requireJobId } from "./util.js";
 
 /**
  * How one asynchronous job runs. The job module calls these in order; each
@@ -79,7 +84,8 @@ const waitFor = async <Found>(
  *
  * Every error after the job has an id carries it as `jobId`, including a
  * timeout or cancellation while waiting, so the caller can resume rather than
- * start a second job.
+ * start a second job. An error that is not a `FieldworkError` becomes
+ * `ProviderError` with the original as `cause`.
  */
 export const runJob = async <Found, Result>(
   provider: string,
@@ -93,6 +99,109 @@ export const runJob = async <Found, Result>(
       id
     );
   } catch (error) {
-    throw withJob(error, id);
+    if (error instanceof FieldworkError) {
+      throw withJob(error, id);
+    }
+    throw new FieldworkError(
+      "ProviderError",
+      error instanceof Error ? error.message : String(error),
+      { cause: error, jobId: id, provider }
+    );
   }
+};
+
+/**
+ * Sends the POST that creates a job, marked `creates` so a failure after
+ * which the provider may have created it is not repeated, reads the reply
+ * through `reply`, and returns the job id `idOf` picks from it.
+ *
+ * Throws `ProviderError` carrying the id as it arrived when the reply has none.
+ */
+export const startJob = async <Reply extends z.ZodMiniType>(
+  raw: RawClient,
+  path: string,
+  request: Omit<RequestOptions, "creates">,
+  reply: Reply,
+  idOf: (parsed: z.output<Reply>) => Original<string | undefined>
+): Promise<string> =>
+  requireJobId(
+    raw.provider,
+    idOf(
+      z.parse(
+        reply,
+        await raw.request("POST", path, { ...request, creates: true })
+      )
+    )
+  );
+
+/** A provider's status names for one kind of job. Names compare exactly, case included. */
+export interface JobStates {
+  /** Still going: check again. */
+  running: readonly string[];
+  /** Finished: the result can be read. */
+  done: readonly string[];
+  /** Ended without a result. */
+  failed: readonly string[];
+  /** The provider may leave the status out while the job runs. Otherwise a missing status throws. */
+  missingIsRunning?: boolean;
+}
+
+/**
+ * Which of `states` a job's reported status is in. `status.original` is the
+ * provider's whole response, not the status field alone.
+ *
+ * Throws `ProviderError` with `jobId`, carrying that response as `cause`, for
+ * a status in none of them or a missing one the provider always sends, rather
+ * than polling an unknown state until the timeout.
+ */
+export const jobState = (
+  provider: string,
+  id: string,
+  states: JobStates,
+  { original, value: status }: Original<string | undefined>
+): "running" | "done" | "failed" => {
+  if (status === undefined && states.missingIsRunning === true) {
+    return "running";
+  }
+  if (status !== undefined) {
+    if (states.running.includes(status)) {
+      return "running";
+    }
+    if (states.done.includes(status)) {
+      return "done";
+    }
+    if (states.failed.includes(status)) {
+      return "failed";
+    }
+  }
+  throw new FieldworkError(
+    "ProviderError",
+    status === undefined
+      ? `${provider} job ${id} reported no status`
+      : `${provider} job ${id} reported status "${status}", which Fieldwork does not know`,
+    { cause: original, jobId: id, provider }
+  );
+};
+
+/**
+ * A finished job's main payload, which must be there: a run that ends without
+ * it has no result to return. `output.original` is the provider's whole
+ * response.
+ *
+ * Throws `JobFailed` with `jobId`, carrying that response as `cause`, when the
+ * value is undefined, null or an empty string.
+ */
+export const requireOutput = <Value>(
+  provider: string,
+  id: string,
+  { original, value }: Original<Value>
+): NonNullable<Value> => {
+  if (value === undefined || value === null || value === "") {
+    throw new FieldworkError(
+      "JobFailed",
+      `${provider} job ${id} finished without output`,
+      { cause: original, jobId: id, provider }
+    );
+  }
+  return value;
 };

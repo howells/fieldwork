@@ -6,7 +6,7 @@ import * as z from "zod/mini";
 import { defineAdapter } from "../adapter.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
-import { runJob } from "../job.js";
+import { runJob, startJob } from "../job.js";
 import type { JobSettings } from "../job.js";
 import { checkOutput, jsonSchemaOf } from "../schema.js";
 import type { CallOptions, FailedUrl, MonitorInfo } from "../types.js";
@@ -45,6 +45,7 @@ import {
 } from "./firecrawl/request.js";
 import {
   actResult,
+  batchState,
   browserSession,
   failedPages,
   imagesResult,
@@ -149,11 +150,11 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     return { body, data: body.data, response };
   };
 
-  /** The path of a `next` link, relative to the base URL, so the next page of results goes through the same client. */
+  /** The path of a `next` link, absolute or relative to the base URL, so the next page of results goes through the same client. */
   const pathOf = (link: string): string => {
-    const next = new URL(link);
-    const base = new URL(baseUrl).pathname.replace(/\/$/u, "");
-    return next.pathname.slice(base.length) + next.search;
+    const base = new URL(`${baseUrl.replace(/\/$/u, "")}/`);
+    const next = new URL(link, base);
+    return next.pathname.slice(base.pathname.length - 1) + next.search;
   };
 
   /**
@@ -169,21 +170,15 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
     await runJob(
       provider,
       {
-        check: async (id, request) => {
-          const status = z.parse(
-            Batch,
-            await raw.request("GET", `/${kind}/${segment(id)}`, request)
-          );
-          const state = status.value.status;
-          if (state === "failed" || state === "cancelled") {
-            throw new FieldworkError(
-              "JobFailed",
-              `firecrawl ${kind} ${id} ended ${state}`,
-              { cause: status.original, provider }
-            );
-          }
-          return state === "completed" ? status : undefined;
-        },
+        check: async (id, request) =>
+          batchState(
+            kind,
+            id,
+            z.parse(
+              Batch,
+              await raw.request("GET", `/${kind}/${segment(id)}`, request)
+            )
+          ),
         finish: async (first, id) => {
           const path = `/${kind}/${segment(id)}`;
           const request = {
@@ -330,30 +325,29 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       return await batchJob(
         "crawl",
         async () =>
-          requireJobId(
-            provider,
-            z.parse(
-              CrawlStart,
-              await raw.request("POST", "/crawl", {
-                creates: true,
-                ...call,
-                body: crawlBody(url, o),
-              })
-            ).id
+          await startJob(
+            raw,
+            "/crawl",
+            { ...call, body: crawlBody(url, o) },
+            CrawlStart,
+            (reply) => reply.id
           ),
         { ...call, interval: o.interval, resume: o.resume },
         (job, id) => {
           const { robotsBlocked } = job.errors.value;
-          return compact({
-            failed: job.failed,
-            id,
-            meta: meta({ credits: job.first.value.creditsUsed, requestId: id }),
-            pages: job.batches.flatMap((batch) =>
+          const { pages, gone } = presentPages(
+            job.batches.flatMap((batch) =>
               batch.value.data.map((item) => ({
                 ...toPage(item.value, url),
                 raw: item.original,
               }))
-            ),
+            )
+          );
+          return compact({
+            failed: [...job.failed, ...gone],
+            id,
+            meta: meta({ credits: job.first.value.creditsUsed, requestId: id }),
+            pages,
             raw: {
               batches: job.batches.map((batch) => batch.original),
               errors: job.errors.original,
@@ -374,6 +368,8 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         page,
         call
       );
+      // A 404 or 410 page's text would yield invented values, so it fails as read does.
+      presentPage(provider, { ...toPage(data, url), raw: response });
       if (data.json === undefined) {
         const why = data.warning.text;
         throw new FieldworkError(
@@ -532,11 +528,11 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
       let started = z.parse(RunStart, {});
       return await batchJob(
         "batch/scrape",
-        async () => {
-          started = z.parse(
-            RunStart,
-            await raw.request("POST", "/batch/scrape", {
-              creates: true,
+        async () =>
+          await startJob(
+            raw,
+            "/batch/scrape",
+            {
               ...call,
               body: compact({
                 urls,
@@ -544,10 +540,13 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
                 maxConcurrency,
                 ignoreInvalidURLs,
               }),
-            })
-          );
-          return requireJobId(provider, started.value.id);
-        },
+            },
+            RunStart,
+            (reply) => {
+              started = reply;
+              return reply.value.id;
+            }
+          ),
         { ...call, interval, resume },
         (job, id) => {
           const rejected = started.value.invalidURLs.map((url) => ({
@@ -599,17 +598,17 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
               output: await checkOutput(o.schema, result.output, { provider }),
             };
           },
-          start: async () => {
-            started = z.parse(
+          start: async () =>
+            await startJob(
+              raw,
+              "/agent",
+              { ...call, body: researchBody(question, o) },
               RunStart,
-              await raw.request("POST", "/agent", {
-                creates: true,
-                ...call,
-                body: researchBody(question, o),
-              })
-            );
-            return requireJobId(provider, started.value.id);
-          },
+              (reply) => {
+                started = reply;
+                return reply.value.id;
+              }
+            ),
         },
         { ...call, interval: o.interval, resume: o.resume }
       );

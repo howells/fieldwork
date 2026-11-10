@@ -215,6 +215,29 @@ describe("reducto parse", () => {
     });
   });
 
+  it.each([{ status: "completed" }, {}])(
+    "fails at once, with the job id, on a missing or undocumented status: %j",
+    async (reply) => {
+      const { web, calls } = client(...started, { body: reply });
+      await expect(web.parse(sheet, { interval: 1 })).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "job-1",
+      });
+      expect(calls).toHaveLength(started.length + 1);
+    }
+  );
+
+  it("keeps checking an Idle job", async () => {
+    const { web, calls } = client(
+      ...started,
+      { body: { status: "Idle" } },
+      { body: completed() }
+    );
+    await web.parse(sheet, { interval: 1 });
+    expect(calls).toHaveLength(started.length + 2);
+  });
+
   it("resumes a job without uploading the file again", async () => {
     const { web, calls } = client({ body: completed() });
     const document = await web.parse(sheet, { resume: "job-7" });

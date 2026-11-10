@@ -7,10 +7,11 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { invalidRequest } from "../errors.js";
+import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
-import { runJob } from "../job.js";
+import { jobState, runJob, startJob } from "../job.js";
+import type { JobStates } from "../job.js";
 import { checkOutput } from "../schema.js";
 import type {
   Answer,
@@ -21,13 +22,7 @@ import type {
   Research,
   SearchResponse,
 } from "../types.js";
-import {
-  callSettings,
-  compact,
-  meta,
-  parseJson,
-  requireJobId,
-} from "../util.js";
+import { callSettings, compact, meta, parseJson } from "../util.js";
 import type {
   PerplexityAnswerOptions,
   PerplexityConfig,
@@ -38,7 +33,6 @@ import type {
 } from "./perplexity/options.js";
 import {
   MAX_QUERIES,
-  TERMINAL,
   decisionAnswer,
   decisionQuestion,
   decisionState,
@@ -172,17 +166,28 @@ const answer = async <T>(
   });
 };
 
+/**
+ * Perplexity's run statuses, always sent (docs.perplexity.ai/api-reference/agent-get).
+ * An incomplete or cancelled run can still carry text, so it counts as
+ * finished and `research` decides what it amounts to.
+ */
+const RESEARCH_STATES: JobStates = {
+  done: ["completed", "incomplete", "cancelled"],
+  failed: ["failed"],
+  running: ["queued", "in_progress"],
+};
+
 /** Starts a background Agent API run and returns its id. */
 const startResearch = async (
   raw: RawClient,
   question: string,
   o: PerplexityResearchOptions,
   call: CallOptions
-) => {
-  const created = z.parse(
-    AgentStart,
-    await raw.request("POST", "/v1/agent", {
-      creates: true,
+) =>
+  await startJob(
+    raw,
+    "/v1/agent",
+    {
       ...call,
       body: compact({
         ...researchSetup(o),
@@ -194,10 +199,10 @@ const startResearch = async (
         previous_response_id: o.continueFrom,
         response_format: responseFormat(o.schema),
       }),
-    })
+    },
+    AgentStart,
+    (reply) => reply.id
   );
-  return requireJobId(provider, created.id);
-};
 
 /**
  * Polls a research run until it reaches a terminal status. A `completed` run
@@ -219,7 +224,13 @@ const research = async <T>(
           AgentRun,
           await raw.request("GET", `/v1/agent/${segment(id)}`, request)
         );
-        return TERMINAL.has(found.value.status ?? "") ? found : undefined;
+        // A failed run is finished too: `finish` throws its error.
+        return jobState(provider, id, RESEARCH_STATES, {
+          original: found.original,
+          value: found.value.status,
+        }) === "running"
+          ? undefined
+          : found;
       },
       finish: async (run, id) => {
         const { status } = run.value;
@@ -278,11 +289,24 @@ const decide = async (
   });
   const body = z.parse(DecisionsResponse, response);
   const answers: Record<string, DecisionAnswer> = {};
-  for (const [name, value] of Object.entries(body.answers)) {
-    const question = questions[name];
-    answers[name] = decisionAnswer(
-      value,
-      question?.type === "score" ? Object.keys(question.scale) : undefined
+  const unanswered: string[] = [];
+  for (const [name, question] of Object.entries(questions)) {
+    // Own keys only, so a question named like an Object method is not answered by it.
+    const found = Object.hasOwn(body.answers, name)
+      ? body.answers[name]
+      : undefined;
+    const decided = found && decisionAnswer(found, question);
+    if (decided === undefined) {
+      unanswered.push(name);
+    } else {
+      answers[name] = decided;
+    }
+  }
+  if (unanswered.length > 0) {
+    throw new FieldworkError(
+      "ProviderError",
+      `perplexity returned no complete answer for ${unanswered.join(", ")}`,
+      { cause: response, provider }
     );
   }
   const { usage } = body;

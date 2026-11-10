@@ -121,40 +121,45 @@ export const mostLikely = (chances: Record<string, number> | undefined) => {
 };
 
 /**
- * One decision answer in the shape its question asks for. A `refusal` answer
- * becomes `{ refusal }`. A `yesno` answer keeps only `probability`. A `score`
- * answer's probabilities are keyed by the scale's own keys and its `choice` is the
- * most likely of them; Parallel's numeric `score` stays in `raw`.
+ * One decision answer in the shape its question asks for, or undefined when
+ * Parallel left out the part the question needs: a `yesno` answer's `noul`, a
+ * `choice` answer's `choice`, a `score` answer's probabilities. A `refusal`
+ * answer becomes `{ refusal }`. A `yesno` answer keeps only `probability`. A
+ * `score` answer's probabilities are keyed by the scale's own keys and its
+ * `choice` is the most likely of them; Parallel's numeric `score` stays in `raw`.
  */
 export const decisionAnswer = (
   question: DecisionQuestion,
   answer: DecisionBlock
-): DecisionAnswer => {
+): DecisionAnswer | undefined => {
   if (answer.type === "refusal") {
     return { refusal: "Parallel declined to answer this question" };
   }
   const { confidence } = answer;
   if (question.type === "yesno") {
-    return compact({ probability: answer.noul });
+    return answer.noul === undefined ? undefined : { probability: answer.noul };
   }
   if (question.type === "choice") {
-    return compact({
-      choice: answer.choice,
-      confidence,
-      probabilities: probabilities(answer.probabilities),
-    });
+    return answer.choice === undefined
+      ? undefined
+      : compact({
+          choice: answer.choice,
+          confidence,
+          probabilities: probabilities(answer.probabilities),
+        });
   }
   // Parallel numbers score levels from zero; give them back under the scale's own keys.
   const keys = Object.keys(question.scale);
   const byLevel = probabilities(answer.probabilities);
-  const byKey =
-    byLevel &&
-    Object.fromEntries(
-      Object.entries(byLevel).map(([level, chance]) => [
-        keys[Number(level)] ?? level,
-        chance,
-      ])
-    );
+  if (byLevel === undefined) {
+    return undefined;
+  }
+  const byKey = Object.fromEntries(
+    Object.entries(byLevel).map(([level, chance]) => [
+      keys[Number(level)] ?? level,
+      chance,
+    ])
+  );
   return compact({
     choice: mostLikely(byKey),
     confidence,

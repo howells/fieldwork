@@ -23,12 +23,43 @@ export const compact = <T extends Json>(value: T): T =>
     Object.entries(value).filter(([, item]) => item !== undefined)
   ) as T;
 
+/** The longest `timeout` a timer holds, in milliseconds: about 24.8 days. */
+const MAX_TIMEOUT = 2_147_483_647;
+
+/**
+ * Refuses a `timeout` or `retries` that no timer or retry count can hold,
+ * before anything is sent.
+ *
+ * Throws `InvalidRequest` naming the accepted range.
+ */
+export const checkCallSettings = (
+  settings: Pick<CallOptions, "retries" | "timeout">
+): void => {
+  const { retries, timeout } = settings;
+  if (
+    timeout !== undefined &&
+    !(Number.isInteger(timeout) && timeout >= 0 && timeout <= MAX_TIMEOUT)
+  ) {
+    throw new FieldworkError(
+      "InvalidRequest",
+      `timeout is ${timeout}: pass a whole number of milliseconds from 0 to ${MAX_TIMEOUT}`
+    );
+  }
+  if (retries !== undefined && !(Number.isInteger(retries) && retries >= 0)) {
+    throw new FieldworkError(
+      "InvalidRequest",
+      `retries is ${retries}: pass a whole number from 0 up`
+    );
+  }
+};
+
 /**
  * Splits an operation's options into the provider's own and the call's
  * settings. The call's `signal` also carries its `timeout` as a deadline, set
  * now, so every request the operation makes (a start, each poll, a result
  * download) shares one budget instead of restarting it. An empty `resume`
- * names no job, so it is refused here, once for every adapter.
+ * names no job, and a `timeout` or `retries` out of range holds no deadline or
+ * count, so both are refused here, once for every adapter.
  *
  * `grace` extends the deadline past `timeout` for an operation that sends the
  * timeout to the provider and needs a moment more to hear its report.
@@ -46,12 +77,14 @@ export const callSettings = <T extends CallOptions>(
       "resume is empty: pass the jobId an earlier call returned, or leave resume out to start a job"
     );
   }
+  checkCallSettings({ retries, timeout });
   const deadline =
     timeout === undefined
       ? signal
       : AbortSignal.any([
           ...(signal === undefined ? [] : [signal]),
-          AbortSignal.timeout(timeout + grace),
+          // The grace past the longest timeout is dropped rather than overflowing the timer.
+          AbortSignal.timeout(Math.min(timeout + grace, MAX_TIMEOUT)),
         ]);
   return { call: { retries, signal: deadline, timeout }, rest };
 };

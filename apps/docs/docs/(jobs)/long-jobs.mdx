@@ -3,7 +3,7 @@ title: Long jobs
 description: How research, discovery, crawls and batch reads are polled, how to bound or cancel them, and how to collect a job after a timeout with resume.
 ---
 
-Research, discovery, crawls, batch reads and Parallel extraction run as jobs on the provider. Fieldwork starts the job and polls it until it finishes, so the call returns the finished result.
+Research, discovery, crawls, batch reads and Parallel extraction run as jobs on the provider. Fieldwork starts the job and polls it until it finishes, so the call returns the finished result. A job status the provider does not document throws `ProviderError` with `jobId` at once, instead of polling until the timeout.
 
 ## Bound or cancel a call
 

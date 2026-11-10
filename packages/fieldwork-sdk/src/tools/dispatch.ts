@@ -56,10 +56,14 @@ export const operationFor = (
   return isGroup(entry) ? entry[spec.method] : undefined;
 };
 
+/** Standard-alphabet base64: no backtracking, so it is linear in the input. */
+const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/u;
+
 /**
  * The `parse` file from the tool's `name` and base64 `contentBase64`.
  *
- * Throws `InvalidRequest` when either is not a string.
+ * Throws `InvalidRequest` when either is not a string or the content is not
+ * well-formed base64 (standard alphabet, padded to a multiple of 4).
  */
 const documentFrom = (
   name: JsonValue | undefined,
@@ -69,6 +73,14 @@ const documentFrom = (
     throw new FieldworkError(
       "InvalidRequest",
       "parse_document needs name and contentBase64"
+    );
+  }
+  if (content.length % 4 !== 0 || !BASE64.test(content)) {
+    throw new FieldworkError(
+      "InvalidRequest",
+      `parse_document: contentBase64 must be standard base64 padded to a multiple of 4 characters${
+        content.startsWith("data:") ? "; remove the data: prefix" : ""
+      }`
     );
   }
   return {

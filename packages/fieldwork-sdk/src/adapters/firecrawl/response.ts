@@ -2,6 +2,8 @@
 // The adapter in ../firecrawl.ts calls these; the response schemas are in shapes.ts and the request bodies in request.ts.
 
 import { FieldworkError } from "../../errors.js";
+import { jobState, requireOutput } from "../../job.js";
+import type { JobStates } from "../../job.js";
 import type {
   ActResult,
   BrowserSession,
@@ -27,6 +29,7 @@ import { compact, meta, requireJobId } from "../../util.js";
 import { PAGE_SIZE } from "./request.js";
 import type {
   AgentRunBlock,
+  BatchBlock,
   BatchErrorsBlock,
   CheckBlock,
   ClosedBlock,
@@ -281,6 +284,43 @@ export const failedPages = (errors: BatchErrorsBlock): FailedUrl[] =>
     url: entry.url ?? "",
   }));
 
+// Firecrawl's status names (docs.firecrawl.dev/api-reference/endpoint/crawl-get,
+// batch-scrape-get, agent-status). Its API reference does not mark `status` as
+// always present, so a reply without one is still running.
+const BATCH_STATES: JobStates = {
+  done: ["completed"],
+  failed: ["failed", "cancelled"],
+  missingIsRunning: true,
+  running: ["scraping"],
+};
+const AGENT_STATES: JobStates = {
+  done: ["completed"],
+  failed: ["failed", "cancelled"],
+  missingIsRunning: true,
+  running: ["processing"],
+};
+
+/** A crawl or batch scrape when it has finished, undefined while it runs; throws `JobFailed` when it failed or was cancelled. */
+export const batchState = (
+  kind: string,
+  id: string,
+  entry: BatchBlock
+): BatchBlock | undefined => {
+  const { status } = entry.value;
+  const state = jobState(provider, id, BATCH_STATES, {
+    original: entry.original,
+    value: status,
+  });
+  if (state === "failed") {
+    throw new FieldworkError(
+      "JobFailed",
+      `firecrawl ${kind} ${id} ended ${status}`,
+      { cause: entry.original, provider }
+    );
+  }
+  return state === "done" ? entry : undefined;
+};
+
 /**
  * The run when it has finished, undefined while it runs. A `failed` run that
  * left partial output counts as finished; any other `failed` or `cancelled`
@@ -291,24 +331,26 @@ export const researchState = (
   entry: AgentRunBlock
 ): AgentRunBlock | undefined => {
   const status = entry.value;
-  const state = status.status;
+  const state = jobState(provider, id, AGENT_STATES, {
+    original: entry.original,
+    value: status.status,
+  });
   const hasPartial = status.partial !== undefined && status.partial !== null;
-  const done = state === "completed" || (state === "failed" && hasPartial);
-  if (!done && (state === "failed" || state === "cancelled")) {
+  if (state === "failed" && !(status.status === "failed" && hasPartial)) {
     throw new FieldworkError(
       "JobFailed",
-      `firecrawl research run ${id} ${state}: ${status.error ?? status.stopReason ?? "no reason given"}`,
+      `firecrawl research run ${id} ${status.status}: ${status.error ?? status.stopReason ?? "no reason given"}`,
       { cause: entry.original, provider }
     );
   }
-  return done ? entry : undefined;
+  return state === "running" ? undefined : entry;
 };
 
 /**
  * The result of a finished run. A `failed` run with partial output is
  * `partial`, with that output and a `stopReason`; any other is `completed`
- * with `data`, else the message. `sources` is always empty. The continuation
- * id is the run's thread.
+ * with `data`, else the message, and throws `JobFailed` when it has neither.
+ * `sources` is always empty. The continuation id is the run's thread.
  */
 export const researchResult = (
   id: string,
@@ -333,7 +375,12 @@ export const researchResult = (
           ].filter((note) => note !== undefined)
         : undefined,
     }),
-    output: stopped ? run.partial : (run.data ?? run.message.value),
+    output: stopped
+      ? run.partial
+      : requireOutput(provider, id, {
+          original: entry.original,
+          value: run.data ?? run.message.value,
+        }),
     raw: entry.original,
     sources: [],
     status,

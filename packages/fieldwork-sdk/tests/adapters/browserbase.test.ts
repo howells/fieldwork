@@ -148,9 +148,66 @@ describe("browserbase adapter", () => {
       expect(calls[0]?.method).toBe("POST");
       expect(calls[0]?.url.pathname).toBe("/v1/fetch");
       expect(calls[0]?.body).toStrictEqual({
+        allowRedirects: true,
         format: "markdown",
         url: "https://example.com",
       });
+    });
+
+    it("sends an explicit allowRedirects false as false", async () => {
+      const { web, calls } = client([
+        {
+          body: {
+            content: "x",
+            contentType: "text/html",
+            encoding: "utf-8",
+            headers: {},
+            id: "f",
+            statusCode: 200,
+          },
+        },
+      ]);
+      await web.read("https://example.com", { allowRedirects: false });
+      expect(calls[0]?.body).toMatchObject({ allowRedirects: false });
+    });
+
+    it("returns a 3xx page with a warning when redirects are off", async () => {
+      const { web } = client([
+        {
+          body: {
+            content: "",
+            contentType: "text/html",
+            encoding: "utf-8",
+            headers: { Location: "https://example.com/" },
+            id: "r1",
+            statusCode: 301,
+          },
+        },
+      ]);
+      const page = await web.read("http://example.com", {
+        allowRedirects: false,
+      });
+      expect(page.statusCode).toBe(301);
+      expect(page.meta?.warnings).toHaveLength(1);
+      expect(page.meta?.warnings?.[0]).toContain("301");
+      expect(page.meta?.warnings?.[0]).toContain("nothing was followed");
+    });
+
+    it("does not warn about a 3xx page the caller did not turn redirects off for", async () => {
+      const { web } = client([
+        {
+          body: {
+            content: "",
+            contentType: "text/html",
+            encoding: "utf-8",
+            headers: {},
+            id: "r2",
+            statusCode: 304,
+          },
+        },
+      ]);
+      const page = await web.read("https://example.com");
+      expect(page.meta?.warnings).toBeUndefined();
     });
 
     it("sends every fetch option", async () => {

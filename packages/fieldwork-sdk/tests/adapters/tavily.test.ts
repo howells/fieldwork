@@ -754,6 +754,24 @@ describe("tavily research", () => {
     ).rejects.toMatchObject({ code: "JobFailed", jobId: "r3" });
   });
 
+  it.each([{ request_id: "r5", status: "queued" }, { request_id: "r5" }])(
+    "fails at once, with the job id, on a missing or undocumented status: %j",
+    async (reply) => {
+      const { web, calls } = make(
+        { body: { request_id: "r5" }, status: 201 },
+        { body: reply, status: 202 }
+      );
+      await expect(
+        web.research("question", { interval: 1 })
+      ).rejects.toMatchObject({
+        cause: reply,
+        code: "ProviderError",
+        jobId: "r5",
+      });
+      expect(calls).toHaveLength(2);
+    }
+  );
+
   it("resumes by id without creating a task", async () => {
     const { web, calls } = make({ body: completed });
     const run = await web.research("ignored", { resume: "r1" });

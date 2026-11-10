@@ -9,15 +9,10 @@ import { documentPart, refuseLarger } from "../document.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
-import { runJob } from "../job.js";
+import { jobState, runJob, startJob } from "../job.js";
+import type { JobStates } from "../job.js";
 import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
-import {
-  callSettings,
-  compact,
-  meta,
-  parseJson,
-  requireJobId,
-} from "../util.js";
+import { callSettings, compact, meta, parseJson } from "../util.js";
 import {
   documentBlocks,
   ItemsPage,
@@ -137,28 +132,38 @@ const startParse = async (
   const form = new FormData();
   form.set("configuration", JSON.stringify(configuration(o)));
   form.set("file", documentPart(document), document.name);
-  const created = z.parse(
+  return await startJob(
+    raw,
+    "/api/v2/parse/upload",
+    { ...call, form },
     JobStart,
-    await raw.request("POST", "/api/v2/parse/upload", {
-      creates: true,
-      ...call,
-      form,
-    })
+    (reply) => reply.id
   );
-  return requireJobId(provider, created.id);
+};
+
+// LlamaParse's job statuses, always sent: the `Job` model in
+// github.com/run-llama/llama-cloud-py, src/llama_cloud/types/parsing_get_response.py.
+const JOB_STATES: JobStates = {
+  done: ["COMPLETED"],
+  failed: ["FAILED", "CANCELLED"],
+  running: ["PENDING", "RUNNING"],
 };
 
 /** The result once the job has completed, undefined while it runs; throws `JobFailed` when LlamaParse failed or cancelled it. */
-const finished = (found: JobResultBlock) => {
+const finished = (id: string, found: JobResultBlock) => {
   const { error_message: message, status } = found.value.job;
-  if (status === "FAILED" || status === "CANCELLED") {
+  const state = jobState(provider, id, JOB_STATES, {
+    original: found.original,
+    value: status,
+  });
+  if (state === "failed") {
     throw new FieldworkError(
       "JobFailed",
-      `llamaparse job ${status.toLowerCase()}${message === undefined ? "" : `: ${message}`}`,
+      `llamaparse job ${status?.toLowerCase()}${message === undefined ? "" : `: ${message}`}`,
       { cause: found.original, provider }
     );
   }
-  return status === "COMPLETED" ? found : undefined;
+  return state === "done" ? found : undefined;
 };
 
 /** The grounded items: one JSON line per page, each page's items with word and cell boxes. */
@@ -278,6 +283,7 @@ const parse = async (
     {
       check: async (id, request) =>
         finished(
+          id,
           z.parse(
             JobResult,
             await raw.request("GET", `/api/v2/parse/${segment(id)}`, {
