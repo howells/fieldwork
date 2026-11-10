@@ -69,7 +69,7 @@ Options are typed per provider. An option means the same thing under the same na
 | `query` | On `read`: return the passages that answer it as `excerpts`. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
-| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks. |
+| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks (unset: 500, doubling to 2000). |
 
 Options only one provider has keep that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. A combination a provider would reject or silently ignore, such as `includeDomains` with `excludeDomains` on Parallel, throws `InvalidRequest` before anything is sent.
 

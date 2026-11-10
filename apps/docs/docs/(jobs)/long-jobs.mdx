@@ -7,7 +7,7 @@ Research, discovery, crawls, batch reads and Parallel extraction run as jobs on 
 
 ## Bound or cancel a call
 
-Pass `timeout` in milliseconds and `signal` to bound or cancel any call. `interval` sets the milliseconds between status checks on a job.
+Pass `timeout` in milliseconds and `signal` to bound or cancel any call. `interval` sets the milliseconds between status checks on a job. Without it, the first check comes 500 ms after the job starts and each wait doubles, up to 2 seconds.
 
 ```ts
 const controller = new AbortController();

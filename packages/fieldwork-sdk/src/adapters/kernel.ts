@@ -126,13 +126,20 @@ const CHROME = new Set(["nav", "header", "footer", "aside"]);
 
 /**
  * The Playwright script `read` runs in the browser. It waits for the DOM and
- * then up to 10 seconds for the network to go quiet: pages that poll or
- * stream never do, and their content has rendered by then.
+ * then up to 3 seconds for the network to go quiet: pages that poll or
+ * stream never do, and their content has rendered by then. It reads the HTML,
+ * title and URL in one call into the page, because each call waits its turn
+ * behind the page's own scripts, seconds on a busy page.
  */
 const readScript = (url: string) => `
 const response = await page.goto(${JSON.stringify(url)}, { waitUntil: "domcontentloaded", timeout: 90000 });
-await page.waitForLoadState("networkidle", { timeout: 10000 }).catch(() => undefined);
-return { html: await page.content(), status: response?.status() ?? null, title: await page.title(), url: page.url() };
+await page.waitForLoadState("networkidle", { timeout: 3000 }).catch(() => undefined);
+const rendered = await page.evaluate(() => ({
+  html: (document.doctype ? new XMLSerializer().serializeToString(document.doctype) : "") + document.documentElement.outerHTML,
+  title: document.title,
+  url: location.href,
+}));
+return { ...rendered, status: response?.status() ?? null };
 `;
 
 /** The parts of a parsed HTML node that `inContent` reads. */
@@ -285,7 +292,6 @@ const billedTime = async (
         start: async () => id,
       },
       {
-        interval: 500,
         retries: call.retries,
         signal: call.signal,
         timeout: BILLED_TIME_WAIT,

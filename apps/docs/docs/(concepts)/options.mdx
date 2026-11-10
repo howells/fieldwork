@@ -20,7 +20,7 @@ Options are typed per provider, so your editor offers only the options the provi
 | `query` | On `read`: return the passages that answer it as `excerpts`. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
-| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks. See [Long jobs](/docs/long-jobs). |
+| `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks (unset: 500, doubling to 2000). See [Long jobs](/docs/long-jobs). |
 
 ```ts
 const web = new Fieldwork({ adapter: firecrawl() });

@@ -177,6 +177,48 @@ describe("running an asynchronous job", () => {
       )
     ).rejects.toMatchObject({ code: "Timeout", jobId: "job-5" });
   });
+
+  it("checks after 500 ms, then doubles the wait up to 2 seconds, when no interval is set", async () => {
+    vi.useFakeTimers();
+    const started = Date.now();
+    const checkedAt: number[] = [];
+    const work = runJob(
+      "test",
+      {
+        check: async () => {
+          checkedAt.push(Date.now() - started);
+          return checkedAt.length === 6 ? done : undefined;
+        },
+        finish: (found) => found,
+        start: async () => "job-6",
+      },
+      {}
+    );
+    await vi.runAllTimersAsync();
+    await expect(work).resolves.toBe(done);
+    expect(checkedAt).toStrictEqual([0, 500, 1500, 3500, 5500, 7500]);
+  });
+
+  it("keeps a set interval fixed", async () => {
+    vi.useFakeTimers();
+    const started = Date.now();
+    const checkedAt: number[] = [];
+    const work = runJob(
+      "test",
+      {
+        check: async () => {
+          checkedAt.push(Date.now() - started);
+          return checkedAt.length === 4 ? done : undefined;
+        },
+        finish: (found) => found,
+        start: async () => "job-7",
+      },
+      { interval: 300 }
+    );
+    await vi.runAllTimersAsync();
+    await expect(work).resolves.toBe(done);
+    expect(checkedAt).toStrictEqual([0, 300, 600, 900]);
+  });
 });
 
 /** A raw client on a fake fetch that answers with `replies`. */

@@ -35,13 +35,22 @@ export interface Job<Found, Result> {
 export interface JobSettings extends CallOptions {
   /** The id of a job already started, from an error's `jobId`; waits for it instead of starting another. */
   resume?: string;
-  /** Milliseconds between checks. Defaults to 2000. */
+  /**
+   * Milliseconds between checks. When unset, the first wait is 500 ms and each
+   * later one doubles, up to 2000 ms, so a short job is collected soon after
+   * it finishes and a long one is not checked more often than every 2 seconds.
+   */
   interval?: number;
 }
 
+/** The first wait between checks when `interval` is unset, and the longest. */
+const FIRST_WAIT = 500;
+const LONGEST_WAIT = 2000;
+
 /**
- * Checks the job every `interval` until it has a finished state. Throws
- * `Timeout` when another interval would pass the deadline, and `Aborted` or
+ * Checks the job until it has a finished state, waiting `interval` between
+ * checks, or 500 ms doubling to 2000 ms when it is unset. Throws
+ * `Timeout` when another wait would pass the deadline, and `Aborted` or
  * `Timeout` (by how the signal stopped) once the signal is aborted. Both carry
  * `jobId`, because the job may still be running.
  */
@@ -51,7 +60,7 @@ const waitFor = async <Found>(
   check: Job<Found, unknown>["check"],
   settings: JobSettings
 ): Promise<Found> => {
-  const interval = settings.interval ?? 2000;
+  let wait = settings.interval ?? FIRST_WAIT;
   const deadline = Date.now() + (settings.timeout ?? 600_000);
   // Each check is one request: the call's signal carries its whole deadline.
   const request = { retries: settings.retries, signal: settings.signal };
@@ -67,14 +76,17 @@ const waitFor = async <Found>(
     if (found !== undefined) {
       return found;
     }
-    if (Date.now() + interval > deadline) {
+    if (Date.now() + wait > deadline) {
       throw new FieldworkError(
         "Timeout",
         `${provider} job ${id} did not finish in time; it may still be running`,
         { jobId: id, provider }
       );
     }
-    await sleep(interval, settings.signal);
+    await sleep(wait, settings.signal);
+    if (settings.interval === undefined) {
+      wait = Math.min(wait * 2, LONGEST_WAIT);
+    }
   }
 };
 
