@@ -155,7 +155,7 @@ export type ExaReadManyOptions = ExaReadOptions;
  * for a summary of the page in the shape of `schema` and returns it as `data`.
  */
 export interface ExaExtractOptions<T = unknown> extends CallOptions {
-  /** A JSON Schema, or a Zod, Valibot or ArkType schema that types and checks `data`. */
+  /** A JSON Schema, or a Zod, Valibot or ArkType schema that types and checks `data`. Type arrays, including nullable unions, throw `InvalidRequest` before sending. */
   schema: OutputSchema<T>;
   /** What to extract, in plain words. */
   prompt?: string;

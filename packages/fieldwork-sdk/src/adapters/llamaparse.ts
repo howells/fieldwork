@@ -5,13 +5,18 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { documentPart, refuseLarger } from "../document.js";
+import { documentPart, documentUrl, refuseLarger } from "../document.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
 import { jobState, runJob, startJob } from "../job.js";
 import type { JobStates } from "../job.js";
-import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
+import type {
+  CallOptions,
+  DocumentInput,
+  DocumentUrl,
+  ParsedDocument,
+} from "../types.js";
 import { callSettings, compact, meta, parseJson } from "../util.js";
 import {
   documentBlocks,
@@ -81,7 +86,7 @@ export interface LlamaParseOperations {
   parse: {
     /** Uploads the file and waits for the parse. An error after the upload carries `jobId`. */
     (
-      document: DocumentInput,
+      document: DocumentInput | DocumentUrl,
       options?: LlamaParseParseOptions
     ): Promise<ParsedDocument>;
     /** Collects an earlier parse by its id, without sending the file again. */
@@ -117,7 +122,7 @@ const configuration = (o: LlamaParseParseOptions) =>
 /** Uploads the file and returns the job id. Refuses a missing document, or a file over the size limit, before sending. */
 const startParse = async (
   raw: RawClient,
-  document: DocumentInput | undefined,
+  document: DocumentInput | DocumentUrl | undefined,
   o: LlamaParseParseOptions,
   call: CallOptions
 ) => {
@@ -126,6 +131,21 @@ const startParse = async (
       "InvalidRequest",
       "parse needs a document, or resume with the id of an earlier parse",
       { provider }
+    );
+  }
+  if (document.url !== undefined) {
+    return await startJob(
+      raw,
+      "/api/v2/parse",
+      {
+        ...call,
+        body: {
+          ...configuration(o),
+          source_url: documentUrl(provider, document),
+        },
+      },
+      JobStart,
+      (reply) => reply.id
     );
   }
   refuseLarger(provider, document, MAX_PARSE_MB);
@@ -266,7 +286,7 @@ const parsedDocument = async (
 /** Runs the job. `expand` names the sections of the result to include; blocks, word boxes and page images each add one. */
 const parse = async (
   raw: RawClient,
-  document: DocumentInput | undefined,
+  document: DocumentInput | DocumentUrl | undefined,
   options: LlamaParseParseOptions | undefined,
   fetchImpl: typeof fetch | undefined
 ): Promise<ParsedDocument> => {
@@ -321,7 +341,7 @@ export const llamaparse = (config: LlamaParseConfig = {}) => {
 
   const operations: LlamaParseOperations = {
     async parse(
-      first: DocumentInput | LlamaParseResumeOptions,
+      first: DocumentInput | DocumentUrl | LlamaParseResumeOptions,
       options?: LlamaParseParseOptions
     ) {
       return "resume" in first

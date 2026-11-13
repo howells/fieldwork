@@ -375,26 +375,6 @@ describe("checking input", () => {
 });
 
 describe("calling the capability", () => {
-  it("returns the result without raw, with long text cut", async () => {
-    const { calls, web } = firecrawlWeb({
-      body: {
-        data: {
-          markdown: "x".repeat(2000),
-          metadata: { title: "Spec", url: "https://a.test/p" },
-        },
-        success: true,
-      },
-    });
-    const read = toolNamed(toolsFor(web, { maxCharacters: 1000 }), "read_page");
-    const page = await read.execute({ url: "https://a.test/p" });
-    expect(page).not.toHaveProperty("raw");
-    expect(page).toMatchObject({ title: "Spec" });
-    expect(page.markdown).toMatch(
-      /^x{1000}\n\n\[cut: 1000 of 2000 characters shown\]$/u
-    );
-    expect(calls[0]?.body).toMatchObject({ url: "https://a.test/p" });
-  });
-
   it("passes positional fields as arguments and the rest as options", async () => {
     const { calls, web } = firecrawlWeb({
       body: { id: "b1", success: true },

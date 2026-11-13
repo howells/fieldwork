@@ -75,7 +75,7 @@ Branch on `error.code`, which is one of the [error codes](/docs/errors). `retryA
 | `403` | `Unauthorized`: a cross-origin browser request. |
 | `404` | `NotFound`: an unknown route or tool, or a page or job the provider cannot find. |
 | `408` | `Timeout`: the body did not arrive within 5 seconds. |
-| `405`, `413`, `415` | `InvalidRequest`: the wrong method, a body over 2 MB, or a body that is not `application/json`. |
+| `405`, `413`, `415` | `InvalidRequest`: the wrong method, a body over 2 MiB, or a body that is not `application/json`. |
 | `429` | `RateLimited`: wait `retryAfter` seconds. |
 | `502` | `ProviderError`, `JobFailed`, `Aborted`, or `Unauthorized` from the provider: the gateway's provider key failed, not yours. |
 | `500` | `ProviderError`: an unexpected failure in the gateway. |
@@ -98,3 +98,5 @@ export default { fetch: handle };
 
 </AccordionItem>
 </Accordion>
+
+For large public documents, send `parse_document` a `url` and set `provider` to `llamaparse` or `reducto`. Each provider fetches the document directly. Use `name` and `contentBase64` for inline bytes, never together with `url`. Base64 expands bytes by about one third, so the 2 MiB JSON-body limit holds less than 1.5 MiB of file. This conservative budget stays below Vercel's 4.5 MB request limit. An oversized body returns HTTP 413 with `InvalidRequest`, the byte limit and the URL alternative. Firecrawl's parse endpoint accepts uploads only; use `read_page` for its public document URLs.

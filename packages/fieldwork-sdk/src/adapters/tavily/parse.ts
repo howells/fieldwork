@@ -7,6 +7,7 @@ import { compact, hours, meta } from "../../util.js";
 import { COUNTRIES } from "./countries.js";
 import type {
   TavilyExtractOptions,
+  TavilyResearchOptions,
   TavilySearchOptions,
   TavilyTraversal,
 } from "./options.js";
@@ -240,4 +241,29 @@ export const base64 = (bytes: Uint8Array): string => {
     binary += String.fromCodePoint(...bytes.subarray(index, index + 0x80_00));
   }
   return btoa(binary);
+};
+
+/** Checks and encodes Tavily research attachments before a job is started or resumed. */
+export const researchFiles = (input: TavilyResearchOptions["files"]) => {
+  const files = input?.map((file) => {
+    if (!RESEARCH_FILE.test(file.name)) {
+      throw invalidRequest(
+        provider,
+        `reads .txt, .md and .json files, not ${file.name}`
+      );
+    }
+    return {
+      data: base64(
+        typeof file.data === "string"
+          ? new TextEncoder().encode(file.data)
+          : file.data
+      ),
+      name: file.name,
+      type: "base64",
+    };
+  });
+  if (files && files.length > 5) {
+    throw invalidRequest(provider, "research takes up to 5 files");
+  }
+  return files;
 };

@@ -10,7 +10,7 @@ import { createFieldworkGateway } from "../src/gateway/http.js";
 export const ACCESS_KEY = "test-agent-access-key-at-least-32-characters";
 export const SECOND_KEY = "test-second-agent-key-at-least-32-characters";
 
-export const fixture = () => {
+export const fixture = (markdown = "Firecrawl page", links: string[] = []) => {
   const requests: { body: string; url: string }[] = [];
   const log: GatewayCall[] = [];
   const fakeFetch: typeof fetch = async (url, init) => {
@@ -28,7 +28,8 @@ export const fixture = () => {
     }
     return Response.json({
       data: {
-        markdown: "Firecrawl page",
+        links,
+        markdown,
         metadata: { title: "Firecrawl", url: "https://example.test/page" },
       },
       success: true,

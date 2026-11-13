@@ -117,7 +117,7 @@ export const isRequired = (field: Field, provider: string): boolean =>
   field.requiredFor?.some((name) => name === provider) === true;
 
 const SCHEMA: JsonValue = {
-  properties: { width: { type: "string" } },
+  properties: { width: { description: "Width", type: "string" } },
   type: "object",
 };
 
@@ -169,7 +169,13 @@ const SAMPLES = new Map<string, JsonValue>([
 const ALTERNATES = new Map<string, JsonValue>([
   ["contentBase64", "d29ybGQ="],
   ["questions", { fit: { question: "Is it pine?", type: "yesno" } }],
-  ["schema", { properties: { depth: { type: "string" } }, type: "object" }],
+  [
+    "schema",
+    {
+      properties: { depth: { description: "Depth", type: "string" } },
+      type: "object",
+    },
+  ],
 ]);
 
 /**
@@ -237,12 +243,18 @@ export const companions = (
   {};
 
 /** The inputs a provider needs for a tool, without any optional field. */
-export const baseInput = (spec: Spec, provider: string): JsonObject =>
-  Object.fromEntries(
+export const baseInput = (spec: Spec, provider: string): JsonObject => {
+  const values = Object.fromEntries(
     offeredFields(spec, provider)
       .filter((field) => isRequired(field, provider))
       .map((field) => [field.name, sample(spec.name, field.name)])
   );
+  if (spec.capability === "parse") {
+    values.contentBase64 = sample(spec.name, "contentBase64");
+    values.name = sample(spec.name, "name");
+  }
+  return values;
+};
 
 /**
  * A reply that satisfies every provider's "job created" and "session opened"

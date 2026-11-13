@@ -22,6 +22,14 @@ export class GatewayRejectionError extends Error {
   }
 }
 
+/** The 413 for a body over the limit; a large public document goes by `url` instead. */
+const tooLarge = (maxBytes: number) =>
+  new GatewayRejectionError(
+    413,
+    "InvalidRequest",
+    `Request body exceeds the ${maxBytes}-byte limit (including JSON and base64, which adds about one third). For large public documents, call parse_document with url and provider llamaparse or reducto instead of contentBase64; with firecrawl use read_page.`
+  );
+
 /**
  * Reads the body as JSON. It must be `application/json` (415). A declared
  * `Content-Length` over the limit is refused at once (413); the bytes that
@@ -47,11 +55,7 @@ export const gatewayBody = async (
     );
   }
   if (Number(request.headers.get("content-length") ?? 0) > maxBytes) {
-    throw new GatewayRejectionError(
-      413,
-      "InvalidRequest",
-      `Request body exceeds ${maxBytes} bytes`
-    );
+    throw tooLarge(maxBytes);
   }
   let received = 0;
   const deadline = AbortSignal.timeout(readTimeout);
@@ -60,11 +64,7 @@ export const gatewayBody = async (
       transform: (chunk, controller) => {
         received += chunk.byteLength;
         if (received > maxBytes) {
-          throw new GatewayRejectionError(
-            413,
-            "InvalidRequest",
-            `Request body exceeds ${maxBytes} bytes`
-          );
+          throw tooLarge(maxBytes);
         }
         controller.enqueue(chunk);
       },

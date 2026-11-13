@@ -1,8 +1,11 @@
 // What the document parsers (LlamaParse, Reducto) share: media types, the size
 // limit check and the multipart file part.
 
-import { FieldworkError } from "./errors.js";
-import type { Box, DocumentInput } from "./types.js";
+import * as z from "zod/mini";
+
+import { FieldworkError, invalidRequest } from "./errors.js";
+import type { Box, DocumentInput, DocumentUrl } from "./types.js";
+import { refuseTogether } from "./util.js";
 
 /** Content types of the document files parsers commonly take, by extension. */
 export const MEDIA_TYPES = new Map<string, string>(
@@ -81,4 +84,21 @@ export const enclosing = (boxes: readonly Box[]): Box | undefined => {
   const right = Math.max(...boxes.map((box) => box.left + box.width));
   const bottom = Math.max(...boxes.map((box) => box.top + box.height));
   return { height: bottom - top, left, top, width: right - left };
+};
+
+/** Refuses mixed byte/URL inputs and non-HTTP URLs before a provider request. */
+export const documentUrl = (
+  provider: string,
+  document: DocumentUrl
+): string => {
+  refuseTogether(provider, document, "url", "data");
+  refuseTogether(provider, document, "url", "name");
+  const parsed = z.safeParse(z.url({ protocol: /^https?$/u }), document.url);
+  if (!parsed.success) {
+    throw invalidRequest(
+      provider,
+      "document url must be a public HTTP or HTTPS URL"
+    );
+  }
+  return parsed.data;
 };

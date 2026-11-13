@@ -1,6 +1,7 @@
 import { FieldworkError } from "../errors.js";
 import type { Spec } from "../tool-specs/types.js";
 import type { CallOptions } from "../types.js";
+import { refuseTogether } from "../util.js";
 import { isJsonObject, isText } from "./json.js";
 import type { JsonObject, JsonValue } from "./json.js";
 
@@ -8,10 +9,9 @@ import type { JsonObject, JsonValue } from "./json.js";
 // arguments it takes: the positional fields, then one options object.
 
 /** The file `parse` takes, decoded from the tool's base64 input. */
-export interface DocumentArgument {
-  data: Uint8Array;
-  name: string;
-}
+export type DocumentArgument =
+  | { data: Uint8Array; name: string }
+  | { url: string };
 
 /** The options object: the tool's remaining fields plus the call settings. */
 export interface OptionsArgument {
@@ -66,13 +66,19 @@ const BASE64 = /^[A-Za-z0-9+/]+={0,2}$/u;
  * well-formed base64 (standard alphabet, padded to a multiple of 4).
  */
 const documentFrom = (
-  name: JsonValue | undefined,
-  content: JsonValue | undefined
+  provider: string,
+  values: JsonObject
 ): DocumentArgument => {
+  refuseTogether(provider, values, "url", "contentBase64");
+  refuseTogether(provider, values, "url", "name");
+  const { contentBase64: content, name, url } = values;
+  if (isText(url)) {
+    return { url };
+  }
   if (!isText(name) || !isText(content)) {
     throw new FieldworkError(
       "InvalidRequest",
-      "parse_document needs name and contentBase64"
+      "parse_document needs name and contentBase64, or a public url with llamaparse or reducto"
     );
   }
   if (content.length % 4 !== 0 || !BASE64.test(content)) {
@@ -93,12 +99,13 @@ const documentFrom = (
  * The arguments for the spec's method, from validated input and the call
  * settings: the `positional` fields in order, then one options object of the
  * other fields and the call settings (`signal`, `timeout`, `retries`). `parse`
- * is the exception: its two positional fields become one `DocumentArgument`.
+ * is the exception: its source fields become one `DocumentArgument`.
  */
 export const argumentsFor = (
   spec: Spec,
   values: JsonObject,
-  call: CallOptions
+  call: CallOptions,
+  provider: string
 ): Argument[] => {
   const options: OptionsArgument = {
     ...Object.fromEntries(
@@ -108,7 +115,7 @@ export const argumentsFor = (
   };
   const positional = spec.positional.map((name) => values[name]);
   if (spec.capability === "parse") {
-    return [documentFrom(positional[0], positional[1]), options];
+    return [documentFrom(provider, values), options];
   }
   return [...positional, options];
 };

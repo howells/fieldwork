@@ -205,7 +205,11 @@ An error with a `jobId` is never `retryable`, because repeating the call would s
 - an output schema;
 - MCP annotations.
 
-`execute(input)` checks the input, calls the capability, and returns the result without `raw`, with long text cut to a shared budget of 20,000 characters (`maxCharacters`).
+`execute(input)` checks the input, calls the capability, and returns the result without `raw`, with long text cut to a shared budget of 20,000 characters. Set `toolsFor(web, { maxCharacters })` for a different default, or pass a positive integer `maxCharacters` in any tool call to override it. This is a tool-shaping option and never reaches the provider. Stdio uses `--max-characters` for its default. The HTTP gateway and remote MCP default to 20,000 and accept at most 200,000 per call; larger values fail with `InvalidRequest` before a provider is called. This cap leaves room for JSON escaping and MCP's two copies of the result under Vercel's 4.5 MB response limit; oversized encoded results are also refused with `InvalidRequest`.
+
+For large public PDFs, call `parse_document({ url, provider: "llamaparse" })` or select `reducto`. The SDK takes `web.parse({ url })` with either adapter; each provider fetches the document directly. Use `name` and `contentBase64` for inline tool input, or `name` and `data` in the SDK; combine neither with `url`. Firecrawl's parse endpoint accepts uploaded bytes only: use `read_page` (SDK `read`) for public document URLs. The gateway limits JSON bodies to 2 MiB, below Vercel's 4.5 MB request limit; base64 inflates files by about one third, leaving less than 1.5 MiB for an inline file. Oversized requests return HTTP 413 with `InvalidRequest` and the URL alternative.
+
+Every cut keeps the inline `[cut: N of M characters shown]` note and adds top-level `truncated: [{ path, shown, length }]`, with one entry per cut field (for example `markdown` or `results[2].text`). `shown` excludes the note; `length` is the original JavaScript string length. `truncated` is absent when nothing was cut. Text of 500 characters or fewer is never cut and spends none of the budget. Check `truncated` before treating a page or extracted value as complete.
 
 ```ts
 import { jsonSchema, tool } from "ai";
@@ -223,6 +227,8 @@ const tools = Object.fromEntries(
   ])
 );
 ```
+
+Exa extraction refuses JSON Schema `type` arrays (including nullable unions) with `InvalidRequest` and the schema path before sending. Tavily research requires `properties`, a single supported type and a description for every property, nested `properties` for objects, and `items` for arrays. Its supported types are object, string, integer, number and array; unsupported shapes fail with `InvalidRequest` before sending. Fieldwork never rewrites the caller's schema. Parallel supports nullable unions.
 
 Tools that start remote browsers or create lasting, billed resources are left out unless you allow them: `toolsFor(web, { allow: ["act", "browser", "monitor"] })`. `toolError(error)` formats an error for a model.
 

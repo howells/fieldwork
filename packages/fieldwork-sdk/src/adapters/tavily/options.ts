@@ -192,7 +192,7 @@ export interface TavilyResearchFile {
  * names that do not end in `.txt`, `.md` or `.json`.
  */
 export interface TavilyResearchOptions<T = unknown> extends CallOptions {
-  /** Tavily accepts object, string, integer, number and array types only, and each property needs a description. */
+  /** Tavily accepts object, string, integer, number and array types only, and each property needs a description. Type arrays, including nullable unions, throw `InvalidRequest` before sending. */
   schema?: OutputSchema<T>;
   model?: "mini" | "pro" | "auto";
   citationFormat?: "numbered" | "mla" | "apa" | "chicago";

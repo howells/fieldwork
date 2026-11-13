@@ -50,7 +50,7 @@ Each provider reads its key from the environment.
 | `--allow-act` | Adds `run_browser_script`, which runs code in a remote browser. Off by default. |
 | `--allow-browser` | Adds `open_browser` and `close_browser`, which keep a remote browser open until it is closed or expires. Off by default. |
 | `--allow-monitor` | Adds `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. A monitor keeps running, and billing, until it is deleted. Off by default. |
-| `--max-characters <n>` | The long text one result may return. Default 20,000. |
+| `--max-characters <n>` | The default shared long-text budget. Default 20,000; a tool call can override it with a positive integer `maxCharacters`. |
 | `--help`, `--version` | Show the usage text or the version. |
 
 The three `--allow-*` options are separate on purpose. Each tool group starts remote browsers or creates a lasting, billed resource, so a client gets it only when you ask.
@@ -83,6 +83,10 @@ Claude Desktop, Cursor and other clients that take a JSON file:
   }
 }
 ```
+
+Every tool accepts `maxCharacters` for one call, without passing it to the provider. The HTTP gateway and remote MCP default to 20,000 and cap it at 200,000 (`InvalidRequest` above that). This leaves room for escaped JSON and MCP's text plus structured copies under Vercel's 4.5 MB response limit; oversized encoded results are also refused. A cut adds top-level `truncated: [{ path, shown, length }]` and keeps the inline `[cut: …]` note. The array is absent when nothing was cut.
+
+`parse_document` accepts `url` with `provider: "llamaparse"` or `"reducto"`; the provider fetches the public document directly. Alternatively send `name` and `contentBase64`, never together with `url`. Firecrawl accepts uploaded bytes here; use `read_page` for its public document URLs. The gateway's 2 MiB JSON-body budget holds less than 1.5 MiB of file after base64 encoding. Larger inline requests return HTTP 413 with `InvalidRequest`, the byte limit and the URL alternative.
 
 ## Tools
 

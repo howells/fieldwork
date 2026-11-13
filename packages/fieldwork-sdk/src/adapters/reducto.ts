@@ -5,13 +5,18 @@
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
-import { documentPart, refuseLarger } from "../document.js";
+import { documentPart, documentUrl, refuseLarger } from "../document.js";
 import { FieldworkError } from "../errors.js";
 import { createRawClient, readSigned, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
 import { jobState, runJob, startJob } from "../job.js";
 import type { JobStates } from "../job.js";
-import type { CallOptions, DocumentInput, ParsedDocument } from "../types.js";
+import type {
+  CallOptions,
+  DocumentInput,
+  DocumentUrl,
+  ParsedDocument,
+} from "../types.js";
 import {
   callSettings,
   compact,
@@ -65,7 +70,7 @@ export interface ReductoOperations {
   parse: {
     /** Uploads the file, starts the parse and waits for it. An error after the parse starts carries `jobId`. */
     (
-      document: DocumentInput,
+      document: DocumentInput | DocumentUrl,
       options?: ReductoParseOptions
     ): Promise<ParsedDocument>;
     /** Collects an earlier parse by its id, without sending the file again. */
@@ -80,24 +85,30 @@ const MAX_UPLOAD_MB = 100;
 /** Uploads the file, then starts the parse, and returns the job id. Refuses a file over the size limit before sending. */
 const startParse = async (
   raw: RawClient,
-  document: DocumentInput,
+  document: DocumentInput | DocumentUrl,
   o: ReductoParseOptions,
   call: CallOptions
 ) => {
-  refuseLarger(provider, document, MAX_UPLOAD_MB);
-  const form = new FormData();
-  form.set("file", documentPart(document), document.name);
-  const uploaded = z.parse(
-    UploadResponse,
-    await raw.request("POST", "/upload", { creates: true, ...call, form })
-  );
+  let input: string;
+  if (document.url === undefined) {
+    refuseLarger(provider, document, MAX_UPLOAD_MB);
+    const form = new FormData();
+    form.set("file", documentPart(document), document.name);
+    const uploaded = z.parse(
+      UploadResponse,
+      await raw.request("POST", "/upload", { creates: true, ...call, form })
+    );
+    input = requireJobId(provider, uploaded.file_id);
+  } else {
+    input = documentUrl(provider, document);
+  }
   return await startJob(
     raw,
     "/parse_async",
     {
       ...call,
       body: compact({
-        input: requireJobId(provider, uploaded.file_id),
+        input,
         settings: o.wordBoxes === true ? { return_citations: true } : undefined,
       }),
     },
@@ -164,7 +175,7 @@ const outputOf = async (
 
 const parse = async (
   raw: RawClient,
-  document: DocumentInput | undefined,
+  document: DocumentInput | DocumentUrl | undefined,
   options: ReductoParseOptions | undefined,
   fetchImpl: typeof fetch | undefined
 ): Promise<ParsedDocument> => {
@@ -247,7 +258,7 @@ export const reducto = (config: ReductoConfig = {}) => {
 
   const operations: ReductoOperations = {
     async parse(
-      first: DocumentInput | ReductoResumeOptions,
+      first: DocumentInput | DocumentUrl | ReductoResumeOptions,
       options?: ReductoParseOptions
     ) {
       return "resume" in first

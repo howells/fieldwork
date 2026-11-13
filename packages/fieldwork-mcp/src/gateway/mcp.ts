@@ -26,7 +26,7 @@ const serverFor = (
   });
   for (const tool of tools) {
     registerTool(server, tool, async (input, signal) => {
-      const { provider, result } = await execute(tool.name, input, {
+      const { provider, result, resultText } = await execute(tool.name, input, {
         ...context,
         signal: AbortSignal.any([context.signal, signal]),
       });
@@ -36,6 +36,7 @@ const serverFor = (
           "fieldwork/requestId": context.requestId,
         },
         result,
+        resultText,
       };
     });
   }

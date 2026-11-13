@@ -2,7 +2,9 @@ import type { AnyAdapter } from "./adapter.js";
 import { FieldworkError } from "./errors.js";
 import type { Fieldwork } from "./fieldwork.js";
 import { SPECS } from "./tool-specs/index.js";
+import { list, object, str, whole } from "./tool-specs/schema.js";
 import type { Field, Spec } from "./tool-specs/types.js";
+import { checkMaxCharacters, DEFAULT_MAX_CHARACTERS } from "./tools/budget.js";
 import { argumentsFor, operationFor } from "./tools/dispatch.js";
 import type { Dispatcher, Operation } from "./tools/dispatch.js";
 import { isJsonObject } from "./tools/json.js";
@@ -11,6 +13,8 @@ import { forModel } from "./tools/model.js";
 import { problem } from "./tools/validate.js";
 import { CAPABILITIES } from "./types.js";
 import type { CallOptions, Capability, JsonSchema } from "./types.js";
+
+export { checkMaxCharacters, DEFAULT_MAX_CHARACTERS } from "./tools/budget.js";
 
 // Tool definitions for agents, built from a Fieldwork instance. Each tool's
 // input schema lists only the options its provider supports, so a model is
@@ -99,6 +103,8 @@ export interface ToolsOptions {
    * fewer, such as titles, URLs and snippets, is never cut. Defaults to 20,000.
    */
   maxCharacters?: number;
+  /** Maximum configured or per-call budget; advertised in each input schema. */
+  maxCharactersLimit?: number;
 }
 
 /** Whether the field is offered to the provider: a field with no `providers` goes to every provider that has the capability. */
@@ -182,22 +188,55 @@ const resultObject = (
 };
 
 /** The JSON Schema advertised for the tool's input: closed to other keys, requiring what `needs` says. */
-const inputSchema = (fields: Field[], provider: string): JsonSchema => ({
-  additionalProperties: false,
-  properties: Object.fromEntries(
-    fields.map((field) => [field.name, { ...field.schema }])
-  ),
-  required: fields
-    .filter((field) => needs(field, provider))
-    .map((field) => field.name),
-  type: "object",
-});
+const inputSchema = (
+  fields: Field[],
+  provider: string,
+  budget: number,
+  limit?: number
+): JsonSchema => {
+  const schema: JsonSchema = {
+    additionalProperties: false,
+    properties: Object.fromEntries([
+      ...fields.map((field) => [field.name, { ...field.schema }]),
+      [
+        "maxCharacters",
+        {
+          ...whole(
+            `Shared long-text budget for this call; defaults to ${budget}. Never sent to the provider.`,
+            1,
+            limit
+          ),
+        },
+      ],
+    ]),
+    required: fields
+      .filter((field) => needs(field, provider))
+      .map((field) => field.name),
+    type: "object",
+  };
+  if (
+    fields.some((field) => field.name === "contentBase64") &&
+    fields.some((field) => field.name === "url")
+  ) {
+    schema.oneOf = [
+      {
+        not: {
+          anyOf: [{ required: ["name"] }, { required: ["contentBase64"] }],
+        },
+        required: ["url"],
+      },
+      { not: { required: ["url"] }, required: ["name", "contentBase64"] },
+    ];
+  }
+  return schema;
+};
 
 const toolFor = (
   spec: Spec,
   provider: string,
   operation: Operation,
-  budget: number
+  budget: number,
+  limit?: number
 ): FieldworkTool => {
   const fields = spec.fields.filter((field) => offers(field, provider));
   return {
@@ -211,14 +250,40 @@ const toolFor = (
     capability: spec.capability,
     description: spec.description,
     execute: async (input, call = {}) => {
-      const values = readInput(spec.name, provider, fields, input);
-      const result = await operation(...argumentsFor(spec, values, call));
-      return forModel(resultObject(spec, values, result), budget);
+      if (!isJsonObject(input)) {
+        throw invalid(spec.name, provider, "input must be an object");
+      }
+      const { maxCharacters, ...args } = input;
+      const values = readInput(spec.name, provider, fields, args);
+      const callBudget =
+        maxCharacters === undefined
+          ? budget
+          : checkMaxCharacters(maxCharacters, limit);
+      const result = await operation(
+        ...argumentsFor(spec, values, call, provider)
+      );
+      return forModel(resultObject(spec, values, result), callBudget);
     },
-    inputSchema: inputSchema(fields, provider),
+    inputSchema: inputSchema(fields, provider, budget, limit),
     method: spec.method,
     name: spec.name,
-    outputSchema: { ...spec.output },
+    outputSchema: {
+      ...spec.output,
+      properties: {
+        ...spec.output.properties,
+        truncated: list(
+          object(
+            {
+              length: whole("Original character length.", 0),
+              path: str,
+              shown: whole("Characters shown before the inline cut note.", 0),
+            },
+            ["path", "shown", "length"]
+          ),
+          "One entry for each cut text field; absent when nothing was cut."
+        ),
+      },
+    },
     provider,
   };
 };
@@ -239,7 +304,14 @@ export const toolsFor = (
       )),
     ...(options.allow ?? []),
   ]);
-  const budget = options.maxCharacters ?? 20_000;
+  const limit =
+    options.maxCharactersLimit === undefined
+      ? undefined
+      : checkMaxCharacters(options.maxCharactersLimit);
+  const budget = checkMaxCharacters(
+    options.maxCharacters ?? DEFAULT_MAX_CHARACTERS,
+    limit
+  );
   const dispatcher: Dispatcher = web;
   return SPECS.flatMap((spec) => {
     const provider = web.providerFor(spec.capability);
@@ -247,7 +319,7 @@ export const toolsFor = (
     return wanted.has(spec.capability) &&
       provider !== undefined &&
       operation !== undefined
-      ? [toolFor(spec, provider, operation, budget)]
+      ? [toolFor(spec, provider, operation, budget, limit)]
       : [];
   });
 };

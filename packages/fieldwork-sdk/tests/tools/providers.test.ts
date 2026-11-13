@@ -69,6 +69,33 @@ describe("the provider lists in the tool specs", () => {
     }
   });
 
+  it.each(
+    SPECS.flatMap((spec) =>
+      providersWith(spec.capability).map((provider) => ({ provider, spec }))
+    )
+  )(
+    "keeps maxCharacters out of $provider requests for $spec.name",
+    async ({ spec, provider }) => {
+      const input = {
+        ...baseInput(spec, provider),
+        ...companions(spec.name, "maxCharacters", provider),
+      };
+      const base = await requestsFor(provider, spec.name, input);
+      expect(base.length).toBeGreaterThan(0);
+      await expect(
+        requestsFor(provider, spec.name, {
+          ...input,
+          maxCharacters: 1000,
+        })
+      ).resolves.toStrictEqual(base);
+      const tool = toolsFor(webFor(provider, fakeFetch().fetch), {
+        allow: [...EXCLUDED_BY_DEFAULT],
+      }).find((candidate) => candidate.name === spec.name);
+      expect(tool?.inputSchema.properties).toHaveProperty("maxCharacters");
+      expect(tool?.outputSchema.properties).toHaveProperty("truncated");
+    }
+  );
+
   it.each(declared)(
     "send $field.name to $provider for $spec.name",
     async ({ field, provider, spec }) => {
@@ -76,11 +103,14 @@ describe("the provider lists in the tool specs", () => {
         ...baseInput(spec, provider),
         ...companions(spec.name, field.name, provider),
       };
-      const required = isRequired(field, provider);
-      const withField = {
-        ...base,
-        [field.name]: sample(spec.name, field.name),
-      };
+      const required =
+        isRequired(field, provider) ||
+        (spec.capability === "parse" &&
+          ["name", "contentBase64"].includes(field.name));
+      const withField =
+        spec.capability === "parse" && field.name === "url"
+          ? { url: sample(spec.name, field.name) }
+          : { ...base, [field.name]: sample(spec.name, field.name) };
       const without = required
         ? { ...base, [field.name]: alternate(spec.name, field.name) }
         : base;

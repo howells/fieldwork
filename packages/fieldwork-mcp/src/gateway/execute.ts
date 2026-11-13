@@ -4,11 +4,13 @@
 
 import { FieldworkError } from "@howells/fieldwork-sdk";
 import type { CallOptions } from "@howells/fieldwork-sdk";
-import { toolError } from "@howells/fieldwork-sdk/tools";
+import { checkMaxCharacters, toolError } from "@howells/fieldwork-sdk/tools";
 import type { ToolInput, ToolOutput } from "@howells/fieldwork-sdk/tools";
 import * as z from "zod/mini";
 
 import type { gatewayCatalog } from "./catalog.js";
+import { MAX_CHARACTERS } from "./limits.js";
+import { checkedResultText } from "./result.js";
 
 /**
  * The log entry for one tool call, given to `onCall` when it ends. It holds who
@@ -49,9 +51,13 @@ export interface CallContext {
 interface GatewayResult {
   provider: string;
   result: ToolOutput;
+  resultText: string;
 }
 
 /** Replaces each secret's exact text. A key a provider echoes re-encoded, such as URL-encoded, is not caught. */
+/** A tool whose input takes `resume`, so a billed job can be collected again. */
+const Resumable = z.object({ properties: z.object({ resume: z.json() }) });
+
 export const redact = (message: string, secrets: readonly string[]): string => {
   let redacted = message;
   for (const secret of secrets) {
@@ -108,6 +114,9 @@ const settings = (input: ToolInput, maxTimeout: number) => {
       "InvalidRequest",
       `Input must be an object, provider a string, and timeout an integer from 1 to ${maxTimeout}`
     );
+  }
+  if (values.maxCharacters !== undefined) {
+    checkMaxCharacters(values.maxCharacters, MAX_CHARACTERS);
   }
   const { provider: _provider, timeout: _timeout, ...args } = values;
   return { args, provider: provider.data, timeout: timeout.data ?? maxTimeout };
@@ -170,11 +179,16 @@ export const gatewayExecutor =
         }
         throw error;
       }
+      const resultText = checkedResultText(
+        result,
+        tool.provider,
+        z.safeParse(Resumable, tool.inputSchema).success
+      );
       entry.outcome = "success";
       // A result without readable usage is still a completed, billed call.
       const usage = z.safeParse(Usage, result);
       entry.usage = usage.success ? usage.data.meta?.usage : undefined;
-      return { provider: tool.provider, result };
+      return { provider: tool.provider, result, resultText };
     } catch (error) {
       const detail = toolError(error);
       entry.errorCode = detail.code;

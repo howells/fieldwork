@@ -13,6 +13,7 @@ import type { FieldworkTool, ToolsOptions } from "@howells/fieldwork-sdk/tools";
 import * as z from "zod/mini";
 
 import type { Provider } from "../config.js";
+import { MAX_CHARACTERS } from "./limits.js";
 
 /** The provider each capability uses when a call names none. */
 export type GatewayDefaults = Partial<Record<Capability, Provider>>;
@@ -41,6 +42,7 @@ export interface GatewayTool {
 }
 
 const InputSchema = z.object({
+  oneOf: z.optional(z.array(z.json())),
   properties: z.record(z.string(), z.json()),
   required: z.optional(z.array(z.string())),
 });
@@ -59,12 +61,16 @@ const schemaFor = (
   if (explicit) {
     properties.provider = { const: tool.provider, type: "string" };
   }
-  return {
+  const input: JsonSchema = {
     additionalProperties: false,
     properties,
     required: [...(schema.required ?? []), ...(explicit ? ["provider"] : [])],
     type: "object",
   };
+  if (schema.oneOf !== undefined) {
+    input.oneOf = schema.oneOf;
+  }
+  return input;
 };
 
 const describe = (
@@ -130,7 +136,10 @@ export const gatewayCatalog = (
 ) => {
   const entries = new Map<string, Map<string, FieldworkTool>>();
   for (const client of clients) {
-    for (const tool of toolsFor(client, options)) {
+    for (const tool of toolsFor(client, {
+      ...options,
+      maxCharactersLimit: MAX_CHARACTERS,
+    })) {
       const variants =
         entries.get(tool.name) ?? new Map<string, FieldworkTool>();
       if (variants.has(tool.provider)) {

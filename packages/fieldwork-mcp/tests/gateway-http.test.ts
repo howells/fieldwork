@@ -5,6 +5,101 @@ import { createFieldworkGateway } from "../src/gateway/http.js";
 import { ACCESS_KEY, SECOND_KEY, fixture, request } from "./gateway-helpers.js";
 
 describe("the private gateway HTTP API", () => {
+  it("keeps the 20,000 default, accepts overrides up to 200,000 and reports cuts", async () => {
+    const { handle, requests } = fixture("m".repeat(30_000));
+    const first = await handle(
+      request("/api/v1/tools/read_page", { url: "https://example.test/page" })
+    );
+    await expect(first.json()).resolves.toMatchObject({
+      result: {
+        truncated: [{ length: 30_000, path: "markdown", shown: 20_000 }],
+      },
+    });
+    const full = await handle(
+      request("/api/v1/tools/read_page", {
+        maxCharacters: 200_000,
+        url: "https://example.test/page",
+      })
+    );
+    const body = z.parse(
+      z.object({ result: z.record(z.string(), z.json()) }),
+      await full.json()
+    );
+    expect(body.result.markdown).toBe("m".repeat(30_000));
+    expect(body.result).not.toHaveProperty("truncated");
+    expect(
+      requests.every((entry) => !entry.body.includes("maxCharacters"))
+    ).toBe(true);
+  });
+
+  it("refuses an encoded result whose short fields would exceed the response limit", async () => {
+    const { handle, requests } = fixture(
+      "page",
+      Array.from({ length: 5000 }, () => "x".repeat(499))
+    );
+    const response = await handle(
+      request("/api/v1/tools/read_page", { url: "https://example.test/page" })
+    );
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "InvalidRequest",
+        message: expect.stringContaining("response limit"),
+      },
+    });
+    expect(requests).toHaveLength(1);
+  });
+
+  it("advertises the per-call budget and cap in OpenAPI", async () => {
+    const { handle } = fixture();
+    const response = await handle(request("/api/v1/openapi.json"));
+    await expect(response.json()).resolves.toMatchObject({
+      paths: {
+        "/api/v1/tools/read_page": {
+          post: {
+            requestBody: {
+              content: {
+                "application/json": {
+                  schema: {
+                    oneOf: expect.arrayContaining([
+                      expect.objectContaining({
+                        properties: expect.objectContaining({
+                          maxCharacters: expect.objectContaining({
+                            maximum: 200_000,
+                            minimum: 1,
+                            type: "integer",
+                          }),
+                        }),
+                      }),
+                    ]),
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+  });
+
+  it.each([200_001, 1_000_000, 0, -1, 1.5])(
+    "rejects an invalid gateway budget before a provider call: %s",
+    async (maxCharacters) => {
+      const { handle, requests } = fixture();
+      const response = await handle(
+        request("/api/v1/tools/read_page", {
+          maxCharacters,
+          url: "https://example.test/page",
+        })
+      );
+      expect(response.status).toBe(400);
+      await expect(response.json()).resolves.toMatchObject({
+        error: { code: "InvalidRequest" },
+      });
+      expect(requests).toHaveLength(0);
+    }
+  );
+
   it.each(["", "Bearer wrong", `Basic ${ACCESS_KEY}`])(
     "refuses invalid credentials before reaching a provider: %s",
     async (authorization) => {

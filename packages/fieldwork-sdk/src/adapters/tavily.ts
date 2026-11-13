@@ -17,14 +17,13 @@ import type {
   TavilyResearchOptions,
 } from "./tavily/options.js";
 import {
-  RESEARCH_FILE,
-  base64,
   chunks,
   extractBody,
   failures,
   imageResults,
   page,
   provider,
+  researchFiles,
   responseMeta,
   searchBody,
   searchResults,
@@ -224,26 +223,7 @@ export const tavily = (config: TavilyConfig = {}) => {
 
     async research<T>(question: string, options?: TavilyResearchOptions<T>) {
       const { call, rest: o } = callSettings(options);
-      const files = o.files?.map((file) => {
-        if (!RESEARCH_FILE.test(file.name)) {
-          throw invalidRequest(
-            provider,
-            `reads .txt, .md and .json files, not ${file.name}`
-          );
-        }
-        return {
-          data: base64(
-            typeof file.data === "string"
-              ? new TextEncoder().encode(file.data)
-              : file.data
-          ),
-          name: file.name,
-          type: "base64",
-        };
-      });
-      if (files && files.length > 5) {
-        throw invalidRequest(provider, "research takes up to 5 files");
-      }
+      const files = researchFiles(o.files);
       return await runJob(
         provider,
         {
@@ -302,7 +282,9 @@ export const tavily = (config: TavilyConfig = {}) => {
                   model: o.model,
                   output_length: o.outputLength,
                   output_schema:
-                    o.schema === undefined ? undefined : jsonSchemaOf(o.schema),
+                    o.schema === undefined
+                      ? undefined
+                      : jsonSchemaOf(o.schema, "draft-2020-12", "tavily"),
                   stream: false,
                 }),
               },

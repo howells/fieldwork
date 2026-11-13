@@ -508,8 +508,16 @@ export interface ParsedDocument {
 
 /** A file to parse: its bytes and its name, which tells the provider the type. */
 export interface DocumentInput {
+  url?: never;
   data: Blob | Uint8Array | ArrayBuffer;
   name: string;
+}
+
+/** A public document URL the provider fetches itself; never downloaded by Fieldwork. */
+export interface DocumentUrl {
+  url: string;
+  data?: never;
+  name?: never;
 }
 
 /** How often a monitor checks: a cron expression or a named interval. */

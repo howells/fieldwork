@@ -1,6 +1,7 @@
 // Shapes a tool's result for a model: drops `raw` and cuts long text to a
 // shared character budget.
 
+import { joinPath } from "../path.js";
 import { isJsonObject, isList, isText } from "./json.js";
 import type { JsonObject, JsonValue } from "./json.js";
 
@@ -46,18 +47,29 @@ const rank = (key: string): number => {
 
 interface Budget {
   remaining: number;
+  truncated: JsonObject[];
 }
 
 /** The text whole if it is short or the budget covers it; otherwise cut to what is left of the budget, with a note of how much was shown. Short text spends nothing. */
-const cut = (value: string, budget: Budget): string => {
+const cut = (
+  value: string,
+  budget: Budget,
+  path: readonly (string | number)[]
+): string => {
   if (value.length <= SHORT_TEXT) {
     return value;
   }
   const kept = Math.min(value.length, budget.remaining);
   budget.remaining -= kept;
-  return kept === value.length
-    ? value
-    : `${value.slice(0, kept)}\n\n[cut: ${kept} of ${value.length} characters shown]`;
+  if (kept === value.length) {
+    return value;
+  }
+  budget.truncated.push({
+    length: value.length,
+    path: joinPath(path),
+    shown: kept,
+  });
+  return `${value.slice(0, kept)}\n\n[cut: ${kept} of ${value.length} characters shown]`;
 };
 
 /**
@@ -69,13 +81,16 @@ const cut = (value: string, budget: Budget): string => {
 const shape = (
   value: JsonValue | undefined,
   verbatim: boolean,
-  budget: Budget
+  budget: Budget,
+  path: readonly (string | number)[]
 ): JsonValue | undefined => {
   if (isText(value)) {
-    return cut(value, budget);
+    return cut(value, budget, path);
   }
   if (isList(value)) {
-    return value.map((item) => shape(item, verbatim, budget) ?? null);
+    return value.map(
+      (item, index) => shape(item, verbatim, budget, [...path, index]) ?? null
+    );
   }
   if (!isJsonObject(value)) {
     return value;
@@ -85,7 +100,10 @@ const shape = (
   );
   const shaped = new Map<string, JsonValue | undefined>();
   for (const [key, item] of entries.toSorted(([a], [b]) => rank(a) - rank(b))) {
-    shaped.set(key, shape(item, verbatim || VERBATIM.has(key), budget));
+    shaped.set(
+      key,
+      shape(item, verbatim || VERBATIM.has(key), budget, [...path, key])
+    );
   }
   return Object.fromEntries(entries.map(([key]) => [key, shaped.get(key)]));
 };
@@ -97,6 +115,11 @@ const shape = (
  * served first and alternate renderings such as HTML last.
  */
 export const forModel = (result: JsonObject, budget: number): JsonObject => {
-  const shaped = shape(result, false, { remaining: budget });
-  return isJsonObject(shaped) ? shaped : {};
+  const truncated: JsonObject[] = [];
+  const shaped = shape(result, false, { remaining: budget, truncated }, []);
+  const output = isJsonObject(shaped) ? shaped : {};
+  if (truncated.length > 0) {
+    output.truncated = truncated;
+  }
+  return output;
 };

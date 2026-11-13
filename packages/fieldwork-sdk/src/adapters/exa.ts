@@ -267,7 +267,7 @@ export const exa = (config: ExaConfig = {}) => {
           maxAgeHours: hours(o.maxAge),
           summary: compact({
             query: o.prompt,
-            schema: jsonSchemaOf(o.schema, "draft-07"),
+            schema: jsonSchemaOf(o.schema, "draft-07", "exa"),
           }),
         }),
         call

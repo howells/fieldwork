@@ -54,6 +54,8 @@ export interface ToolRun {
   /** Sent as `_meta` on this call's result. */
   meta?: Record<string, string | undefined>;
   result: ToolOutput;
+  /** Already serialized by a transport size check, when one ran. */
+  resultText?: string;
 }
 
 /**
@@ -82,10 +84,15 @@ export const registerTool = (
     },
     async (input, context) => {
       try {
-        const { meta, result } = await run(input, context.mcpReq.signal);
+        const { meta, result, resultText } = await run(
+          input,
+          context.mcpReq.signal
+        );
         return {
           _meta: meta,
-          content: [{ text: JSON.stringify(result), type: "text" }],
+          content: [
+            { text: resultText ?? JSON.stringify(result), type: "text" },
+          ],
           structuredContent: result,
         };
       } catch (error) {

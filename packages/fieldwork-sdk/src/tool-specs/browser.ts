@@ -5,15 +5,15 @@ import {
   OPEN_BROWSER_OUTPUT,
   PARSE_OUTPUT,
 } from "./outputs.js";
-import { choice, flag, text, whole } from "./schema.js";
+import { choice, flag, text, url, whole } from "./schema.js";
 import type { Spec } from "./types.js";
 
 /**
  * The tools that drive a browser or convert a file: `run_browser_script`,
  * `open_browser`, `close_browser` and `parse_document`. `toolsFor` leaves out
  * the first three unless asked, since they start billed sessions with real
- * effects; `parse_document` is a normal tool. Its `name` and `contentBase64`
- * become the one file argument `parse` takes.
+ * effects; `parse_document` is a normal tool. Its URL or name and bytes
+ * become the one document argument `parse` takes.
  */
 export const BROWSER_SPECS: Spec[] = [
   {
@@ -112,20 +112,27 @@ export const BROWSER_SPECS: Spec[] = [
   {
     capability: "parse",
     description:
-      "Convert a document file (PDF, DOCX, XLSX, PPTX, HTML or CSV) to Markdown. Use when you have the file's bytes. Do not use for a document at a public URL (use read_page).",
+      "Convert a document file (PDF, DOCX, XLSX, PPTX, HTML or CSV) to Markdown. Use name and contentBase64 for bytes, or a public url with LlamaParse or Reducto. Firecrawl accepts bytes here; use read_page for a public URL.",
     destructive: false,
     fields: [
       {
         name: "name",
-        required: true,
+        requiredFor: ["firecrawl"],
         schema: text(
           "The file name with its extension, such as spec-sheet.pdf. The extension tells the provider the type."
         ),
       },
       {
         name: "contentBase64",
-        required: true,
+        requiredFor: ["firecrawl"],
         schema: text("The file's bytes, base64-encoded."),
+      },
+      {
+        name: "url",
+        providers: ["llamaparse", "reducto"],
+        schema: url(
+          "Public HTTP or HTTPS document URL; the provider fetches it. Use instead of name and contentBase64 for large files."
+        ),
       },
       {
         name: "pages",
@@ -137,7 +144,7 @@ export const BROWSER_SPECS: Spec[] = [
     idempotent: true,
     name: "parse_document",
     output: PARSE_OUTPUT,
-    positional: ["name", "contentBase64"],
+    positional: ["name", "contentBase64", "url"],
     readOnly: true,
     title: "Convert a document to Markdown",
   },

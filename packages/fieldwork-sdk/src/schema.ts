@@ -1,4 +1,6 @@
 import { FieldworkError } from "./errors.js";
+import { checkSchemaSubset } from "./schema-subset.js";
+import type { SchemaSubset } from "./schema-subset.js";
 import type { JsonSchema } from "./types.js";
 
 // Structured-output schemas: accepts a plain JSON Schema or a Standard Schema
@@ -160,14 +162,16 @@ const isStandard = (
  */
 export const jsonSchemaOf = (
   schema: OutputSchema<unknown>,
-  target: SchemaTarget = "draft-2020-12"
+  target: SchemaTarget = "draft-2020-12",
+  subset?: SchemaSubset
 ): JsonSchema => {
   if (!isStandard(schema)) {
-    return schema;
+    return subset === undefined ? schema : checkSchemaSubset(schema, subset);
   }
+  let result: JsonSchema;
   try {
     const converted = schema["~standard"].jsonSchema.input({ target });
-    return Object.fromEntries(
+    result = Object.fromEntries(
       Object.entries(converted).filter(([key]) => key !== "$schema")
     );
   } catch (error) {
@@ -177,6 +181,7 @@ export const jsonSchemaOf = (
       { cause: error }
     );
   }
+  return subset === undefined ? result : checkSchemaSubset(result, subset);
 };
 
 const MAX_ISSUES = 3;

@@ -7,7 +7,7 @@ import {
   mediaTypeOf,
   refuseLarger,
 } from "../../document.js";
-import { invalidRequest } from "../../errors.js";
+import { FieldworkError, invalidRequest } from "../../errors.js";
 import type { RequestOptions } from "../../http.js";
 import { jsonSchemaOf } from "../../schema.js";
 import type { CallOptions, DocumentInput, Recency } from "../../types.js";
@@ -289,6 +289,14 @@ export const parseForm = (
   o: Omit<FirecrawlParseOptions, keyof CallOptions>,
   timeout: number | undefined
 ): FormData => {
+  if (document.url !== undefined) {
+    throw new FieldworkError(
+      "Unsupported",
+      "firecrawl parse accepts file bytes only; use read_page (SDK read) for a public document URL, or parse_document with llamaparse or reducto",
+      { provider }
+    );
+  }
+
   if (timeout !== undefined && timeout > MAX_PARSE_MS) {
     throw invalidRequest(
       provider,

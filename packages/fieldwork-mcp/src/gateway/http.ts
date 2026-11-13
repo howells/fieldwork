@@ -17,6 +17,7 @@ import { gatewayCatalog } from "./catalog.js";
 import type { GatewayDefaults } from "./catalog.js";
 import { gatewayExecutor, redact, safeError } from "./execute.js";
 import type { CallContext, GatewayCall } from "./execute.js";
+import { MAX_REQUEST_BODY_BYTES } from "./limits.js";
 import { serveGatewayMcp } from "./mcp.js";
 import { gatewayOpenApi } from "./openapi.js";
 
@@ -213,8 +214,8 @@ const serveApi = async (
     throw new GatewayRejectionError(404, "NotFound", "Gateway route not found");
   }
   const input = await gatewayBody(request, maxBytes);
-  const result = await execute(name, input, context);
-  return Response.json({ requestId: context.requestId, ...result });
+  const { provider, result } = await execute(name, input, context);
+  return Response.json({ provider, requestId: context.requestId, result });
 };
 
 /**
@@ -238,7 +239,7 @@ const serveApi = async (
 export const createFieldworkGateway = (options: FieldworkGatewayOptions) => {
   const authenticate = agentAuthenticator(options.agents);
   const maxTimeout = options.maxTimeout ?? 45_000;
-  const maxBytes = options.maxBodyBytes ?? 2_097_152;
+  const maxBytes = options.maxBodyBytes ?? MAX_REQUEST_BODY_BYTES;
   const apiPath = options.apiPath ?? "/api/v1";
   const mcpPath = options.mcpPath ?? "/mcp";
   const catalog = gatewayCatalog(

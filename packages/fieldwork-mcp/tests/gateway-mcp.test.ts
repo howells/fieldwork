@@ -37,13 +37,49 @@ describe("remote MCP", () => {
         ]),
       });
       const result = await client.callTool({
-        arguments: { provider: "exa", url: "https://example.test/page" },
+        arguments: {
+          maxCharacters: 200_000,
+          provider: "exa",
+          url: "https://example.test/page",
+        },
         name: "read_page",
       });
       expect(result.isError).not.toBe(true);
       expect(result.structuredContent).toMatchObject({ markdown: "Exa page" });
       expect(requests).toHaveLength(1);
       expect(log).toMatchObject([{ agentId: "codex", provider: "exa" }]);
+    } finally {
+      await client.close();
+    }
+  });
+
+  it("accepts the cap with escaped text and rejects larger budgets before a provider call", async () => {
+    const { handle, requests } = fixture("\0".repeat(200_000));
+    const transport = new StreamableHTTPClientTransport(
+      new URL("https://fieldwork.test/mcp"),
+      {
+        fetch: async (input, init) => await handle(new Request(input, init)),
+        requestInit: { headers: { authorization: `Bearer ${ACCESS_KEY}` } },
+      }
+    );
+    const client = new Client({ name: "gateway-cap-test", version: "1.0.0" });
+    try {
+      await client.connect(transport);
+      const full = await client.callTool({
+        arguments: { maxCharacters: 200_000, url: "https://example.test/page" },
+        name: "read_page",
+      });
+      expect(full.isError).not.toBe(true);
+      expect(full.structuredContent).toMatchObject({
+        markdown: "\0".repeat(200_000),
+      });
+      const refused = await client.callTool({
+        arguments: { maxCharacters: 200_001, url: "https://example.test/page" },
+        name: "read_page",
+      });
+      expect(refused.isError).toBe(true);
+      expect(JSON.stringify(refused.content)).toContain("InvalidRequest");
+      expect(requests).toHaveLength(1);
     } finally {
       await client.close();
     }
