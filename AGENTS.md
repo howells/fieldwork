@@ -59,7 +59,7 @@ Never:
 
 ### Issue tracker
 
-Issues live in Linear, workspace material-instruments, team MG. See `docs/agents/issue-tracker.md`.
+Linear, workspace `material-instruments`, team `MG`. See `~/Sites/home/docs/agents/issue-tracker.md`.
 
 ### Triage labels
 
