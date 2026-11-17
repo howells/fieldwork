@@ -18,6 +18,7 @@ import {
   presentPages,
   requireJobId,
 } from "../util.js";
+import { downloadFile } from "./firecrawl/download.js";
 import type {
   FirecrawlConfig,
   FirecrawlExtractOptions,
@@ -119,7 +120,7 @@ interface BatchJob {
 const CLOSE_TIMEOUT = 15_000;
 
 /**
- * An adapter for Firecrawl: search, images, read, readMany, extract, product, map, crawl, research, act, browser, parse, monitor and usage. Pass it to `new Fieldwork({ adapter })`.
+ * An adapter for Firecrawl: search, images, read, readMany, extract, product, map, crawl, research, act, browser, parse, download, monitor and usage. Pass it to `new Fieldwork({ adapter })`.
  *
  * Throws `Unauthorized` when neither `apiKey` nor `FIRECRAWL_API_KEY` is set.
  */
@@ -358,6 +359,8 @@ export const firecrawl = (config: FirecrawlConfig = {}) => {
         }
       );
     },
+
+    download: async (url, options) => await downloadFile(raw, url, options),
 
     async extract<T>(url: string, options: FirecrawlExtractOptions<T>) {
       const { call, rest: o } = callSettings(options);

@@ -21,7 +21,7 @@ fieldwork-mcp --search brave --read firecrawl --product firecrawl --research exa
   --monitor firecrawl --browser browserbase --allow-monitor --allow-browser
 ```
 
-Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error.
+Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error. The SDK's `download` has no tool: a tool result cannot usefully carry a file's bytes.
 
 ### Providers
 

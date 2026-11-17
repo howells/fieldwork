@@ -48,6 +48,7 @@ const SUMMARIES: Record<Capability, string> = {
   crawl: "Many pages from one starting URL",
   decide: "Closed questions, answered with probabilities",
   discover: "Entities that meet every condition",
+  download: "A file's bytes, fetched by the provider",
   extract: "Named values from a page, by schema",
   images: "Images for a query",
   map: "Every URL on a site",

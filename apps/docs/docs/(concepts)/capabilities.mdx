@@ -1,6 +1,6 @@
 ---
 title: Capabilities
-description: Which of Fieldwork's 17 capabilities each of the eleven providers offers, and how an instance reports them at run time.
+description: Which of Fieldwork's 18 capabilities each of the eleven providers offers, and how an instance reports them at run time.
 ---
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
@@ -24,6 +24,7 @@ Not sure which to use? See the [provider guide](/tools).
 | `act` |  | ● |  |  |  |  |  |  |  |
 | `browser` |  | ● |  |  |  |  |  | ● | ● |
 | `parse` |  | ● |  |  |  |  |  |  |  |
+| `download` |  | ● |  |  |  |  |  | ● | ● |
 | `monitor` | ● | ● |  | ● |  |  |  |  |  |
 | `usage` |  | ● | ● |  |  |  | ● | ● |  |
 
@@ -49,6 +50,7 @@ LlamaParse and Reducto parse documents, and only that.
 - `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
 - `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer. `act(code)` runs one script in a fresh session.
 - `parse` turns a document file into Markdown, and with `blocks: true` lists its layout with boxes. Every box is in fractions of the page from its top-left corner, so boxes from different providers line up. LlamaParse and Reducto also place each word and table cell with `wordBoxes: true`, and LlamaParse each line.
+- `download` returns a file's bytes, its content type and the final URL after redirects, fetched through the provider's network: Firecrawl and Kernel up to 50 MiB, Browserbase up to 5 MB. It is SDK only; no tool returns file bytes.
 - `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
 - `usage` reports the account's credits used and remaining.
 

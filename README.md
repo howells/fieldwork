@@ -1,6 +1,6 @@
 # Fieldwork
 
-One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser and parsing documents, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.
+One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser, parsing documents and downloading files, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.
 
 ```sh
 npm i @howells/fieldwork-sdk
@@ -41,6 +41,7 @@ Each instance has only the methods its provider offers, so a call the provider c
 | `act(code)` |  | yes |  |  |  |  |  |  |  |  |  |
 | `browser.open()`, `browser.close(id)` |  | yes |  |  |  |  |  | yes | yes |  |  |
 | `parse(document)` |  | yes |  |  |  |  |  |  |  | yes | yes |
+| `download(url)` |  | yes |  |  |  |  |  | yes | yes |  |  |
 | `monitor.create()`, `.get`, `.list`, `.delete`, `.events` | yes | yes |  | yes |  |  |  |  |  |  |  |
 | `usage()` |  | yes | yes |  |  |  | yes | yes |  |  |  |
 
@@ -50,6 +51,7 @@ Each instance has only the methods its provider offers, so a call the provider c
 - `discover` returns a list of entities, such as companies or products, that meet every condition you give.
 - `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
 - `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer; `act(code)` runs one script in a fresh session.
+- `download` returns a file's bytes, its content type and the final URL after redirects, fetched through the provider's network. See [Downloading files](#downloading-files).
 - `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
 
 ### Options
@@ -69,6 +71,7 @@ Options are typed per provider. An option means the same thing under the same na
 | `query` | On `read`: return the passages that answer it as `excerpts`. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
+| `maxBytes` | On `download`: the largest file accepted, in bytes. Defaults to, and may not exceed, the provider's ceiling. |
 | `resume`, `interval` | On jobs: collect an earlier job by its id, and the milliseconds between status checks (unset: 500, doubling to 2000). |
 
 Options only one provider has keep that provider's meaning and values, such as Tavily's `topic`, Exa's `category`, SerpApi's `engine` or Firecrawl's `proxy`. A combination a provider would reject or silently ignore, such as `includeDomains` with `excludeDomains` on Parallel, throws `InvalidRequest` before anything is sent.
@@ -104,6 +107,7 @@ Every result is normalized and keeps the provider's response in `raw`. Most also
 - `answer` returns `{ answer, output, citations, continuationId }`.
 - `research` returns `{ id, status, output, sources, fields, continuationId }`. `output` follows your schema when you pass one, otherwise it is the report text.
 - `crawl` returns `{ pages, failed, robotsBlocked, total }`.
+- `download` returns `{ url, bytes, contentType, size, statusCode, etag, lastModified }`: `url` is the final URL, `bytes` a `Uint8Array` exactly as served, `contentType` the server's header unchanged. `etag` and `lastModified` come back from Browserbase and Kernel, which pass headers through.
 
 A job that stopped early but produced output, for example on a credit or step limit, returns `status: "partial"` with `stopReason`. A job with no usable output throws `JobFailed`.
 
@@ -144,6 +148,26 @@ await web.browser.close(session.id);
 ```
 
 A schedule is `{ every: "day" }`, `{ every: "6h" }` or `{ cron: "0 9 * * 1" }`. A schedule the provider cannot express throws `InvalidRequest`.
+
+### Downloading files
+
+`download(url)` returns the file the URL serves, fetched through the provider's own network: the provider makes the request, and Fieldwork only decodes what it returns. Nothing fetches the file directly, not even a redirect.
+
+```ts
+const file = await web.download(
+  "https://www.tilebar.com/media/wysiwyg/Certificates/EPD/EPD-Treveso-V3.pdf"
+);
+file.contentType; // "application/pdf"
+const digest = await crypto.subtle.digest("SHA-256", file.bytes);
+```
+
+| Adapter | Ceiling | How | Cost |
+| --- | --- | --- | --- |
+| `firecrawl()` | 50 MiB | One scrape with `formats: ["rawBase64"]` and no parser. `maxAge: 0` skips Firecrawl's cache, which otherwise serves copies up to 2 days old. | 1 credit per file. |
+| `kernel()` | 50 MiB | Playwright's request client in a new headless browser, which is then deleted. A file over the limit never leaves Kernel. | Browser seconds, as `meta.usage.units.uptime_ms`; 2 to 17 seconds observed. |
+| `browserbase()` | 5 MB | Browserbase Fetch, one call per redirect, so the final URL is known. | One Fetch call per hop. |
+
+A response that is not 2xx throws (`NotFound` for 404 and 410), a web page throws `NotAFile`, and a file over the limit throws `TooLarge`. Check `contentType` for anything narrower, such as "is this link really a PDF?". `download` is not an agent tool or MCP tool: a tool result cannot usefully carry tens of megabytes.
 
 ## Choosing a provider per capability
 
@@ -192,6 +216,8 @@ Every failure is a `FieldworkError`. It carries:
 | `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
 | `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat when `retryable` is true. |
 | `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
+| `TooLarge` | A downloaded file is larger than `maxBytes` or the provider's ceiling. | Raise `maxBytes`, up to the ceiling, or use a provider with a higher one. |
+| `NotAFile` | A download reached a web page (HTML), not a file. | Use `read` for pages; the link is not the file it looked like. |
 | `ProviderError` | Any other provider failure. | Repeat when `retryable` is true (5xx and network failures). |
 
 An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job. Nor is a failure, other than a rate limit, of the request that starts a job, session or monitor: the provider may already have started it, so check before repeating.

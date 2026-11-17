@@ -20,6 +20,10 @@ export type FieldworkErrorCode =
   | "Timeout"
   /** The caller's `signal` cancelled the call. */
   | "Aborted"
+  /** A downloaded file is larger than `maxBytes` or the provider's ceiling. */
+  | "TooLarge"
+  /** A download reached a web page (HTML), not a file. */
+  | "NotAFile"
   /** Any other provider failure. */
   | "ProviderError";
 

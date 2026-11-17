@@ -33,6 +33,7 @@ describe("a Fieldwork instance", () => {
       crawl: true,
       decide: false,
       discover: false,
+      download: false,
       extract: false,
       images: true,
       map: true,

@@ -10,6 +10,8 @@ import type {
   AccountUsage,
   BrowserSession,
   CallOptions,
+  DownloadedFile,
+  DownloadOptions,
   Page,
   SearchResponse,
 } from "../types.js";
@@ -21,6 +23,7 @@ import {
   refuseTogether,
   requireJobId,
 } from "../util.js";
+import { downloadFile } from "./browserbase/download.js";
 import {
   DebugResponse,
   FetchResponse,
@@ -82,6 +85,22 @@ export interface BrowserbaseReadOptions extends CallOptions {
    */
   proxies?: boolean | { geolocation?: BrowserbaseGeolocation };
   /** ISO 3166-1 alpha-2 code, upper-cased before sending. Sends the request through a proxy in that country. */
+  country?: string;
+  /** A context whose saved cookies are sent with the request. */
+  contextId?: string;
+}
+
+/**
+ * Options for `download`, which fetches the file with Browserbase Fetch,
+ * without a browser. Fetch returns at most 5 MB. Redirects are followed one
+ * hop at a time, each hop a Fetch call, so the final URL is known.
+ */
+export interface BrowserbaseDownloadOptions extends DownloadOptions {
+  /** Skip TLS certificate verification, for self-signed or expired certificates. */
+  allowInsecureSsl?: boolean;
+  /** `true` for Browserbase's default proxy exit, or a geolocation. Not combinable with `country`. */
+  proxies?: boolean | { geolocation?: BrowserbaseGeolocation };
+  /** ISO 3166-1 alpha-2 code; sends the request through a proxy in that country. */
   country?: string;
   /** A context whose saved cookies are sent with the request. */
   contextId?: string;
@@ -167,6 +186,11 @@ export interface BrowserbaseOperations {
     options?: BrowserbaseSearchOptions
   ) => Promise<SearchResponse>;
   read: (url: string, options?: BrowserbaseReadOptions) => Promise<Page>;
+  /** Fetches a file's bytes through Browserbase Fetch, up to 5 MB. */
+  download: (
+    url: string,
+    options?: BrowserbaseDownloadOptions
+  ) => Promise<DownloadedFile>;
   browser: {
     /**
      * Creates a session. A failure to get its live view URL does not fail the
@@ -187,7 +211,7 @@ const SEARCH_MODES = {
 } as const;
 
 /**
- * An adapter for Browserbase: search, read, browser and usage. Pass it to `new Fieldwork({ adapter })`.
+ * An adapter for Browserbase: search, read, download, browser and usage. Pass it to `new Fieldwork({ adapter })`.
  *
  * Throws `Unauthorized` when neither `apiKey` nor `BROWSERBASE_API_KEY` is set.
  */
@@ -209,7 +233,7 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
   const { projectId } = config;
 
   /** The `proxies` value to send: as given, or built from `country`. Refuses both together, and a state outside the US. */
-  const fetchProxies = (o: BrowserbaseReadOptions) => {
+  const fetchProxies = (o: BrowserbaseDownloadOptions) => {
     refuseTogether(provider, o, "proxies", "country");
     const geolocation: BrowserbaseGeolocation | undefined =
       o.country === undefined
@@ -306,6 +330,11 @@ export const browserbase = (config: BrowserbaseConfig = {}) => {
           raw: response,
         });
       },
+    },
+
+    async download(url, options) {
+      const { call, rest: o } = callSettings(options);
+      return await downloadFile(raw, url, o, fetchProxies(o), call);
     },
 
     async read(url, options) {

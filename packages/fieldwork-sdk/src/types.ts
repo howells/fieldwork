@@ -21,6 +21,7 @@ export const CAPABILITIES = [
   "act",
   "browser",
   "parse",
+  "download",
   "monitor",
   "usage",
 ] as const;
@@ -595,5 +596,35 @@ export interface AccountUsage {
   breakdown?: Record<string, number>;
   /** ISO time the current period ends. */
   periodEnd?: string;
+  raw: unknown;
+}
+
+/** Settings every `download` accepts, whatever the provider. */
+export interface DownloadOptions extends CallOptions {
+  /**
+   * The largest file accepted, in bytes. Defaults to, and may not exceed,
+   * the adapter's ceiling; a larger value throws `InvalidRequest` before
+   * anything is sent. A larger file throws `TooLarge`.
+   */
+  maxBytes?: number;
+}
+
+/** What `download` returns: one file's bytes, exactly as the provider fetched them. */
+export interface DownloadedFile {
+  /** The final URL, after every redirect. */
+  url: string;
+  /** The file's bytes, exactly as served. */
+  bytes: Uint8Array;
+  /** The Content-Type the server sent, unchanged, such as "application/pdf". */
+  contentType: string;
+  /** `bytes.byteLength`. */
+  size: number;
+  /** The HTTP status of the final response. */
+  statusCode?: number;
+  /** The server's ETag, when the provider passes headers through. */
+  etag?: string;
+  /** The server's Last-Modified, when the provider passes headers through. */
+  lastModified?: string;
+  meta?: Meta;
   raw: unknown;
 }

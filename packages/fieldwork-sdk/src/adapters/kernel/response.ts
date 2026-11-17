@@ -10,6 +10,7 @@ import {
   optionalNumber,
   optionalObject,
   optionalString,
+  recordOf,
   withOriginal,
 } from "../../parse.js";
 
@@ -39,5 +40,14 @@ export const RenderedPage = looseObject({
   html: optionalAnyString,
   status: optionalNumber,
   title: optionalString,
+  url: optionalString,
+});
+
+/** What the download script returns: the response, and its body as Base64 unless it was over the limit or not 2xx. */
+export const FetchedFile = looseObject({
+  data: optionalAnyString,
+  headers: recordOf(optionalAnyString),
+  status: optionalNumber,
+  tooLarge: optionalNumber,
   url: optionalString,
 });

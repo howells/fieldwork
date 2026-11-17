@@ -11,10 +11,12 @@ const ERROR_CODES: Record<FieldworkErrorCode, true> = {
   Aborted: true,
   InvalidRequest: true,
   JobFailed: true,
+  NotAFile: true,
   NotFound: true,
   ProviderError: true,
   RateLimited: true,
   Timeout: true,
+  TooLarge: true,
   Unauthorized: true,
   Unsupported: true,
 };

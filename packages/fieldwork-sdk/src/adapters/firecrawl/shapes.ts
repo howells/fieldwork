@@ -94,6 +94,7 @@ const Variant = looseObject({
 const metadataShape = {
   "article:published_time": optionalString,
   author: optionalFirstString,
+  contentType: optionalString,
   creditsUsed: optionalNumber,
   description: optionalFirstString,
   favicon: optionalString,
@@ -132,6 +133,7 @@ export const PageData = looseObject({
     url: optionalString,
     variants: arrayOf(Variant),
   }),
+  rawBase64: optionalAnyString,
   rawHtml: optionalString,
   screenshot: optionalString,
   summary: optionalString,

@@ -75,6 +75,7 @@ Climb only as far as the job needs.
 
 - Crawls, `read_pages` and PDFs bill per page. Research and crawl jobs cost the most; browsers bill for as long as they are open. Set `limit`, crawl a section rather than a site, and take the cheaper tool when it does the job.
 - Run `check_usage` (Firecrawl, Tavily, SerpApi, Browserbase) before a large crawl or batch. Results carry `meta.usage` when the provider reports cost; a Kernel read reports the browser time it billed as `units.uptime_ms`, or a warning in `meta.warnings` when Kernel does not report it within 15 seconds or the browser could not be deleted.
+- To get a file's bytes (a PDF to hash, an image to store) in the SDK, use `web.download(url)` with `firecrawl()` or `kernel()` (50 MiB) or `browserbase()` (5 MB). It returns `{ url, bytes, contentType }` and throws `NotAFile` for an HTML page and `TooLarge` over the limit. No MCP tool returns file bytes.
 - For long PDFs through Firecrawl in the SDK, cap pages with `parsers: [{ type: "pdf", maxPages: 20 }]`.
 - An error with a `jobId` is never `retryable`; `RateLimited` comes with `retryAfter` seconds. The SDK already repeats a 429, 5xx or dropped connection twice before throwing.
 

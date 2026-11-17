@@ -20,6 +20,12 @@ import { reducto } from "@howells/fieldwork-sdk/reducto";
 import { serpapi } from "@howells/fieldwork-sdk/serpapi";
 import { tavily } from "@howells/fieldwork-sdk/tavily";
 
+/**
+ * The capabilities a flag can route: every one with a tool. `download`
+ * returns file bytes, which no tool result can usefully carry, so it has none.
+ */
+const ROUTABLE = CAPABILITIES.filter((capability) => capability !== "download");
+
 /** Every provider the server can serve, by the name its flags use. */
 export const PROVIDERS = [
   "exa",
@@ -66,7 +72,7 @@ Choose providers with one of:
   --<capability> <name>        One provider per capability, for example
                                --search parallel --read firecrawl
                                --monitor firecrawl --browser browserbase.
-                               Capabilities: ${CAPABILITIES.join(", ")}.
+                               Capabilities: ${ROUTABLE.join(", ")}.
 
 Providers: ${PROVIDERS.join(", ")}.
 Keys come from EXA_API_KEY, FIRECRAWL_API_KEY, TAVILY_API_KEY,
@@ -112,7 +118,7 @@ const providerFrom = (value: string | undefined, flag: string): Provider => {
 /** Applies one flag to the configuration, taking its value from `args` when it has one. */
 const readFlag = (config: ServerConfig, flag: string, args: string[]) => {
   const allowed = ALLOW_FLAGS.get(flag);
-  const capability = CAPABILITIES.find((name) => `--${name}` === flag);
+  const capability = ROUTABLE.find((name) => `--${name}` === flag);
   if (flag === "--help" || flag === "-h") {
     config.help = true;
   } else if (flag === "--version") {

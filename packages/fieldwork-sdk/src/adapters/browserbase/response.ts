@@ -11,6 +11,7 @@ import {
   optionalScalar,
   optionalId,
   optionalString,
+  recordOf,
   withOriginal,
 } from "../../parse.js";
 
@@ -32,6 +33,7 @@ export const FetchResponse = looseObject({
   content: optionalAnyString,
   contentType: optionalString,
   encoding: optionalString,
+  headers: recordOf(optionalAnyString),
   id: optionalScalar,
   statusCode: optionalNumber,
 });

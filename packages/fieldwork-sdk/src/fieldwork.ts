@@ -131,6 +131,7 @@ class FieldworkClient {
       crawl: has("crawl"),
       decide: has("decide"),
       discover: has("discover"),
+      download: has("download"),
       extract: has("extract"),
       images: has("images"),
       map: has("map"),

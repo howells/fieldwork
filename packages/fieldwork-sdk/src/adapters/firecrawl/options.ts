@@ -9,6 +9,8 @@ import type {
   CallOptions,
   Crawl,
   DocumentInput,
+  DownloadedFile,
+  DownloadOptions,
   Extraction,
   ImageSearch,
   MonitorEvents,
@@ -390,6 +392,23 @@ export interface FirecrawlMonitorOptions extends CallOptions {
  * map, crawl, research, act, browser, parse, monitor and usage. `readMany`,
  * `crawl` and `research` are asynchronous jobs and accept `resume`.
  */
+/**
+ * Options for `download`, which fetches the file through Firecrawl's scrape
+ * (`formats: ["rawBase64"]`, no parsers) for 1 credit, whatever its size.
+ * Firecrawl's ceiling is 50 MiB.
+ */
+export interface FirecrawlDownloadOptions extends DownloadOptions {
+  /** Which proxies fetch the file; see `FirecrawlPageSettings.proxy`. */
+  proxy?: "basic" | "enhanced" | "auto";
+  /**
+   * Seconds a cached copy may be old; 0 always fetches fresh. Firecrawl
+   * serves copies up to 2 days old unless told otherwise.
+   */
+  maxAge?: number;
+  /** ISO 3166-1 alpha-2 code of the country the request comes from. */
+  country?: string;
+}
+
 export interface FirecrawlOperations {
   search: (
     query: string,
@@ -428,6 +447,11 @@ export interface FirecrawlOperations {
     document: DocumentInput,
     options?: FirecrawlParseOptions
   ) => Promise<ParsedDocument>;
+  /** Fetches a file's bytes through Firecrawl, up to 50 MiB. */
+  download: (
+    url: string,
+    options?: FirecrawlDownloadOptions
+  ) => Promise<DownloadedFile>;
   monitor: {
     create: (options: FirecrawlMonitorOptions) => Promise<MonitorInfo>;
     get: (id: string, options?: CallOptions) => Promise<MonitorInfo>;

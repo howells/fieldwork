@@ -7,11 +7,24 @@ import TurndownService from "turndown";
 import * as z from "zod/mini";
 
 import { defineAdapter } from "../adapter.js";
+import {
+  byteLimit,
+  checkFileUrl,
+  header,
+  MIB,
+  presentFile,
+  tooLarge,
+} from "../download.js";
 import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey, segment } from "../http.js";
 import type { RawClient } from "../http.js";
-import { runJob } from "../job.js";
-import type { BrowserSession, CallOptions, Page } from "../types.js";
+import type {
+  BrowserSession,
+  CallOptions,
+  DownloadedFile,
+  DownloadOptions,
+  Page,
+} from "../types.js";
 import {
   callSettings,
   compact,
@@ -21,10 +34,11 @@ import {
 } from "../util.js";
 import {
   BrowserResponse,
-  DeletedBrowserResponse,
   ExecuteResponse,
+  FetchedFile,
   RenderedPage,
 } from "./kernel/response.js";
+import { inSession, sessionBody } from "./kernel/session.js";
 
 /** Settings for `kernel()`. */
 export interface KernelConfig {
@@ -96,9 +110,26 @@ export interface KernelOpenOptions extends CallOptions {
   region?: "us-east" | "us-west" | "eu-west" | "ap-southeast";
 }
 
+/**
+ * Options for `download`, which fetches the file with Playwright's request
+ * client inside a new headless Kernel browser, without rendering a page, and
+ * deletes the browser. The bytes never leave Kernel when the file is over
+ * the limit. The session bills for the seconds it ran, reported as
+ * `meta.usage.units.uptime_ms`. Kernel's ceiling here is 50 MiB.
+ */
+export interface KernelDownloadOptions extends DownloadOptions {
+  /** Send a saved profile's cookies with the request. The download never saves to it. */
+  profile?: KernelProfile;
+}
+
 /** What the Kernel adapter offers. */
 export interface KernelOperations {
   read: (url: string, options?: KernelReadOptions) => Promise<Page>;
+  /** Fetches a file's bytes inside a Kernel browser, up to 50 MiB. */
+  download: (
+    url: string,
+    options?: KernelDownloadOptions
+  ) => Promise<DownloadedFile>;
   browser: {
     open: (options?: KernelOpenOptions) => Promise<BrowserSession>;
     /** Deletes the session, so it stops billing. */
@@ -109,14 +140,28 @@ export interface KernelOperations {
 /** Seconds Kernel gives the read script, within its 300-second limit. */
 const READ_SCRIPT_SECONDS = 120;
 
-/** Seconds a read's session may sit idle before Kernel deletes it. */
-const READ_IDLE_SECONDS = 60;
+/** The largest file `download` returns: what Kernel's script results carry reliably. */
+const DOWNLOAD_CEILING = 50 * MIB;
 
-/** Milliseconds a read waits for Kernel to delete its session, apart from the call's own deadline. */
-const RELEASE_TIMEOUT = 10_000;
+/** Seconds Kernel gives the download script, within its 300-second limit. */
+const DOWNLOAD_SCRIPT_SECONDS = 240;
 
-/** Milliseconds a read waits for the deleted session's billed time. */
-const BILLED_TIME_WAIT = 15_000;
+/**
+ * The Playwright script `download` runs in the browser's VM. It fetches with
+ * the context's request client (the profile's cookies, no page), follows
+ * redirects, and returns the body as Base64 only when the response is 2xx
+ * and within the limit, so an oversized file never leaves Kernel.
+ */
+const downloadScript = (url: string, limit: number) => `
+const response = await context.request.get(${JSON.stringify(url)}, { failOnStatusCode: false, maxRedirects: 20, timeout: 200000 });
+const result = { headers: response.headers(), status: response.status(), url: response.url() };
+if (!response.ok()) return result;
+const declared = Number(result.headers["content-length"]);
+if (Number.isFinite(declared) && declared > ${limit}) return { ...result, tooLarge: declared };
+const body = await response.body();
+if (body.length > ${limit}) return { ...result, tooLarge: body.length };
+return { ...result, data: body.toString("base64") };
+`;
 
 /** The elements that hold a page's content, inside which site chrome is kept. */
 const CONTENT = new Set(["main", "article"]);
@@ -183,27 +228,6 @@ const markdownOf = (html: string): string => {
   return service.turndown(html).trim();
 };
 
-/** The session's profile and proxy as Kernel's create body spells them. */
-const sessionBody = (o: {
-  profile?: KernelProfile & { saveChanges?: boolean };
-  proxy?: KernelProxy;
-}) => ({
-  profile: o.profile
-    ? compact({
-        id: o.profile.id,
-        name: o.profile.name,
-        save_changes: o.profile.saveChanges,
-      })
-    : undefined,
-  proxy: o.proxy
-    ? compact({ id: o.proxy.id, mode: o.proxy.mode, name: o.proxy.name })
-    : undefined,
-});
-
-/** Why a session still bills, for a warning or an error. */
-const leakText = (id: string, failure: FieldworkError) =>
-  `could not delete browser ${id}, which bills until its ${READ_IDLE_SECONDS}-second idle timeout: ${failure.message}`;
-
 /**
  * Throws `InvalidRequest` unless the URL parses and is http or https, so no
  * session is created for a URL the browser should not open.
@@ -218,98 +242,6 @@ const checkUrl = (provider: string, url: string) => {
       provider,
       `reads only http and https URLs, not ${parsed.protocol} (${url})`
     );
-  }
-};
-
-/** What the work returned, or what it threw. */
-const settle = async <T>(
-  work: Promise<T>
-): Promise<{ ok: true; value: T } | { ok: false; error: unknown }> => {
-  try {
-    return { ok: true, value: await work };
-  } catch (error) {
-    return { error, ok: false };
-  }
-};
-
-/**
- * Deletes a read's session under its own 10-second deadline, not the call's,
- * so a read its caller stopped still stops the bill. A 404 or 410 means the
- * session is already gone. Returns why the delete failed, or undefined when
- * it did not, so the caller reports it without losing its own error.
- */
-const release = async (
-  raw: RawClient,
-  id: string,
-  retries: number | undefined
-): Promise<FieldworkError | undefined> => {
-  const deleted = await settle(
-    raw.request("DELETE", `/browsers/${segment(id)}`, {
-      retries,
-      timeout: RELEASE_TIMEOUT,
-    })
-  );
-  if (deleted.ok) {
-    return undefined;
-  }
-  const { error } = deleted;
-  if (!(error instanceof FieldworkError)) {
-    return new FieldworkError("ProviderError", String(error), {
-      cause: error,
-      provider: raw.provider,
-    });
-  }
-  return error.status === 404 || error.status === 410 ? undefined : error;
-};
-
-/**
- * The deleted session's billed time, which Kernel reports about a second after
- * deletion, waiting up to 15 seconds and no longer than the call's signal
- * allows. A failure to get it does not fail the read: the page is already
- * read and billed, so the result carries a warning instead.
- */
-const billedTime = async (
-  raw: RawClient,
-  id: string,
-  call: CallOptions
-): Promise<{ uptimeMs?: number; warning?: string }> => {
-  try {
-    const uptimeMs = await runJob(
-      "kernel",
-      {
-        check: async (sessionId, request) => {
-          const body = z.parse(
-            DeletedBrowserResponse,
-            await raw.request("GET", `/browsers/${segment(sessionId)}`, {
-              ...request,
-              query: { include_deleted: true },
-            })
-          );
-          return body.usage_status === "ready" ? body : undefined;
-        },
-        finish: (body) => body.usage?.uptime_ms,
-        // The session already exists; its id is the one to wait on.
-        start: async () => id,
-      },
-      {
-        retries: call.retries,
-        signal: call.signal,
-        timeout: BILLED_TIME_WAIT,
-      }
-    );
-    return { uptimeMs };
-  } catch (error) {
-    // runJob's own wait ran out, rather than the call's signal or a 408.
-    const ranOut =
-      error instanceof FieldworkError &&
-      error.code === "Timeout" &&
-      error.status === undefined &&
-      call.signal?.aborted !== true;
-    return {
-      warning: ranOut
-        ? `kernel did not report the session's billed time within ${BILLED_TIME_WAIT / 1000} seconds`
-        : `could not get the session's billed time: ${error instanceof Error ? error.message : String(error)}`,
-    };
   }
 };
 
@@ -352,11 +284,7 @@ const render = async (
   return { html: page.html, page, response };
 };
 
-/**
- * Loads the page in a new session, deletes the session whether or not the
- * script succeeded, and builds the result. A failed read whose session could
- * not be deleted fails with its own error, naming the session that still bills.
- */
+/** Loads the page in a new session and builds the result. */
 const readPage = async (
   raw: RawClient,
   url: string,
@@ -366,47 +294,13 @@ const readPage = async (
   const { call, rest: o } = callSettings(options);
   checkUrl(provider, url);
   const format = o.format ?? "markdown";
-  const created = await raw.request("POST", "/browsers", {
-    creates: true,
-    ...call,
-    body: compact({
-      headless: true,
-      stealth: o.stealth,
-      timeout_seconds: READ_IDLE_SECONDS,
-      ...sessionBody({ profile: o.profile, proxy: o.proxy }),
-    }),
-  });
-  const id = requireJobId(
-    provider,
-    z.parse(BrowserResponse, created).session_id
+  const { billed, created, id, value } = await inSession(
+    raw,
+    o,
+    call,
+    async (session) => await render(raw, session, url, call)
   );
-  const rendered = await settle(render(raw, id, url, call));
-  const unreleased = await release(raw, id, call.retries);
-  if (!rendered.ok) {
-    const { error } = rendered;
-    if (unreleased === undefined) {
-      throw error;
-    }
-    const message = `${error instanceof Error ? error.message : String(error)}; also ${leakText(id, unreleased)}`;
-    throw error instanceof FieldworkError
-      ? new FieldworkError(error.code, message, {
-          cause: error,
-          jobId: error.jobId,
-          provider: error.provider,
-          retryAfter: error.retryAfter,
-          retryable: error.retryable,
-          status: error.status,
-        })
-      : new FieldworkError("ProviderError", message, {
-          cause: error,
-          provider,
-        });
-  }
-  const { html, page, response } = rendered.value;
-  const billed =
-    unreleased === undefined
-      ? await billedTime(raw, id, call)
-      : { warning: leakText(id, unreleased) };
+  const { html, page, response } = value;
   const markdown = format === "markdown" ? markdownOf(html) : undefined;
   return presentPage(
     provider,
@@ -431,8 +325,79 @@ const readPage = async (
   );
 };
 
+/** Fetches the file in a new session and checks it. */
+const downloadFile = async (
+  raw: RawClient,
+  url: string,
+  options: KernelDownloadOptions | undefined
+): Promise<DownloadedFile> => {
+  const { provider } = raw;
+  const { call, rest: o } = callSettings(options);
+  checkFileUrl(provider, url);
+  const limit = byteLimit(provider, DOWNLOAD_CEILING, o.maxBytes);
+  const { billed, created, id, value } = await inSession(
+    raw,
+    { profile: o.profile },
+    call,
+    async (session) => {
+      const response = await raw.request(
+        "POST",
+        `/browsers/${segment(session)}/playwright/execute`,
+        {
+          ...call,
+          body: {
+            code: downloadScript(url, limit),
+            timeout_sec: DOWNLOAD_SCRIPT_SECONDS,
+          },
+        }
+      );
+      const body = z.parse(ExecuteResponse, response);
+      if (body.success !== true) {
+        throw new FieldworkError(
+          "ProviderError",
+          `kernel could not download ${url}: ${body.error ?? "the script failed without an error"}`,
+          { cause: response, provider }
+        );
+      }
+      return { file: z.parse(FetchedFile, body.result), response };
+    }
+  );
+  const { file, response } = value;
+  if (file.tooLarge !== undefined) {
+    throw tooLarge(provider, url, file.tooLarge, limit);
+  }
+  const ok =
+    file.status !== undefined && file.status >= 200 && file.status <= 299;
+  if (ok && file.data === undefined) {
+    throw new FieldworkError(
+      "ProviderError",
+      `kernel downloaded ${url} but the script returned no bytes`,
+      { cause: response, provider }
+    );
+  }
+  const { headers } = file;
+  return presentFile(
+    provider,
+    {
+      body: { base64: file.data ?? "" },
+      contentType: header(headers, "content-type"),
+      headers,
+      meta: meta({
+        requestId: id,
+        units: { uptime_ms: billed.uptimeMs },
+        warnings: billed.warning,
+      }),
+      raw: { browser: created, execute: response },
+      requested: url,
+      statusCode: file.status,
+      url: file.url ?? url,
+    },
+    limit
+  );
+};
+
 /**
- * An adapter for Kernel: read and browser. Pass it to `new Fieldwork({ adapter })`.
+ * An adapter for Kernel: read, download and browser. Pass it to `new Fieldwork({ adapter })`.
  *
  * Throws `Unauthorized` when neither `apiKey` nor `KERNEL_API_KEY` is set.
  */
@@ -478,6 +443,8 @@ export const kernel = (config: KernelConfig = {}) => {
         });
       },
     },
+
+    download: async (url, options) => await downloadFile(raw, url, options),
 
     read: async (url, options) => await readPage(raw, url, options),
   };

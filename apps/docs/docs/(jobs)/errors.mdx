@@ -1,6 +1,6 @@
 ---
 title: Errors and retries
-description: The one error type, its nine codes and what to do about each, and when Fieldwork repeats a failed request for you.
+description: The one error type, its eleven codes and what to do about each, and when Fieldwork repeats a failed request for you.
 ---
 
 Every failure is a `FieldworkError`, with a `code` from the table below and whether repeating can succeed.
@@ -31,6 +31,8 @@ try {
 | `JobFailed` | The job ended without a result. | Start a new job if needed; resuming fails again. |
 | `Timeout` | The call or job outlasted its time. | With `jobId`, pass it as `resume`. Without one, repeat when `retryable` is true. |
 | `Aborted` | `signal` cancelled the call. | With `jobId`, the job may still be running; pass it as `resume`. |
+| `TooLarge` | A downloaded file is larger than `maxBytes` or the provider's ceiling. | Raise `maxBytes`, up to the ceiling, or use a provider with a higher one. |
+| `NotAFile` | A download reached a web page (HTML), not a file. | Use `read` for pages. |
 | `ProviderError` | Any other provider failure. | Repeat when `retryable` is true (5xx and network failures). |
 
 An error with a `jobId` is never `retryable`, because repeating the call would start and charge for a second job. Pass the id as `resume` instead; see [Long jobs](/docs/long-jobs). Nor is a failure, other than a rate limit, of the request that starts a job, session or monitor: the provider may already have started it, so check before repeating.

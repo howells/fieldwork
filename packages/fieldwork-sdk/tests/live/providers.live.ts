@@ -475,3 +475,47 @@ describe.skipIf(!has("REDUCTO_API_KEY"))("reducto, live", () => {
     );
   });
 });
+
+// A public PDF and a product image on tilebar.com, fetched through each
+// provider that offers download. The PDF is 2 MB, inside Browserbase's 5 MB.
+const FILE_PDF =
+  "https://www.tilebar.com/media/wysiwyg/Certificates/EPD/EPD-Treveso-V3.pdf";
+const FILE_IMAGE =
+  "https://www.tilebar.com/media/catalog/product/g/b/gb-tlpambsnbg12x24.jpg";
+/** The first bytes of every PDF: "%PDF-". */
+const PDF_MAGIC = [0x25, 0x50, 0x44, 0x46, 0x2d];
+/** The first bytes of every JPEG. */
+const JPEG_MAGIC = [0xff, 0xd8, 0xff];
+
+const downloaders = [
+  { key: "FIRECRAWL_API_KEY", make: () => firecrawl(), name: "firecrawl" },
+  {
+    key: "BROWSERBASE_API_KEY",
+    make: () => browserbase(),
+    name: "browserbase",
+  },
+  { key: "KERNEL_API_KEY", make: () => kernel(), name: "kernel" },
+] as const;
+
+for (const { key, make, name } of downloaders) {
+  describe.skipIf(!has(key))(`${name} download, live`, () => {
+    const web = lazy(() => new Fieldwork({ adapter: make() }));
+    it("downloads a PDF", async () => {
+      const file = await web().download(FILE_PDF);
+      expect(file.contentType).toContain("application/pdf");
+      expect([...file.bytes.subarray(0, 5)]).toStrictEqual(PDF_MAGIC);
+      expect(file.size).toBe(file.bytes.byteLength);
+      expect(file.url).toMatch(URL_PATTERN);
+    });
+    it("downloads an image", async () => {
+      const file = await web().download(FILE_IMAGE);
+      expect(file.contentType).toContain("image/jpeg");
+      expect([...file.bytes.subarray(0, 3)]).toStrictEqual(JPEG_MAGIC);
+    });
+    it("refuses a web page as NotAFile", async () => {
+      await expect(web().download(PAGE)).rejects.toMatchObject({
+        code: "NotAFile",
+      });
+    });
+  });
+}
