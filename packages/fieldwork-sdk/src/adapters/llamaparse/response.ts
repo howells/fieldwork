@@ -42,7 +42,21 @@ const Line = looseObject({
   words: arrayOf(Word),
 });
 
-const Cell = looseObject({ bbox: arrayOf(PointBox), lines: arrayOf(Line) });
+const OneBox = z.record(z.string(), z.unknown());
+const BoxList = arrayOf(PointBox);
+
+/** A list of boxes; one box on its own reads as a list of one, and anything else as none. */
+const PointBoxes = z.prefault(
+  z.pipe(
+    z.unknown(),
+    z.transform((value) =>
+      z.parse(BoxList, z.safeParse(OneBox, value).success ? [value] : value)
+    )
+  ),
+  []
+);
+
+const Cell = looseObject({ bbox: PointBoxes, lines: arrayOf(Line) });
 
 /** An item of a page. Its own `items` (a header's, a list's) are read one level at a time. */
 const Item = looseObject({
@@ -109,7 +123,8 @@ type PointBoxBlock = z.output<typeof PointBox>;
 type LineBlock = z.output<typeof Line>;
 type WordBlock = z.output<typeof Word>;
 
-interface PageSize {
+/** A page's size in points. */
+export interface PageSize {
   width: number;
   height: number;
 }
@@ -182,9 +197,13 @@ const tableOf = (item: ItemBlock, size: PageSize) => {
       const text = item.rows[row]?.[column];
       if (text !== undefined) {
         const inCell = grounded(cell.lines, text, size);
+        const boxes = cell.bbox
+          .map((box) => fraction(box, size))
+          .filter((box): box is Box => box !== undefined);
         cells.push(
           compact({
-            box: around(cell.bbox, size),
+            box: enclosing(boxes),
+            boxes: boxes.length > 0 ? boxes : undefined,
             column,
             lines: inCell.lines.length > 0 ? inCell.lines : undefined,
             row,
@@ -199,20 +218,30 @@ const tableOf = (item: ItemBlock, size: PageSize) => {
   return { cells, lines, words };
 };
 
+/** The page header or footer an item is, if it is one. */
+const containerOf = (item: ItemBlock) =>
+  item.type === "header" || item.type === "footer" ? item.type : undefined;
+
 const blocksOfItem = (
   item: ItemBlock,
   page: number,
-  size: PageSize | undefined
+  size: PageSize | undefined,
+  container?: DocumentBlock["container"]
 ): DocumentBlock[] => {
   // A header, a footer or a list holds its content in items of its own.
   if (item.items.length > 0) {
     return item.items.flatMap((child) =>
-      blocksOfItem(z.parse(Item, child), page, size)
+      blocksOfItem(
+        z.parse(Item, child),
+        page,
+        size,
+        container ?? containerOf(item)
+      )
     );
   }
   const text = item.md ?? item.value ?? "";
   if (size === undefined) {
-    return [{ page, text, type: item.type ?? "unknown" }];
+    return [compact({ container, page, text, type: item.type ?? "unknown" })];
   }
   const table = tableOf(item, size);
   const own = grounded(item.grounding.lines, text, size);
@@ -222,6 +251,7 @@ const blocksOfItem = (
     compact({
       box: around(item.bbox, size),
       cells: table.cells.length > 0 ? table.cells : undefined,
+      container,
       lines: lines.length > 0 ? lines : undefined,
       page,
       text,
@@ -229,6 +259,29 @@ const blocksOfItem = (
       words: words.length > 0 ? words : undefined,
     }),
   ];
+};
+
+/** A page's size in points, when LlamaParse gave a usable one. */
+const sizeOf = (entry: ItemsPageBlock): PageSize | undefined =>
+  entry.page_width !== undefined &&
+  entry.page_height !== undefined &&
+  entry.page_width > 0 &&
+  entry.page_height > 0
+    ? { height: entry.page_height, width: entry.page_width }
+    : undefined;
+
+/** Each page's size in points, by page number. */
+export const pageSizes = (
+  pages: readonly ItemsPageBlock[]
+): Map<number, PageSize> => {
+  const sizes = new Map<number, PageSize>();
+  for (const entry of pages) {
+    const size = sizeOf(entry);
+    if (entry.page_number !== undefined && size !== undefined) {
+      sizes.set(entry.page_number, size);
+    }
+  }
+  return sizes;
 };
 
 /** The blocks of each page, its boxes turned from points into fractions of the page. */
@@ -240,12 +293,6 @@ export const documentBlocks = (
     if (page === undefined) {
       return [];
     }
-    const size =
-      entry.page_width !== undefined &&
-      entry.page_height !== undefined &&
-      entry.page_width > 0 &&
-      entry.page_height > 0
-        ? { height: entry.page_height, width: entry.page_width }
-        : undefined;
+    const size = sizeOf(entry);
     return entry.items.flatMap((item) => blocksOfItem(item, page, size));
   });

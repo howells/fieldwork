@@ -446,6 +446,10 @@ export interface DocumentPage {
   markdown: string;
   /** An address for a picture of the page, when the parse asked for page images. It expires. */
   image?: string;
+  /** The page's width in points (1/72 inch), when the provider gives it with the blocks. */
+  width?: number;
+  /** The page's height in points (1/72 inch), when the provider gives it with the blocks. */
+  height?: number;
 }
 
 /**
@@ -481,7 +485,10 @@ export interface TableCell {
   /** Columns the cell spans, when more than one. */
   columnSpan?: number;
   text: string;
+  /** Encloses every box of the cell. */
   box?: Box;
+  /** Each box the provider gives for the cell, in its order, when it gives them one by one: a cell can sit in several. */
+  boxes?: Box[];
   /** Where each line of the cell sits, when the provider places lines. */
   lines?: LineBox[];
 }
@@ -495,6 +502,8 @@ export interface DocumentBlock {
   /** The block's content as the provider gave it: Markdown, or HTML for some tables. */
   text: string;
   box?: Box;
+  /** The page header or footer the provider read this block out of, when it was in one. */
+  container?: "header" | "footer";
   /** Where each word sits, when the parse asked for word boxes. */
   words?: WordBox[];
   /** Where each line sits, a table's cell lines included, when the parse asked for word boxes and the provider places lines. */

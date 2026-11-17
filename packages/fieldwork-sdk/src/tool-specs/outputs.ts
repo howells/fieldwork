@@ -344,6 +344,10 @@ const documentBlock = object(
       object(
         {
           box,
+          boxes: list(
+            box,
+            "Each box the cell sits in, when the provider gives them one by one; box encloses them."
+          ),
           column: whole("The column, from 0.", 0),
           columnSpan: whole("Columns the cell spans.", 1),
           lines: list(placedText),
@@ -354,6 +358,10 @@ const documentBlock = object(
         ["row", "column", "text"]
       )
     ),
+    container: choice("The page header or footer the block was read out of.", [
+      "header",
+      "footer",
+    ]),
     lines: list(placedText),
     page: whole("The physical page number, starting at 1.", 1),
     text: str,
@@ -374,8 +382,10 @@ export const PARSE_OUTPUT: FieldSchema = object(
     pages: list(
       object(
         {
+          height: number("The page's height in points."),
           markdown: str,
           pageNumber: whole("The physical page number, starting at 1.", 1),
+          width: number("The page's width in points."),
         },
         ["pageNumber", "markdown"]
       )

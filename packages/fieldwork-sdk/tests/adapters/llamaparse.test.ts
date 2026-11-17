@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { llamaparse } from "../../src/adapters/llamaparse.js";
+import { enclosing } from "../../src/document.js";
 import { Fieldwork } from "../../src/index.js";
 import { compact } from "../../src/util.js";
 import { fakeFetch } from "../helpers.js";
@@ -115,6 +116,20 @@ const grounded = page([
 const recordedParse = async () => {
   const recorded = readFileSync(
     new URL("fixtures/llamaparse-grounded.jsonl", import.meta.url),
+    "utf-8"
+  );
+  const { web } = client(
+    { body: { id: "pjb-1" } },
+    { body: job("COMPLETED", { groundedUrl: signed }) },
+    { text: recorded }
+  );
+  return await web.parse(sheet, { wordBoxes: true });
+};
+
+/** One landscape page (841.92 by 595.32 points) of an EPD from the MG-2988 benchmark, 2026-11-11: a table with a cell in nine boxes, and a footer. */
+const footerParse = async () => {
+  const recorded = readFileSync(
+    new URL("fixtures/llamaparse-grounded-footer.jsonl", import.meta.url),
     "utf-8"
   );
   const { web } = client(
@@ -239,6 +254,7 @@ describe("llamaparse parse", () => {
     expect(document.blocks).toStrictEqual([
       {
         box: { height: 0.02, left: 0.1, top: 0.1, width: 0.5 },
+        container: "header",
         page: 1,
         text: "## 600°C rating",
         type: "heading",
@@ -285,6 +301,7 @@ describe("llamaparse parse", () => {
         cells: [
           {
             box: { height: 0.01, left: 0.1, top: 0.25, width: 0.1 },
+            boxes: [{ height: 0.01, left: 0.1, top: 0.25, width: 0.1 }],
             column: 0,
             row: 0,
             text: "Size",
@@ -353,6 +370,79 @@ describe("llamaparse parse", () => {
       "absorption",
       "0.5%",
     ]);
+  });
+
+  it("gives each page its size in points from the grounded items", async () => {
+    const document = await recordedParse();
+    // The job's second page has no grounded row, so no size.
+    expect(document.pages).toStrictEqual([
+      {
+        height: 594.96,
+        markdown: "## 600°C rating",
+        pageNumber: 1,
+        width: 420,
+      },
+      { markdown: "page two", pageNumber: 2 },
+    ]);
+  });
+
+  it("marks blocks read out of a page footer, from an MG-2988 sidecar", async () => {
+    const document = await footerParse();
+    expect(document.pages?.[0]).toMatchObject({
+      height: 595.32,
+      width: 841.92,
+    });
+    expect(
+      document.blocks?.map((block) => [block.type, block.container])
+    ).toStrictEqual([
+      ["text", undefined],
+      ["text", undefined],
+      ["table", undefined],
+      ["text", "footer"],
+    ]);
+    expect(document.blocks?.[3]?.lines?.map((line) => line.text)).toStrictEqual(
+      ["One Click LCA Created with One Click LCA", "14", "eKOA (BARE)"]
+    );
+  });
+
+  it("keeps every box of a cell that sits in several, from an MG-2988 sidecar", async () => {
+    const document = await footerParse();
+    const cell = document.blocks?.[2]?.cells?.find(
+      (each) => each.row === 1 && each.column === 1
+    );
+    const sheetSize = { height: 595.32, width: 841.92 };
+    expect(cell?.boxes).toHaveLength(9);
+    expect(cell?.boxes?.[0]).toStrictEqual({
+      height: 9.5 / sheetSize.height,
+      left: 272.23 / sheetSize.width,
+      top: 91.57 / sheetSize.height,
+      width: 124.74 / sheetSize.width,
+    });
+    expect(cell?.box).toStrictEqual(enclosing(cell?.boxes ?? []));
+    expect(cell?.lines).toHaveLength(9);
+  });
+
+  it("reads a cell box given as one object, not a list", async () => {
+    const one = page([
+      {
+        ...table,
+        grounding: { rows: [[{ bbox: { h: 8, w: 40, x: 40, y: 200 } }]] },
+      },
+    ]);
+    const { web } = client(
+      { body: { id: "pjb-1" } },
+      { body: job("COMPLETED", { groundedUrl: signed }) },
+      { text: `${JSON.stringify(one)}\n` }
+    );
+    const document = await web.parse(sheet, { wordBoxes: true });
+    const size = { height: 0.01, left: 0.1, top: 0.25, width: 0.1 };
+    expect(document.blocks?.[0]?.cells?.[0]).toStrictEqual({
+      box: size,
+      boxes: [size],
+      column: 0,
+      row: 0,
+      text: "Size",
+    });
   });
 
   it("fails loudly when the word boxes it asked for are missing", async () => {

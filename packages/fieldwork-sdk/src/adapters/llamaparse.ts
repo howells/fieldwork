@@ -23,6 +23,7 @@ import {
   ItemsPage,
   JobResult,
   JobStart,
+  pageSizes,
 } from "./llamaparse/response.js";
 import type { JobResultBlock } from "./llamaparse/response.js";
 
@@ -54,7 +55,7 @@ export interface LlamaParseParseOptions extends CallOptions {
   tier?: LlamaParseTier;
   /** The parser version: "latest" (the default) or a date such as "2026-09-28". */
   version?: string;
-  /** Return layout blocks with positions. */
+  /** Return layout blocks with positions, and each page's size in points. */
   blocks?: boolean;
   /**
    * Also return where each word, line and table cell sits in each block, and
@@ -244,6 +245,13 @@ const parsedDocument = async (
     o.wordBoxes === true ? await groundedPages(found, read) : undefined;
   const images =
     o.pageImages === true ? pageImageAddresses(found, id) : undefined;
+  let laidOut;
+  if (grounded !== undefined) {
+    laidOut = grounded.map((row) => z.parse(ItemsPage, row));
+  } else if (o.blocks === true) {
+    laidOut = found.value.items.pages;
+  }
+  const sizes = laidOut === undefined ? undefined : pageSizes(laidOut);
   const pages = found.value.markdown.pages.flatMap((page) => {
     if (page.page_number === undefined) {
       return [];
@@ -256,22 +264,19 @@ const parsedDocument = async (
         { cause: found.original, provider }
       );
     }
+    const size = sizes?.get(page.page_number);
     return [
       compact({
+        height: size?.height,
         image,
         markdown: page.markdown ?? "",
         pageNumber: page.page_number,
+        width: size?.width,
       }),
     ];
   });
-  let laidOut;
-  if (grounded !== undefined) {
-    laidOut = documentBlocks(grounded.map((row) => z.parse(ItemsPage, row)));
-  } else if (o.blocks === true) {
-    laidOut = documentBlocks(found.value.items.pages);
-  }
   return compact({
-    blocks: laidOut,
+    blocks: laidOut === undefined ? undefined : documentBlocks(laidOut),
     id,
     markdown: pages.map((page) => page.markdown).join("\n\n"),
     meta: meta({ credits: found.value.job.usage.credits }),
