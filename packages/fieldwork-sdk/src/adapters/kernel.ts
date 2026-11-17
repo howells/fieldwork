@@ -38,7 +38,7 @@ import {
   FetchedFile,
   RenderedPage,
 } from "./kernel/response.js";
-import { inSession, sessionBody } from "./kernel/session.js";
+import { inSession, sessionBody, sessionMeta } from "./kernel/session.js";
 
 /** Settings for `kernel()`. */
 export interface KernelConfig {
@@ -363,8 +363,9 @@ const downloadFile = async (
     }
   );
   const { file, response } = value;
+  const billedMeta = sessionMeta(id, billed);
   if (file.tooLarge !== undefined) {
-    throw tooLarge(provider, url, file.tooLarge, limit);
+    throw tooLarge(provider, url, file.tooLarge, limit, billedMeta);
   }
   const ok =
     file.status !== undefined && file.status >= 200 && file.status <= 299;
@@ -372,7 +373,7 @@ const downloadFile = async (
     throw new FieldworkError(
       "ProviderError",
       `kernel downloaded ${url} but the script returned no bytes`,
-      { cause: response, provider }
+      { cause: response, meta: billedMeta, provider }
     );
   }
   const { headers } = file;
@@ -382,11 +383,7 @@ const downloadFile = async (
       body: { base64: file.data ?? "" },
       contentType: header(headers, "content-type"),
       headers,
-      meta: meta({
-        requestId: id,
-        units: { uptime_ms: billed.uptimeMs },
-        warnings: billed.warning,
-      }),
+      meta: billedMeta,
       raw: { browser: created, execute: response },
       requested: url,
       statusCode: file.status,

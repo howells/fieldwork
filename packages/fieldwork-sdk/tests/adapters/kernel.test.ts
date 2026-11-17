@@ -184,14 +184,16 @@ describe("kernel adapter", () => {
             success: false,
           },
         },
-        deleted
+        deleted,
+        billed
       );
       await expect(web.read(URL_READ)).rejects.toMatchObject({
         code: "ProviderError",
         message: expect.stringContaining("Timeout 90000ms exceeded"),
+        meta: { requestId: "s1", usage: { units: { uptime_ms: 4200 } } },
       });
       expect(nth(calls, 2).method).toBe("DELETE");
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(4);
     });
 
     it("names the browser it could not delete after a failure, keeping the failure's code", async () => {
@@ -217,17 +219,19 @@ describe("kernel adapter", () => {
       });
     });
 
-    it("rethrows the failure unchanged when Kernel says the browser is already gone", async () => {
+    it("rethrows the failure with its billed time when Kernel says the browser is already gone", async () => {
       const { web, calls } = client(
         created,
         { body: { error: "boom", success: false } },
-        { body: { message: "no such browser" }, status: 404 }
+        { body: { message: "no such browser" }, status: 404 },
+        billed
       );
       await expect(web.read(URL_READ)).rejects.toMatchObject({
         code: "ProviderError",
         message: "kernel could not load https://shop.test/tile: boom",
+        meta: { requestId: "s1", usage: { units: { uptime_ms: 4200 } } },
       });
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(4);
     });
 
     it("returns the page when the browser is already gone", async () => {
@@ -346,14 +350,20 @@ describe("kernel adapter", () => {
 
     it("fails, after deleting the browser, when the script returns no HTML", async () => {
       const execute = { result: null, success: true };
-      const { web, calls } = client(created, { body: execute }, deleted);
+      const { web, calls } = client(
+        created,
+        { body: execute },
+        deleted,
+        billed
+      );
       await expect(web.read(URL_READ)).rejects.toMatchObject({
         cause: execute,
         code: "ProviderError",
         message: expect.stringContaining("returned no HTML"),
+        meta: { requestId: "s1", usage: { units: { uptime_ms: 4200 } } },
       });
       expect(nth(calls, 2).method).toBe("DELETE");
-      expect(calls).toHaveLength(3);
+      expect(calls).toHaveLength(4);
     });
 
     it("warns when the rendered page has no text", async () => {

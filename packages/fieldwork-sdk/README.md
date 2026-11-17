@@ -203,9 +203,10 @@ Every failure is a `FieldworkError`. It carries:
 - `retryable`: whether repeating the same call can succeed;
 - `retryAfter`, in seconds, when the provider sent one;
 - `jobId`, when a job had already started;
+- `meta`, when the provider billed the call before it failed: the usage it reported, in the shape a result's `meta` has, such as `meta.usage.credits` for a Firecrawl download that reached a web page;
 - the provider's response, as `cause`.
 
-`error.toJSON()` returns these fields without the provider's response.
+`error.toJSON()` returns these fields without the provider's response or `meta`.
 
 | Code | What happened | What to do |
 | --- | --- | --- |

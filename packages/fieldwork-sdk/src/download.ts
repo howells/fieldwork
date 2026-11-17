@@ -53,19 +53,20 @@ export const byteLimit = (
   return maxBytes;
 };
 
-/** The error for a file over the limit. */
+/** The error for a file over the limit, with what the provider billed for the fetch when it billed one. */
 export const tooLarge = (
   provider: string,
   url: string,
   size: number | undefined,
-  limit: number
+  limit: number,
+  meta?: Meta
 ) =>
   new FieldworkError(
     "TooLarge",
     `${provider} could not download ${url}: the file is ${
       size === undefined ? "larger than" : `${size} bytes, over`
     } the limit of ${limit} bytes`,
-    { provider }
+    { meta, provider }
   );
 
 /** Content types that are web pages rather than files. */
@@ -101,7 +102,7 @@ export const header = (
 
 /** Throws `NotFound` for a 404 or 410 and `ProviderError` for any other status that is not 2xx. */
 const checkStatus = (provider: string, fetched: Fetched): void => {
-  const { requested, statusCode } = fetched;
+  const { meta, requested, statusCode } = fetched;
   if (statusCode === undefined) {
     return;
   }
@@ -109,14 +110,14 @@ const checkStatus = (provider: string, fetched: Fetched): void => {
     throw new FieldworkError(
       "NotFound",
       `${provider} could not download ${requested}: it answered ${statusCode}`,
-      { provider, status: statusCode }
+      { meta, provider, status: statusCode }
     );
   }
   if (statusCode < 200 || statusCode > 299) {
     throw new FieldworkError(
       "ProviderError",
       `${provider} could not download ${requested}: it answered ${statusCode}`,
-      { cause: fetched.raw, provider, status: statusCode }
+      { cause: fetched.raw, meta, provider, status: statusCode }
     );
   }
 };
@@ -125,20 +126,21 @@ const checkStatus = (provider: string, fetched: Fetched): void => {
  * The checked file. Throws `NotFound` for a 404 or 410, `ProviderError` for
  * any other status that is not 2xx or a reply with no content type,
  * `NotAFile` for an HTML page, and `TooLarge` for more bytes than `limit`.
+ * Each error carries the fetch's `meta`: the provider billed it.
  */
 export const presentFile = (
   provider: string,
   fetched: Fetched,
   limit: number
 ): DownloadedFile => {
-  const { requested, statusCode } = fetched;
+  const { meta, requested, statusCode } = fetched;
   checkStatus(provider, fetched);
   const { contentType } = fetched;
   if (contentType === undefined || contentType === "") {
     throw new FieldworkError(
       "ProviderError",
       `${provider} downloaded ${requested} but reported no content type`,
-      { cause: fetched.raw, provider }
+      { cause: fetched.raw, meta, provider }
     );
   }
   const mediaType = contentType.split(";")[0]?.trim().toLowerCase() ?? "";
@@ -146,7 +148,7 @@ export const presentFile = (
     throw new FieldworkError(
       "NotAFile",
       `${provider} could not download ${requested}: it is a web page (${contentType}), not a file`,
-      { provider }
+      { meta, provider }
     );
   }
   const bytes =
@@ -154,7 +156,7 @@ export const presentFile = (
       ? new Uint8Array(Buffer.from(fetched.body.base64, "base64"))
       : new TextEncoder().encode(fetched.body.utf8);
   if (bytes.byteLength > limit) {
-    throw tooLarge(provider, requested, bytes.byteLength, limit);
+    throw tooLarge(provider, requested, bytes.byteLength, limit, meta);
   }
   return {
     bytes,
@@ -163,7 +165,7 @@ export const presentFile = (
       etag: header(fetched.headers, "etag"),
       lastModified: header(fetched.headers, "last-modified"),
     }),
-    ...(fetched.meta && { meta: fetched.meta }),
+    ...(meta && { meta }),
     raw: fetched.raw,
     size: bytes.byteLength,
     ...(statusCode !== undefined && { statusCode }),

@@ -67,11 +67,12 @@ export const downloadFile = async (
   }
   const { data, warning } = z.parse(ScrapeResponse, response);
   const { metadata } = data;
+  const meta = pageMeta(data, warning.notes);
   if (data.rawBase64 === undefined) {
     throw new FieldworkError(
       "ProviderError",
       `firecrawl downloaded ${url} but returned no rawBase64 content`,
-      { cause: response, provider }
+      { cause: response, meta, provider }
     );
   }
   return presentFile(
@@ -79,7 +80,7 @@ export const downloadFile = async (
     {
       body: { base64: data.rawBase64 },
       contentType: metadata.contentType,
-      meta: pageMeta(data, warning.notes),
+      meta,
       raw: response,
       requested: url,
       statusCode: metadata.statusCode,

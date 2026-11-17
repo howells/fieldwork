@@ -2,6 +2,8 @@
 // codes. http.ts raises these for transport and status failures; adapters raise
 // them for the rest; job.ts attaches `jobId`.
 
+import type { Meta } from "./types.js";
+
 /** Why a call failed. Branch on this, not on the message, which can change. */
 export type FieldworkErrorCode =
   /** The adapter's provider does not offer this capability. */
@@ -41,6 +43,8 @@ export interface FieldworkErrorOptions {
   retryable?: boolean;
   /** What the failure came from, such as the provider's parsed error body or the underlying fetch error. */
   cause?: unknown;
+  /** What the provider reported for a call it billed before the failure. */
+  meta?: Meta;
 }
 
 /** The one error type every adapter throws, with a normalized code. */
@@ -64,6 +68,13 @@ export class FieldworkError extends Error {
    * set, because repeating the call would start a second job; resume it.
    */
   readonly retryable: boolean;
+  /**
+   * What the provider reported for a call it billed before the failure, in
+   * the shape a result's `meta` has: `meta.usage.credits` for Firecrawl's
+   * scrape, `meta.usage.units.uptime_ms` for a Kernel session. Absent when
+   * the call failed before the provider billed anything.
+   */
+  readonly meta?: Meta;
 
   constructor(
     code: FieldworkErrorCode,
@@ -76,6 +87,7 @@ export class FieldworkError extends Error {
     this.status = options.status;
     this.retryAfter = options.retryAfter;
     this.jobId = options.jobId;
+    this.meta = options.meta;
     this.retryable =
       options.jobId === undefined &&
       (options.retryable ?? isRetryable(code, options.status));
@@ -116,6 +128,7 @@ export const withJob = <E>(error: E, jobId: string): E | FieldworkError => {
   return new FieldworkError(error.code, error.message, {
     cause: error.cause,
     jobId,
+    meta: error.meta,
     provider: error.provider,
     retryAfter: error.retryAfter,
     status: error.status,

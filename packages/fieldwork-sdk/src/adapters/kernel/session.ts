@@ -9,7 +9,7 @@ import { segment } from "../../http.js";
 import type { RawClient } from "../../http.js";
 import { runJob } from "../../job.js";
 import type { CallOptions } from "../../types.js";
-import { compact, requireJobId } from "../../util.js";
+import { compact, meta, requireJobId } from "../../util.js";
 import type { KernelProfile, KernelProxy } from "../kernel.js";
 import { BrowserResponse, DeletedBrowserResponse } from "./response.js";
 
@@ -135,6 +135,17 @@ const billedTime = async (
   }
 };
 
+/** A session's billed time as `meta`: `usage.units.uptime_ms`, or a warning saying why it is missing. */
+export const sessionMeta = (
+  id: string,
+  billed: { uptimeMs?: number; warning?: string }
+) =>
+  meta({
+    requestId: id,
+    units: { uptime_ms: billed.uptimeMs },
+    warnings: billed.warning,
+  });
+
 /** What a session ran, the session's billed time, and Kernel's create reply. */
 interface SessionRun<T> {
   id: string;
@@ -146,7 +157,8 @@ interface SessionRun<T> {
 /**
  * Runs `work` in a new headless session and deletes the session whether or
  * not the work succeeded. A failure whose session could not be deleted fails
- * with its own error, naming the session that still bills.
+ * with its own error, naming the session that still bills; one whose session
+ * was deleted carries the session's billed time as `meta`.
  */
 export const inSession = async <T>(
   raw: RawClient,
@@ -174,7 +186,18 @@ export const inSession = async <T>(
   if (!done.ok) {
     const { error } = done;
     if (unreleased === undefined) {
-      throw error;
+      if (!(error instanceof FieldworkError)) {
+        throw error;
+      }
+      throw new FieldworkError(error.code, error.message, {
+        cause: error.cause,
+        jobId: error.jobId,
+        meta: sessionMeta(id, await billedTime(raw, id, call)),
+        provider: error.provider,
+        retryAfter: error.retryAfter,
+        retryable: error.retryable,
+        status: error.status,
+      });
     }
     const message = `${error instanceof Error ? error.message : String(error)}; also ${leakText(id, unreleased)}`;
     throw error instanceof FieldworkError

@@ -10,7 +10,7 @@ import { kernel } from "../../src/adapters/kernel.js";
 import { Fieldwork } from "../../src/index.js";
 import { fakeFetch, nth } from "../helpers.js";
 
-/** A real response to downloading W3C's dummy.pdf over http (which redirects to https), recorded 2026-11-17 with cookies and request ids removed. */
+/** A real provider response, recorded 2026-11-17: `firecrawl` and `browserbase-*` download W3C's dummy.pdf (cookies and request ids removed), `firecrawl-html` scrapes example.com. */
 const recorded = (name: string) => ({
   text: readFileSync(
     new URL(`fixtures/download-${name}.json`, import.meta.url),
@@ -83,7 +83,7 @@ describe("firecrawl download", () => {
   });
 
   it("reports Firecrawl's size refusal as TooLarge", async () => {
-    const { web } = firecrawlWith({
+    const refusal = {
       body: {
         code: "SCRAPE_UNSUPPORTED_FILE_ERROR",
         error:
@@ -91,11 +91,16 @@ describe("firecrawl download", () => {
         success: false,
       },
       status: 500,
-    });
+    };
+    const { web } = firecrawlWith(refusal, refusal);
     await expect(web.download(PDF_URL)).rejects.toMatchObject({
       code: "TooLarge",
       retryable: false,
     });
+    // Firecrawl refused the scrape and billed nothing.
+    await expect(web.download(PDF_URL)).rejects.not.toHaveProperty(
+      "meta.usage"
+    );
   });
 
   it("refuses a file over maxBytes", async () => {
@@ -105,25 +110,16 @@ describe("firecrawl download", () => {
     ).rejects.toMatchObject({
       code: "TooLarge",
       message: expect.stringContaining("13264 bytes"),
+      meta: { usage: { credits: 1 } },
     });
   });
 
-  it("refuses a web page as NotAFile", async () => {
-    const { web } = firecrawlWith({
-      body: {
-        data: {
-          metadata: {
-            contentType: "text/html; charset=utf-8",
-            statusCode: 200,
-            url: "https://example.com/",
-          },
-          rawBase64: "PCFkb2N0eXBlIGh0bWw+",
-        },
-        success: true,
-      },
-    });
-    await expect(web.download("https://example.com")).rejects.toMatchObject({
+  it("refuses a web page as NotAFile, with the credit Firecrawl billed for it", async () => {
+    // https://example.com/ scraped with rawBase64, recorded 2026-11-17.
+    const { web } = firecrawlWith(recorded("firecrawl-html"));
+    await expect(web.download("https://example.com/")).rejects.toMatchObject({
       code: "NotAFile",
+      meta: { usage: { credits: 1 } },
     });
   });
 
@@ -151,6 +147,13 @@ describe("firecrawl download", () => {
       { code: "InvalidRequest" }
     );
     expect(calls).toHaveLength(0);
+  });
+
+  it("carries no usage on an error before the scrape", async () => {
+    const { web } = firecrawlWith();
+    await expect(
+      web.download("ftp://example.com/a.pdf")
+    ).rejects.not.toHaveProperty("meta.usage");
   });
 });
 
@@ -284,6 +287,7 @@ describe("kernel download", () => {
     );
     await expect(web.download(PDF_URL)).rejects.toMatchObject({
       code: "TooLarge",
+      meta: { requestId: "s1", usage: { units: { uptime_ms: 2100 } } },
     });
     expect(nth(calls, 2).method).toBe("DELETE");
   });
