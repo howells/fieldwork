@@ -16,7 +16,13 @@ import {
   optionalString,
   withOriginal,
 } from "../../parse.js";
-import type { Box, DocumentBlock, TableCell, WordBox } from "../../types.js";
+import type {
+  Box,
+  DocumentBlock,
+  LineBox,
+  TableCell,
+  WordBox,
+} from "../../types.js";
 import { compact } from "../../util.js";
 
 /** A box in page points, from the page's top-left corner. */
@@ -27,10 +33,14 @@ const PointBox = looseObject({
   y: optionalNumber,
 });
 
-/** A word: `span` is `[start, end)` in UTF-8 bytes of its item's text. */
+/** A word or a line: `span` is `[start, end)` in UTF-8 bytes of its item's `md`, or of its cell's text in a table. */
 const Word = looseObject({ bbox: PointBox, span: arrayOf(z.number()) });
 
-const Line = looseObject({ words: arrayOf(Word) });
+const Line = looseObject({
+  bbox: PointBox,
+  span: arrayOf(z.number()),
+  words: arrayOf(Word),
+});
 
 const Cell = looseObject({ bbox: arrayOf(PointBox), lines: arrayOf(Line) });
 
@@ -97,6 +107,7 @@ type ItemsPageBlock = z.output<typeof ItemsPage>;
 type ItemBlock = z.output<typeof Item>;
 type PointBoxBlock = z.output<typeof PointBox>;
 type LineBlock = z.output<typeof Line>;
+type WordBlock = z.output<typeof Word>;
 
 interface PageSize {
   width: number;
@@ -134,39 +145,58 @@ const around = (
       .filter((box): box is Box => box !== undefined)
   );
 
-const wordsOf = (
+/** Each word or line that has a box and a span, with the text its span covers. */
+const placed = (
+  spans: readonly (WordBlock | LineBlock)[],
+  bytes: Uint8Array,
+  size: PageSize
+): { box: Box; text: string }[] =>
+  spans.flatMap((each) => {
+    const box = fraction(each.bbox, size);
+    const [start, end] = each.span;
+    if (box === undefined || start === undefined || end === undefined) {
+      return [];
+    }
+    return [{ box, text: decoder.decode(bytes.slice(start, end)) }];
+  });
+
+/** The words and the lines of `lines`, whose spans count bytes of `text`. */
+const grounded = (
   lines: readonly LineBlock[],
   text: string,
   size: PageSize
-): WordBox[] => {
+) => {
   const bytes = encoder.encode(text);
-  return lines.flatMap((line) =>
-    line.words.flatMap((word) => {
-      const box = fraction(word.bbox, size);
-      const [start, end] = word.span;
-      if (box === undefined || start === undefined || end === undefined) {
-        return [];
-      }
-      return [{ box, text: decoder.decode(bytes.slice(start, end)) }];
-    })
-  );
+  return {
+    lines: placed(lines, bytes, size),
+    words: lines.flatMap((line) => placed(line.words, bytes, size)),
+  };
 };
 
 const tableOf = (item: ItemBlock, size: PageSize) => {
   const cells: TableCell[] = [];
+  const lines: LineBox[] = [];
   const words: WordBox[] = [];
-  for (const [row, grounded] of item.grounding.rows.entries()) {
-    for (const [column, cell] of grounded.entries()) {
+  for (const [row, groundedRow] of item.grounding.rows.entries()) {
+    for (const [column, cell] of groundedRow.entries()) {
       const text = item.rows[row]?.[column];
       if (text !== undefined) {
+        const inCell = grounded(cell.lines, text, size);
         cells.push(
-          compact({ box: around(cell.bbox, size), column, row, text })
+          compact({
+            box: around(cell.bbox, size),
+            column,
+            lines: inCell.lines.length > 0 ? inCell.lines : undefined,
+            row,
+            text,
+          })
         );
-        words.push(...wordsOf(cell.lines, text, size));
+        lines.push(...inCell.lines);
+        words.push(...inCell.words);
       }
     }
   }
-  return { cells, words };
+  return { cells, lines, words };
 };
 
 const blocksOfItem = (
@@ -185,11 +215,14 @@ const blocksOfItem = (
     return [{ page, text, type: item.type ?? "unknown" }];
   }
   const table = tableOf(item, size);
-  const words = [...wordsOf(item.grounding.lines, text, size), ...table.words];
+  const own = grounded(item.grounding.lines, text, size);
+  const lines = [...own.lines, ...table.lines];
+  const words = [...own.words, ...table.words];
   return [
     compact({
       box: around(item.bbox, size),
       cells: table.cells.length > 0 ? table.cells : undefined,
+      lines: lines.length > 0 ? lines : undefined,
       page,
       text,
       type: item.type ?? "unknown",

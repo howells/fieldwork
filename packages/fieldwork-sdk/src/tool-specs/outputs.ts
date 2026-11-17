@@ -334,6 +334,9 @@ const box = object(
   "Where it sits on the page, as fractions of the page's width and height from its top-left corner."
 );
 
+/** A word or a line: its text and where it sits. */
+const placedText = object({ box, text: str }, ["text", "box"]);
+
 const documentBlock = object(
   {
     box,
@@ -343,6 +346,7 @@ const documentBlock = object(
           box,
           column: whole("The column, from 0.", 0),
           columnSpan: whole("Columns the cell spans.", 1),
+          lines: list(placedText),
           row: whole("The row, from 0.", 0),
           rowSpan: whole("Rows the cell spans.", 1),
           text: str,
@@ -350,10 +354,11 @@ const documentBlock = object(
         ["row", "column", "text"]
       )
     ),
+    lines: list(placedText),
     page: whole("The physical page number, starting at 1.", 1),
     text: str,
     type: str,
-    words: list(object({ box, text: str }, ["text", "box"])),
+    words: list(placedText),
   },
   ["page", "type", "text"]
 );

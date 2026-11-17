@@ -57,8 +57,8 @@ export interface LlamaParseParseOptions extends CallOptions {
   /** Return layout blocks with positions. */
   blocks?: boolean;
   /**
-   * Also return where each word and table cell sits in each block, from a
-   * second download. Returns blocks too.
+   * Also return where each word, line and table cell sits in each block, and
+   * each line of a cell, from a second download. Returns blocks too.
    */
   wordBoxes?: boolean;
   /** Leave out text a reader cannot see, such as white text on white. */
@@ -186,7 +186,7 @@ const finished = (id: string, found: JobResultBlock) => {
   return state === "done" ? found : undefined;
 };
 
-/** The grounded items: one JSON line per page, each page's items with word and cell boxes. */
+/** The grounded items: one JSON line per page, each page's items with word, line and cell boxes. */
 const groundedPages = async (
   found: JobResultBlock,
   options: { fetch?: typeof fetch; signal?: AbortSignal }

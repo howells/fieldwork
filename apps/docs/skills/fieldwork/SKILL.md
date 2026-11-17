@@ -67,7 +67,7 @@ Climb only as far as the job needs.
 | Answer | Exa | Parallel to restrict cited domains; Perplexity |
 | Research | Exa | Parallel when each field needs its source |
 | Map, crawl | Firecrawl | Tavily |
-| Parse | Firecrawl (Markdown, `pages` per page) | Reducto when word and table-cell positions matter; LlamaParse also places words and can leave out hidden text |
+| Parse | Firecrawl (Markdown, `pages` per page) | Reducto when word and table-cell positions matter; LlamaParse also places words and lines and can leave out hidden text |
 | Entities, decisions | Parallel | Perplexity for decisions |
 | Usage | Firecrawl | Tavily, SerpApi, Browserbase |
 

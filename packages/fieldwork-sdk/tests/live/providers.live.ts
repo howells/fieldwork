@@ -459,6 +459,9 @@ describe.skipIf(!has("LLAMA_CLOUD_API_KEY"))("llamaparse, live", () => {
     expect(document.blocks?.some((block) => block.words !== undefined)).toBe(
       true
     );
+    expect(document.blocks?.some((block) => block.lines !== undefined)).toBe(
+      true
+    );
   });
 });
 

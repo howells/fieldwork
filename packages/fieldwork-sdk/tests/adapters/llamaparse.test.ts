@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 
 import { llamaparse } from "../../src/adapters/llamaparse.js";
@@ -108,6 +110,28 @@ const grounded = page([
     },
   },
 ]);
+
+/** One A5 page (420 by 594.96 points) parsed on the agentic tier with word, line and cell boxes, 2026-11-17. */
+const recordedParse = async () => {
+  const recorded = readFileSync(
+    new URL("fixtures/llamaparse-grounded.jsonl", import.meta.url),
+    "utf-8"
+  );
+  const { web } = client(
+    { body: { id: "pjb-1" } },
+    { body: job("COMPLETED", { groundedUrl: signed }) },
+    { text: recorded }
+  );
+  return await web.parse(sheet, { wordBoxes: true });
+};
+
+/** A box in the recorded page's points, as fractions of the page. */
+const points = (x: number, y: number, w: number, h: number) => ({
+  height: h / 594.96,
+  left: x / 420,
+  top: y / 594.96,
+  width: w / 420,
+});
 
 const groundedClient = () =>
   client(
@@ -282,6 +306,53 @@ describe("llamaparse parse", () => {
       groundedItems: [grounded, page([])],
       job: job("COMPLETED", { groundedUrl: signed }),
     });
+  });
+
+  it("reads each block's line boxes from recorded grounded items", async () => {
+    const document = await recordedParse();
+    const [title, paragraph] = document.blocks ?? [];
+    // The span skips the heading's "## ".
+    expect(title?.lines).toStrictEqual([
+      {
+        box: points(52.25, 61.22, 263.49, 15.86),
+        text: "Fieldwork line test — 600°C rating",
+      },
+    ]);
+    expect(title?.words).toHaveLength(6);
+    expect(paragraph?.lines?.map((line) => line.text)).toStrictEqual([
+      "This sheet describes a ceramic tile rated for use up to 600°C.",
+      "The paragraph runs long enough to wrap onto a second line and",
+      "a third, so the parser has several lines to report.",
+    ]);
+  });
+
+  it("reads a table cell's lines from recorded grounded items", async () => {
+    const document = await recordedParse();
+    const specs = document.blocks?.[2];
+    // A cell's spans count bytes of the cell's own text, not the table's.
+    const finish = specs?.cells?.find(
+      (cell) => cell.row === 2 && cell.column === 1
+    );
+    expect(finish?.lines).toStrictEqual([
+      {
+        box: points(148.1, 186.03, 204.98, 10.5),
+        text: "Glazed, matte surface that wraps over two",
+      },
+      { box: points(148.31, 198.21, 46.47, 8.25), text: "lines here" },
+    ]);
+    // The table's lines are its cells' lines, in reading order.
+    expect(specs?.lines?.map((line) => line.text)).toStrictEqual([
+      "Property",
+      "Value",
+      "Size",
+      "12 × 24 in",
+      "Finish",
+      "Glazed, matte surface that wraps over two",
+      "lines here",
+      "Water",
+      "absorption",
+      "0.5%",
+    ]);
   });
 
   it("fails loudly when the word boxes it asked for are missing", async () => {

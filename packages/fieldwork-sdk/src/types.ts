@@ -465,6 +465,13 @@ export interface WordBox {
   box: Box;
 }
 
+/** A line of text as the page lays it out, and where it sits. */
+export interface LineBox {
+  /** The line's part of its block's or cell's text, as the provider wrote it: Markdown, so it can carry `**` or an escape. */
+  text: string;
+  box: Box;
+}
+
 /** A table cell and where it sits. Rows and columns count from 0. */
 export interface TableCell {
   row: number;
@@ -475,6 +482,8 @@ export interface TableCell {
   columnSpan?: number;
   text: string;
   box?: Box;
+  /** Where each line of the cell sits, when the provider places lines. */
+  lines?: LineBox[];
 }
 
 /** One piece of a page's layout: a heading, a paragraph, a table, a figure. */
@@ -488,6 +497,8 @@ export interface DocumentBlock {
   box?: Box;
   /** Where each word sits, when the parse asked for word boxes. */
   words?: WordBox[];
+  /** Where each line sits, a table's cell lines included, when the parse asked for word boxes and the provider places lines. */
+  lines?: LineBox[];
   /** A table's cells, when the parse asked for word boxes. */
   cells?: TableCell[];
 }
