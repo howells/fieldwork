@@ -69,6 +69,8 @@ export interface LlamaParseParseOptions extends CallOptions {
    * expires after about an hour. Collect fresh addresses with
    * `parse({ resume: id, pageImages: true })`; a parse started without
    * `pageImages` saved no pictures, so resuming it with them throws.
+   * LlamaParse draws no pictures of a spreadsheet, so its pages come back
+   * without `image`.
    */
   pageImages?: boolean;
   /** The id of a job from an error's `jobId`; waits for it instead of starting another. */
@@ -207,8 +209,27 @@ const groundedPages = async (
     .map((line) => parseJson(provider, line));
 };
 
-/** Each page's picture, keyed by page number, from the job's saved screenshots. */
-const pageImageAddresses = (found: JobResultBlock, id: string) => {
+/**
+ * Spreadsheet files, which LlamaParse reads sheet by sheet into tables and
+ * never draws, so it saves no page pictures for them: the inputs its
+ * Spreadsheets page lists, by extension.
+ */
+const SPREADSHEET =
+  /\.(?:csv|dbf|dif|numbers|ods|slk|tsv|xls|xlsb|xlsm|xlsx)$/iu;
+
+/**
+ * Each page's picture, keyed by page number, from the job's saved
+ * screenshots; empty when LlamaParse drew none for a job that asked.
+ * LlamaParse does not say what a job asked for, so a job counts as having
+ * asked when this call started it with `pageImages`, or when its file is a
+ * spreadsheet, which has no pictures whatever it asked. A resumed job with
+ * no pictures otherwise was started without `pageImages`, and throws.
+ */
+const pageImageAddresses = (
+  found: JobResultBlock,
+  id: string,
+  started: boolean
+) => {
   const addresses = new Map<number, string>();
   for (const image of found.value.images_content_metadata.images) {
     const page = PAGE_IMAGE.exec(image.filename ?? "")?.groups?.page;
@@ -216,7 +237,8 @@ const pageImageAddresses = (found: JobResultBlock, id: string) => {
       addresses.set(Number(page), image.presigned_url);
     }
   }
-  if (addresses.size === 0) {
+  const asked = started || SPREADSHEET.test(found.value.job.name ?? "");
+  if (addresses.size === 0 && !asked) {
     throw new FieldworkError(
       "ProviderError",
       `llamaparse job ${id} has no page pictures; only a parse started with pageImages saves them`,
@@ -231,7 +253,8 @@ const parsedDocument = async (
   found: JobResultBlock,
   id: string,
   o: LlamaParseParseOptions,
-  read: { fetch?: typeof fetch; signal?: AbortSignal }
+  read: { fetch?: typeof fetch; signal?: AbortSignal },
+  started: boolean
 ): Promise<ParsedDocument> => {
   // A blank page still arrives as a page; a finished job with none lost its output.
   if (found.value.markdown.pages.length === 0) {
@@ -244,7 +267,7 @@ const parsedDocument = async (
   const grounded =
     o.wordBoxes === true ? await groundedPages(found, read) : undefined;
   const images =
-    o.pageImages === true ? pageImageAddresses(found, id) : undefined;
+    o.pageImages === true ? pageImageAddresses(found, id, started) : undefined;
   let laidOut;
   if (grounded !== undefined) {
     laidOut = grounded.map((row) => z.parse(ItemsPage, row));
@@ -257,7 +280,8 @@ const parsedDocument = async (
       return [];
     }
     const image = images?.get(page.page_number);
-    if (images !== undefined && image === undefined) {
+    // Pictures of some pages but not this one is a lost picture, not a format LlamaParse never draws.
+    if (images !== undefined && images.size > 0 && image === undefined) {
       throw new FieldworkError(
         "ProviderError",
         `llamaparse job ${id} has no picture of page ${page.page_number}`,
@@ -297,6 +321,8 @@ const parse = async (
 ): Promise<ParsedDocument> => {
   const { call, rest: o } = callSettings(options);
   const blocks = o.blocks === true || o.wordBoxes === true;
+  // Set when this call uploads the file, so the job asked for exactly what `o` asks for.
+  let started = false;
   const expand = [
     "markdown",
     "usage",
@@ -318,11 +344,20 @@ const parse = async (
           )
         ),
       finish: async (found, id) =>
-        await parsedDocument(found, id, o, {
-          fetch: fetchImpl,
-          signal: call.signal,
-        }),
-      start: async () => await startParse(raw, document, o, call),
+        await parsedDocument(
+          found,
+          id,
+          o,
+          {
+            fetch: fetchImpl,
+            signal: call.signal,
+          },
+          started
+        ),
+      start: async () => {
+        started = true;
+        return await startParse(raw, document, o, call);
+      },
     },
     { ...call, interval: o.interval, resume: o.resume }
   );

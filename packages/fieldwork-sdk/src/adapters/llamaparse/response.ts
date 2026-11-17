@@ -98,6 +98,8 @@ export const JobResult = withOriginal(
     items: looseObject({ pages: arrayOf(ItemsPage) }),
     job: looseObject({
       error_message: optionalString,
+      /** The file's name as uploaded, or as read from its address. */
+      name: optionalString,
       status: optionalString,
       usage: looseObject({ credits: optionalNumber }),
     }),

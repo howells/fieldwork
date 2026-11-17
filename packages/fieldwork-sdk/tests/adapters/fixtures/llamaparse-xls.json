@@ -1,0 +1,50 @@
+{
+  "job": {
+    "user_metadata": null,
+    "id": "pjb-6psmc2jbeibyqqs1s5pc8pnlybco",
+    "created_at": "2026-11-17T12:21:47.220033Z",
+    "updated_at": "2026-11-17T12:21:48.464006Z",
+    "project_id": "343e88d7-a955-4cfc-9b37-a2ddc366e7c6",
+    "status": "COMPLETED",
+    "error_message": null,
+    "name": "SampleSS.xls",
+    "tier": "agentic",
+    "usage": {
+      "credits": 2
+    }
+  },
+  "result_content_metadata": {
+    "grounded_items": {
+      "size_bytes": 2105,
+      "exists": true,
+      "presigned_url": "https://files.s3.test/recorded?X-Amz-Signature=s"
+    }
+  },
+  "text": null,
+  "markdown": {
+    "pages": [
+      {
+        "page_number": 1,
+        "markdown": "<table><tr><td>Test spreadsheet</td><td></td></tr><tr><td>2nd row</td><td>2nd row 2nd column</td></tr><tr><td></td><td></td></tr><tr><td>This one is red</td><td></td></tr></table>",
+        "success": true
+      },
+      {
+        "page_number": 2,
+        "markdown": "<table><tr><td>Start of 2nd sheet</td><td></td><td></td><td></td></tr><tr><td>Sheet 2 row 2</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>I&apos;m in bold blue, on a yellow background</td><td></td><td></td><td></td></tr><tr><td></td><td></td><td></td><td></td></tr><tr><td>cb=1</td><td>cb=10</td><td>cb=2</td><td>cb=sum</td></tr><tr><td>1</td><td>10</td><td>2</td><td>13</td></tr></table>",
+        "success": true
+      }
+    ]
+  },
+  "items": null,
+  "metadata": null,
+  "forms": null,
+  "markdown_full": null,
+  "text_full": null,
+  "images_content_metadata": {
+    "total_count": 0,
+    "images": []
+  },
+  "job_metadata": null,
+  "raw_parameters": null,
+  "debug": null
+}

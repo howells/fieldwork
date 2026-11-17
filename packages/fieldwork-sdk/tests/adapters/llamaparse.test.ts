@@ -35,6 +35,11 @@ const upload = (calls: RecordedCall[]): FormData => {
 const configurationOf = (calls: RecordedCall[]): Response =>
   new Response(upload(calls).get("configuration"));
 
+/** A job response recorded from LlamaParse, with its presigned addresses replaced. */
+const recordedJob = (fixture: string) => ({
+  text: readFileSync(new URL(`fixtures/${fixture}`, import.meta.url), "utf-8"),
+});
+
 const page = (items: unknown[]) => ({
   items,
   page_height: 800,
@@ -551,11 +556,61 @@ describe("llamaparse parse", () => {
     ]);
   });
 
-  it("fails loudly when the job saved no page pictures", async () => {
-    const { web } = client({ body: job("COMPLETED") });
+  it("fails loudly when a resumed job saved no page pictures, from a PDF parsed without them", async () => {
+    // A 9-page PDF parsed on the cost_effective tier without pageImages, 2026-11-17.
+    const { web } = client({
+      ...recordedJob("llamaparse-pdf-no-pictures.json"),
+    });
     await expect(
-      web.parse({ pageImages: true, resume: "pjb-9" })
-    ).rejects.toMatchObject({ code: "ProviderError", jobId: "pjb-9" });
+      web.parse({
+        pageImages: true,
+        resume: "pjb-7nkytxwfqpopha4pf0soxps6w7ij",
+      })
+    ).rejects.toMatchObject({
+      code: "ProviderError",
+      jobId: "pjb-7nkytxwfqpopha4pf0soxps6w7ij",
+      message:
+        "llamaparse job pjb-7nkytxwfqpopha4pf0soxps6w7ij has no page pictures; only a parse started with pageImages saves them",
+    });
+  });
+
+  // Apache POI's SampleSS.xlsx and SampleSS.xls, parsed on the agentic tier
+  // with pageImages, 2026-11-17: LlamaParse returns a page per sheet and no pictures.
+  it.each([
+    ["SampleSS.xlsx", "llamaparse-xlsx.json"],
+    ["SampleSS.xls", "llamaparse-xls.json"],
+  ])(
+    "returns the pages of %s without pictures, which LlamaParse draws none of",
+    async (name, fixture) => {
+      const { web } = client({ body: { id: "pjb-1" } }, recordedJob(fixture));
+      const document = await web.parse(
+        { data: new Uint8Array([80, 75]), name },
+        { pageImages: true }
+      );
+      expect(document.pages?.map((each) => each.pageNumber)).toStrictEqual([
+        1, 2,
+      ]);
+      expect(document.pages?.some((each) => "image" in each)).toBe(false);
+    }
+  );
+
+  it("collects a spreadsheet's pages by resuming with pageImages", async () => {
+    const { web } = client(recordedJob("llamaparse-xlsx.json"));
+    const document = await web.parse({ pageImages: true, resume: "pjb-9" });
+    expect(document.pages).toHaveLength(2);
+    expect(document.pages?.some((each) => "image" in each)).toBe(false);
+  });
+
+  it("returns pages without pictures when a parse it started got none", async () => {
+    const { web } = client(
+      { body: { id: "pjb-1" } },
+      { body: job("COMPLETED") }
+    );
+    const document = await web.parse(sheet, { pageImages: true });
+    expect(document.pages).toStrictEqual([
+      { markdown: "## 600°C rating", pageNumber: 1 },
+      { markdown: "page two", pageNumber: 2 },
+    ]);
   });
 
   it("fails loudly when a page has no picture", async () => {
