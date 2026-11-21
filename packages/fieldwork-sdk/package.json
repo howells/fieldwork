@@ -1,7 +1,7 @@
 {
   "name": "@howells/fieldwork-sdk",
-  "version": "0.10.2",
-  "description": "One API for web search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.",
+  "version": "0.11.0",
+  "description": "One API for web search, reverse image search, page reading, extraction, crawling, answers, research, browser sessions, monitoring and document parsing across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.",
   "keywords": [
     "agents",
     "brave",

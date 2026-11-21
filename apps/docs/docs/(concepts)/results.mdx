@@ -22,6 +22,7 @@ page.raw; // the provider's own response
 <AccordionItem title="What each method returns">
 
 - `search` returns `{ results, answer, images, meta, raw }`. Each result has `url`, `title`, `snippet` and, when the provider has them, `content`, `publishedAt`, `author`, `image`, `favicon` and `score`. Shopping, place, news, scholar and patent results set `kind` and carry `price`, `rating`, `reviewCount` and `place`.
+- `reverseImage` returns `{ results, meta, raw }`. Each match has `sourceUrl`, the page the image appears on, and, when the provider has them, `url` (the matched image), `thumbnailUrl`, `title`, `description`, `width`, `height`, `kind` (`"exact"` or `"visual"`), `siteName` (the site as the engine names it) and `publishedAt`.
 - `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them.
 - `readMany` returns `{ pages, failed }`. A URL that could not be read is listed in `failed` with the reason; it does not throw.
 - `extract` returns `{ data, fields }`. `data` follows your schema; `fields` lists each field's citations when the provider returns them.

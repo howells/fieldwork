@@ -3,10 +3,10 @@
 // how its response becomes results. ../serpapi.ts looks the spec up by `engine`.
 
 import { invalidRequest } from "../../errors.js";
-import type { SearchResult } from "../../types.js";
+import type { ImageMatch, SearchResult } from "../../types.js";
 import { refuseTogether } from "../../util.js";
 import type { Json } from "../../util.js";
-import type { SerpApiEngine } from "./options.js";
+import type { SerpApiEngine, SerpApiReverseImageEngine } from "./options.js";
 import {
   bounded,
   count,
@@ -18,6 +18,9 @@ import {
   str,
 } from "./options.js";
 import {
+  bingMatches,
+  googleReverseMatches,
+  lensMatches,
   newsResults,
   patentResults,
   placeResults,
@@ -25,6 +28,7 @@ import {
   scholarResults,
   shoppingResults,
   webResults,
+  yandexMatches,
 } from "./parse.js";
 import type { SearchBody } from "./response.js";
 
@@ -235,6 +239,89 @@ export const ENGINES: Record<SerpApiEngine, EngineSpec> = {
       sort_by: count(o.sortBy),
     }),
     results: shoppingResults,
+  },
+};
+
+/**
+ * How one reverse image engine takes its image and options and reads its response,
+ * as `EngineSpec` does for `search`.
+ */
+export interface ReverseEngineSpec {
+  /** The option names the engine documents; any other set option is refused. */
+  allowed: readonly string[];
+  /** The query parameter that carries the image's URL. */
+  imageParam: "image_url" | "url";
+  /** The engine's SerpApi parameters from the allowed options. */
+  params: (o: Json) => Query;
+  /** The response's matches. A match with no page URL is left out. */
+  results: (body: SearchBody) => ImageMatch[];
+}
+
+/**
+ * Lens's `type` for `match`, or undefined when it is left out. Refuses a value
+ * other than "exact" or "visual", and `query` with "exact", which Lens ignores:
+ * `q` applies only to `all` and `visual_matches`.
+ */
+const lensType = (o: Json): string | undefined => {
+  if (o.match === undefined) {
+    return undefined;
+  }
+  if (o.match === "visual") {
+    return "visual_matches";
+  }
+  if (o.match !== "exact") {
+    throw invalidRequest(provider, 'match must be "exact" or "visual"');
+  }
+  if (o.query !== undefined) {
+    throw invalidRequest(
+      provider,
+      'google_lens does not accept query with match "exact"; Lens applies q only to all and visual matches'
+    );
+  }
+  return "exact_matches";
+};
+
+/** One spec per `SerpApiReverseImageEngine`. None has a result count except Bing's `count`. */
+export const REVERSE_ENGINES: Record<
+  SerpApiReverseImageEngine,
+  ReverseEngineSpec
+> = {
+  /** `limit` is `count`, 0 to 150 as SerpApi documents it, and is only a suggestion. */
+  bing_reverse_image: {
+    allowed: ["limit", "market", "noCache"],
+    imageParam: "image_url",
+    params: (o) => ({
+      count: bounded("bing_reverse_image", o.limit, 1, 150),
+      mkt: str(o.market),
+    }),
+    results: bingMatches,
+  },
+  google_lens: {
+    allowed: ["country", "language", "query", "match", "noCache"],
+    imageParam: "url",
+    params: (o) => ({
+      country: str(o.country)?.toLowerCase(),
+      hl: str(o.language),
+      q: str(o.query),
+      type: lensType(o),
+    }),
+    results: lensMatches,
+  },
+  google_reverse_image: {
+    allowed: ["country", "language", "query", "noCache"],
+    imageParam: "image_url",
+    params: (o) => ({
+      gl: googleCountry(o.country),
+      hl: str(o.language),
+      q: str(o.query),
+    }),
+    results: googleReverseMatches,
+  },
+  yandex_images: {
+    allowed: ["noCache"],
+    imageParam: "url",
+    params: () => ({}),
+    results: yandexMatches,
   },
 };
 

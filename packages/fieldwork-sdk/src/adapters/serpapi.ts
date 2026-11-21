@@ -1,6 +1,7 @@
 // The SerpApi adapter. `search` looks up the engine's spec in ./serpapi/engines.ts,
 // which maps the normalized options to SerpApi parameters and reads the results;
-// `images` is Google Images, with its own option list; `usage` reads `/account`.
+// `images` is Google Images, with its own option list; `reverseImage` looks up an
+// image URL on Google Lens, Google reverse image, Bing or Yandex; `usage` reads `/account`.
 // Option types and the date and country encoders are in ./serpapi/options.ts, result
 // readers in ./serpapi/parse.ts and response schemas in ./serpapi/response.ts.
 
@@ -11,7 +12,12 @@ import { FieldworkError, invalidRequest } from "../errors.js";
 import { createRawClient, requireKey } from "../http.js";
 import { callSettings, compact, refuseTogether } from "../util.js";
 import type { Json } from "../util.js";
-import { ENGINES, IMAGE_OPTIONS, onlyAllowed } from "./serpapi/engines.js";
+import {
+  ENGINES,
+  IMAGE_OPTIONS,
+  REVERSE_ENGINES,
+  onlyAllowed,
+} from "./serpapi/engines.js";
 import type { Query } from "./serpapi/engines.js";
 import type { SerpApiConfig, SerpApiOperations } from "./serpapi/options.js";
 import { RECENCY_CODE, compactDate, googleCountry } from "./serpapi/options.js";
@@ -19,6 +25,7 @@ import {
   answerText,
   imageResults,
   provider,
+  reverseImageMeta,
   searchFailure,
   searchMeta,
 } from "./serpapi/parse.js";
@@ -29,19 +36,25 @@ export type {
   SerpApiConfig,
   SerpApiDuckDuckGoOptions,
   SerpApiEngine,
+  SerpApiBingReverseImageOptions,
   SerpApiGoogleOptions,
+  SerpApiGoogleReverseImageOptions,
   SerpApiImagesOptions,
+  SerpApiLensOptions,
   SerpApiMapsOptions,
   SerpApiNewsOptions,
   SerpApiOperations,
   SerpApiPatentsOptions,
+  SerpApiReverseImageEngine,
+  SerpApiReverseImageOptions,
   SerpApiScholarOptions,
   SerpApiSearchOptions,
   SerpApiShoppingOptions,
+  SerpApiYandexReverseImageOptions,
 } from "./serpapi/options.js";
 
 /**
- * An adapter for SerpApi: search, images and usage. Pass it to `new Fieldwork({ adapter })`.
+ * An adapter for SerpApi: search, images, reverse image and usage. Pass it to `new Fieldwork({ adapter })`.
  *
  * Throws `Unauthorized` when neither `apiKey` nor `SERPAPI_API_KEY` is set.
  */
@@ -113,6 +126,42 @@ export const serpapi = (config: SerpApiConfig = {}) => {
         meta: searchMeta(body),
         raw: response,
         results: imageResults(body),
+      });
+    },
+
+    async reverseImage(imageUrl, options) {
+      const { call, rest } = callSettings(options);
+      const { engine = "google_lens", ...chosen } = rest;
+      const o: Json = { ...chosen };
+      // The type limits `engine`, but callers without types can pass any name.
+      if (!Object.hasOwn(REVERSE_ENGINES, engine)) {
+        throw invalidRequest(
+          provider,
+          `does not offer the reverse image engine "${engine}"`
+        );
+      }
+      if (
+        !URL.canParse(imageUrl) ||
+        !/^https?:$/u.test(new URL(imageUrl).protocol)
+      ) {
+        throw invalidRequest(provider, "imageUrl must be an http or https URL");
+      }
+      const spec = REVERSE_ENGINES[engine];
+      onlyAllowed(engine, o, spec.allowed);
+      const { body, response } = await searchCall(
+        call,
+        compact({
+          engine,
+          [spec.imageParam]: imageUrl,
+          ...spec.params(o),
+          no_cache: o.noCache === true ? true : undefined,
+        })
+      );
+      const results = spec.results(body);
+      return compact({
+        meta: reverseImageMeta(body, results),
+        raw: response,
+        results,
       });
     },
 

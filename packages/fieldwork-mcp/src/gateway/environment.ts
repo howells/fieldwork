@@ -43,6 +43,7 @@ const DEFAULTS: GatewayDefaults = {
   read: "firecrawl",
   readMany: "firecrawl",
   research: "exa",
+  reverseImage: "serpapi",
   search: "exa",
   usage: "firecrawl",
 };

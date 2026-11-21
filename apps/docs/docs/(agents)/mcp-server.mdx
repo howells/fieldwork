@@ -61,7 +61,7 @@ fieldwork-mcp --search brave --read firecrawl --product firecrawl --research exa
   --monitor firecrawl --browser browserbase --allow-monitor --allow-browser
 ```
 
-Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error.
+Capabilities: `search`, `images`, `reverseImage`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error.
 
 Each provider reads its key from the environment; see [Keys](/docs/keys).
 
@@ -89,6 +89,7 @@ Each tool serves one capability, or one method of `browser` or `monitor`.
 | --- | --- | --- |
 | `search_web` | Ranked pages for a query. | All eight |
 | `search_images` | Images for a query, with the page each appears on. | Firecrawl, Tavily, Parallel, Brave, SerpApi |
+| `search_by_image` | The pages an image appears on, from the image's URL. | SerpApi |
 | `read_page` | One page as Markdown. Kernel loads it in a real browser, so JavaScript runs. | Exa, Firecrawl, Tavily, Parallel, Browserbase, Kernel |
 | `read_pages` | Several pages in one call; pages that fail come back in `failed`. | Exa, Firecrawl, Tavily, Parallel |
 | `extract_values` | The values a JSON Schema asks for, from one page. | Exa, Firecrawl, Parallel |

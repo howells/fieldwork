@@ -112,6 +112,70 @@ const ImageItem = looseObject({
   title: optionalString,
 });
 
+/** A Google Lens visual match: `link` is the page, `image` the matched image. */
+const VisualMatch = looseObject({
+  image: optionalString,
+  image_height: optionalNumber,
+  image_width: optionalNumber,
+  link: optionalString,
+  source: optionalString,
+  thumbnail: optionalString,
+  title: optionalString,
+});
+
+/** A Google Lens exact match: `link` is the page. It has no image URL, only a thumbnail and the image's size. */
+const ExactMatch = looseObject({
+  actual_image_height: optionalNumber,
+  actual_image_width: optionalNumber,
+  date: optionalString,
+  link: optionalString,
+  source: optionalString,
+  thumbnail: optionalString,
+  title: optionalString,
+});
+
+/** A Bing page with the image: `source` is the page, `original` the image. `link` is a Bing page, not the source. */
+const BingPage = looseObject({
+  height: optionalNumber,
+  original: optionalString,
+  source: optionalString,
+  thumbnail: optionalString,
+  title: optionalString,
+  width: optionalNumber,
+});
+
+interface Picture {
+  height?: number;
+  link?: string;
+  width?: number;
+}
+
+/** An image given as a URL, or as Yandex gives it: an object with `link` and the size. Either way, an object. */
+const Pictured = z.union([
+  z.pipe(
+    nonEmptyString,
+    z.transform((link): Picture => ({ link }))
+  ),
+  looseObject({
+    height: optionalNumber,
+    link: optionalString,
+    width: optionalNumber,
+  }),
+]);
+
+/**
+ * A reverse image page. Google gives `link`, `snippet`, `title` and a `thumbnail`
+ * URL; Yandex gives the same with `thumbnail` and `original_image` as objects.
+ */
+const ImagePage = looseObject({
+  link: optionalString,
+  original_image: Pictured,
+  snippet: optionalString,
+  source: optionalString,
+  thumbnail: Pictured,
+  title: optionalString,
+});
+
 /** A `/search` response for any engine; each engine reads only its own sections. */
 export const SearchResponse = looseObject({
   answer_box: z.union([
@@ -126,17 +190,21 @@ export const SearchResponse = looseObject({
     looseObject({ shopping_results: arrayOf(ShoppingItem) })
   ),
   error: ErrorNote,
+  exact_matches: arrayOf(ExactMatch),
+  image_results: arrayOf(ImagePage),
   images_results: arrayOf(ImageItem),
   inline_shopping_results: arrayOf(ShoppingItem),
   local_results: arrayOf(Place),
   news_results: arrayOf(NewsResult),
   organic_results: arrayOf(Organic),
+  pages_with_this_image: arrayOf(BingPage),
   place_results: Place,
   search_metadata: looseObject({
     id: optionalScalar,
     status: optionalString,
   }),
   shopping_results: arrayOf(ShoppingItem),
+  visual_matches: arrayOf(VisualMatch),
 });
 
 /** `/account`: the plan and its usage. */

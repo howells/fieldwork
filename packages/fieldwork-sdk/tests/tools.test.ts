@@ -165,6 +165,7 @@ describe("what each tool says about itself", () => {
     const readOnly = [
       "search_web",
       "search_images",
+      "search_by_image",
       "read_page",
       "read_pages",
       "extract_values",

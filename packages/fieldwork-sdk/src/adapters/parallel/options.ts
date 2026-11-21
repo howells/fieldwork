@@ -104,7 +104,7 @@ export interface ParallelSearchOptions extends CallOptions, ParallelSources {
 export interface ParallelImagesOptions extends CallOptions {
   /** The images wanted, in plain words, up to 5,000 characters. Defaults to the query. */
   objective?: string;
-  /** Up to 5 image queries; defaults to the query alone. */
+  /** Up to 3 image queries (Parallel uses only the first 3); defaults to the query alone. */
   queries?: string[];
   mode?: "fast" | "advanced";
   /** Sent as `max_results`. */

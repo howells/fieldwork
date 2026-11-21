@@ -141,6 +141,16 @@ export const GUIDE_TASKS: GuideTask[] = [
     why: "Both return each image with the page it appears on.",
   },
   {
+    capabilities: ["reverseImage"],
+    choices: ["SerpApi · Google Lens"],
+    docs: "/docs/capabilities",
+    group: "find",
+    id: "image-source",
+    providers: ["SerpApi"],
+    title: "Find where an image appears",
+    why: "SerpApi is the only provider that takes an image as input; Lens returns the pages that show it, exact or similar.",
+  },
+  {
     capabilities: ["decide"],
     choices: ["Parallel", "Perplexity"],
     docs: "/docs/capabilities",

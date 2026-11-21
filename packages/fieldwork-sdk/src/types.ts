@@ -8,6 +8,7 @@ export type JsonSchema = Record<string, unknown>;
 export const CAPABILITIES = [
   "search",
   "images",
+  "reverseImage",
   "read",
   "readMany",
   "extract",
@@ -167,6 +168,32 @@ export interface SearchResponse {
 /** What `images` returns. */
 export interface ImageSearch {
   results: ImageResult[];
+  meta?: Meta;
+  raw: unknown;
+}
+
+/** Whether a reverse image match is the same image or only a similar one. */
+export type MatchKind = "exact" | "visual";
+
+/**
+ * One match from `reverseImage`. `sourceUrl` is the page the image appears on
+ * and is always there. `url` is the matched image itself, and is absent when the
+ * provider names only the page (Google Lens exact matches).
+ */
+export interface ImageMatch extends Omit<ImageResult, "sourceUrl" | "url"> {
+  sourceUrl: string;
+  url?: string;
+  /** "exact" for the same image, "visual" for a similar one; absent when the provider does not say. */
+  kind?: MatchKind;
+  /** The name of the site the page belongs to, as the provider shows it, such as "Mark D. Sikes". */
+  siteName?: string;
+  /** When the page was published, as the provider reports it. */
+  publishedAt?: string;
+}
+
+/** What `reverseImage` returns. */
+export interface ReverseImageSearch {
+  results: ImageMatch[];
   meta?: Meta;
   raw: unknown;
 }

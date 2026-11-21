@@ -23,6 +23,7 @@ import type {
   ParsedDocument,
   Product,
   Research,
+  ReverseImageSearch,
   SearchResponse,
   SiteMap,
 } from "../../src/types.js";
@@ -114,6 +115,22 @@ const images: ImageSearch = {
       sourceUrl: "https://a.test/p",
       thumbnailUrl: "https://a.test/t.png",
       title: "Image",
+      url: "https://a.test/i.png",
+      width: 10,
+    },
+  ],
+};
+
+const reverseImage: ReverseImageSearch = {
+  meta,
+  raw,
+  results: [
+    {
+      height: 20,
+      kind: "exact",
+      sourceUrl: "https://a.test/p",
+      thumbnailUrl: "https://a.test/t.png",
+      title: "Match",
       url: "https://a.test/i.png",
       width: 10,
     },
@@ -336,6 +353,7 @@ export const rich = defineAdapter({
     read: async () => page,
     readMany: async () => batch,
     research: async () => research,
+    reverseImage: async () => reverseImage,
     search: async () => search,
     usage: async () => usage,
   },

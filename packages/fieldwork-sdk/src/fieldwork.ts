@@ -141,6 +141,7 @@ class FieldworkClient {
       read: has("read"),
       readMany: has("readMany"),
       research: has("research"),
+      reverseImage: has("reverseImage"),
       search: has("search"),
       usage: has("usage"),
     });

@@ -1,3 +1,5 @@
+import { Fieldwork } from "@howells/fieldwork-sdk";
+import { serpapi } from "@howells/fieldwork-sdk/serpapi";
 import { describe, expect, it, vi } from "vitest";
 import * as z from "zod/mini";
 
@@ -35,6 +37,27 @@ describe("gateway configuration and advertised options", () => {
     expect(firecrawl?.properties).toHaveProperty("recency");
     expect(exa?.properties).not.toHaveProperty("recency");
     expect(oneOf).toHaveLength(3);
+  });
+
+  it("serves search_by_image from SerpApi alone, as its default", () => {
+    const { clients } = fixture();
+    const serp = new Fieldwork({
+      adapter: serpapi({ apiKey: "test-serpapi-key", retries: 0 }),
+    });
+    const catalog = gatewayCatalog(
+      [...clients, serp],
+      { reverseImage: "serpapi" },
+      45_000
+    );
+    const tool = catalog.tools.find(
+      (entry) => entry.name === "search_by_image"
+    );
+    expect(tool?.providers).toStrictEqual(["serpapi"]);
+    expect(tool?.defaultProvider).toBe("serpapi");
+    const { oneOf } = z.parse(Branches, tool?.inputSchema);
+    expect(oneOf[0]?.properties).toHaveProperty("imageUrl");
+    expect(oneOf[0]?.properties).toHaveProperty("match");
+    expect(oneOf[0]?.properties).not.toHaveProperty("limit");
   });
 
   it("requires an override when the configured default is unavailable, without substituting another provider", async () => {

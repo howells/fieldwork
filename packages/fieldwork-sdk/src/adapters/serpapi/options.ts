@@ -7,7 +7,9 @@ import type {
   AccountUsage,
   CallOptions,
   ImageSearch,
+  MatchKind,
   Recency,
+  ReverseImageSearch,
   SearchResponse,
 } from "../../types.js";
 import { refuseTogether } from "../../util.js";
@@ -252,7 +254,76 @@ export interface SerpApiImagesOptions extends SerpApiBaseOptions {
   license?: "f" | "fc" | "fm" | "fmc" | "cl" | "ol";
 }
 
-/** What SerpApi offers: search, images and usage. */
+/**
+ * Google Lens: `engine=google_lens`, the default for `reverseImage`. It has no
+ * result count, so `limit` is refused.
+ */
+export interface SerpApiLensOptions extends SerpApiBaseOptions {
+  engine?: "google_lens";
+  /** ISO 3166-1 alpha-2 code such as "GB"; sent lower-case as `country`. */
+  country?: string;
+  /** Sent as `hl`: a language code such as "en", or "en-gb". */
+  language?: string;
+  /** Text to refine the search with; sent as `q`. Not allowed with `match: "exact"`. */
+  query?: string;
+  /**
+   * Sent as `type`: "exact" is `exact_matches` and "visual" is `visual_matches`.
+   * Left out, Lens answers its default `type=all`, which lists visual matches
+   * only; ask for "exact" to get exact matches.
+   */
+  match?: MatchKind;
+}
+
+/** Google reverse image: `engine=google_reverse_image`. No `limit` or `match`. */
+export interface SerpApiGoogleReverseImageOptions extends SerpApiBaseOptions {
+  engine: "google_reverse_image";
+  /** ISO 3166-1 alpha-2 code such as "GB"; sent as `gl` ("uk" for GB). */
+  country?: string;
+  /** Sent as `hl`. */
+  language?: string;
+  /** Text to refine the search with; sent as `q`. */
+  query?: string;
+}
+
+/**
+ * Bing reverse image: `engine=bing_reverse_image`. Its results are the pages with
+ * the image, all of kind "exact", so `match` is refused. It has `market` where
+ * the other engines have `country` and `language`.
+ */
+export interface SerpApiBingReverseImageOptions extends SerpApiBaseOptions {
+  engine: "bing_reverse_image";
+  /** Results per page, 1 to 150; sent as `count`, which Bing takes as a suggestion. */
+  limit?: number;
+  /** Bing market code such as "en-US"; sent as `mkt`. */
+  market?: string;
+}
+
+/**
+ * Yandex: `engine=yandex_images`, the "About the image" tab. It takes no options
+ * beyond `noCache`. The "Similar images" tab names no source page, so it is not
+ * offered.
+ */
+export interface SerpApiYandexReverseImageOptions extends SerpApiBaseOptions {
+  engine: "yandex_images";
+}
+
+/**
+ * The options of `reverseImage`, chosen by `engine` (Google Lens when it is left
+ * out). Each engine takes only the options it documents; any other set option is
+ * refused before sending. The per-engine mapping is in `REVERSE_ENGINES`.
+ */
+export type SerpApiReverseImageOptions =
+  | SerpApiLensOptions
+  | SerpApiGoogleReverseImageOptions
+  | SerpApiBingReverseImageOptions
+  | SerpApiYandexReverseImageOptions;
+
+/** The engine names `reverseImage` accepts. */
+export type SerpApiReverseImageEngine = NonNullable<
+  SerpApiReverseImageOptions["engine"]
+>;
+
+/** What SerpApi offers: search, images, reverse image and usage. */
 export interface SerpApiOperations {
   search: (
     query: string,
@@ -262,6 +333,10 @@ export interface SerpApiOperations {
     query: string,
     options?: SerpApiImagesOptions
   ) => Promise<ImageSearch>;
+  reverseImage: (
+    imageUrl: string,
+    options?: SerpApiReverseImageOptions
+  ) => Promise<ReverseImageSearch>;
   usage: (options?: CallOptions) => Promise<AccountUsage>;
 }
 

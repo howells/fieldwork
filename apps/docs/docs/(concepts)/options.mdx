@@ -17,7 +17,8 @@ Options are typed per provider, so your editor offers only the options the provi
 | `country` | An ISO 3166-1 code such as `"GB"`. |
 | `language` | An ISO 639-1 code such as `"de"`. |
 | `schema`, `prompt` | A JSON Schema or a Standard Schema such as Zod for structured output, and extraction instructions in plain words. See [Structured output](/docs/structured-output). |
-| `query` | On `read`: return the passages that answer it as `excerpts`. |
+| `query` | On `read`: return the passages that answer it as `excerpts`. On `reverseImage`: text to refine the search with. |
+| `match` | On `reverseImage`: `"exact"` for pages showing the same image, `"visual"` for similar ones. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
 | `maxBytes` | On `download`: the largest file accepted, in bytes. Defaults to, and may not exceed, the provider's ceiling. |

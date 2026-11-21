@@ -1,6 +1,6 @@
 # Fieldwork
 
-> One TypeScript API for web and image search, page reading, value extraction, product data, site maps, crawls, cited answers, research, entity discovery, closed-question decisions, monitors, remote browsers, document parsing and file downloads across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. Each instance has only the methods its provider offers; nothing falls back to another provider. Published as @howells/fieldwork-sdk, with an MCP server as @howells/fieldwork-mcp.
+> One TypeScript API for web and image search, reverse image search, page reading, value extraction, product data, site maps, crawls, cited answers, research, entity discovery, closed-question decisions, monitors, remote browsers, document parsing and file downloads across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. Each instance has only the methods its provider offers; nothing falls back to another provider. Published as @howells/fieldwork-sdk, with an MCP server as @howells/fieldwork-mcp.
 
 ## Packages
 
@@ -9,7 +9,7 @@
 
 ## Reference
 
-- [Capabilities by provider](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#capabilities): which of the 18 capabilities each of the eleven providers offers, and the shared option names.
+- [Capabilities by provider](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#capabilities): which of the 19 capabilities each of the eleven providers offers, and the shared option names.
 - [Errors](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#errors): the eleven error codes, what each means and what to do, `retryable`, `retryAfter` and `jobId`.
 - [Downloading files](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#downloading-files): `download(url)` returns a file's bytes, content type and final URL through Firecrawl, Kernel or Browserbase, with each provider's size ceiling and cost. SDK only.
 - [Agent tools](https://github.com/howells/fieldwork/blob/main/packages/fieldwork-sdk/README.md#agent-tools): `toolsFor()` tool definitions with JSON Schema inputs and outputs, for the AI SDK and other frameworks.

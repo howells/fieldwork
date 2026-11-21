@@ -43,6 +43,7 @@ describe("a Fieldwork instance", () => {
       read: true,
       readMany: true,
       research: true,
+      reverseImage: false,
       search: true,
       usage: true,
     });

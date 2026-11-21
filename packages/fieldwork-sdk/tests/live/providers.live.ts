@@ -31,6 +31,9 @@ const MISSING = "https://example.com/fieldwork-live-missing-page";
 const PRODUCT =
   "https://www.tilebar.com/product/portmore-aqua-3x8-glazed-ceramic-tile.html";
 const QUERY = "TileBar Portmore Aqua 3x8 glazed ceramic tile";
+// A Wikimedia Commons photo, published on many pages.
+const REVERSE_IMAGE =
+  "https://upload.wikimedia.org/wikipedia/commons/2/21/Danny_DeVito_by_Gage_Skidmore.jpg";
 const QUESTION = "What is the title of the page at https://example.com?";
 // Exa refuses example.com as a webhook host. The monitor has no schedule and
 // is deleted at once, so nothing is delivered here.
@@ -391,6 +394,29 @@ describe.skipIf(!has("SERPAPI_API_KEY"))("serpapi, live", () => {
   it("searches images", async () => {
     const { results } = await web().images("terrazzo");
     expect(results[0]?.width).toBeGreaterThan(0);
+  });
+  it("finds the pages an image appears on with Google Lens", async () => {
+    const { results, meta } = await web().reverseImage(REVERSE_IMAGE, {
+      match: "visual",
+    });
+    expect(results[0]?.sourceUrl).toMatch(URL_PATTERN);
+    expect(results[0]?.kind).toBe("visual");
+    expect(meta?.requestId).toBeTruthy();
+  });
+  it("finds exact matches with Google Lens, with real links under noCache", async () => {
+    const { results } = await web().reverseImage(REVERSE_IMAGE, {
+      match: "exact",
+      noCache: true,
+    });
+    expect(results[0]?.sourceUrl).toMatch(URL_PATTERN);
+    expect(results[0]?.kind).toBe("exact");
+  });
+  it("finds the pages with an image on Bing", async () => {
+    const { results } = await web().reverseImage(REVERSE_IMAGE, {
+      engine: "bing_reverse_image",
+      limit: 10,
+    });
+    expect(results[0]?.sourceUrl).toMatch(URL_PATTERN);
   });
   it("reports usage without echoing the key", async () => {
     const usage = await web().usage();

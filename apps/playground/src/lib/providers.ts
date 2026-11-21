@@ -71,6 +71,7 @@ export const CAPABILITY_LABELS: Readonly<Record<Capability, string>> = {
   read: "Read",
   readMany: "Read many",
   research: "Research",
+  reverseImage: "Image source",
   search: "Search",
   usage: "Usage",
 };
@@ -93,6 +94,7 @@ export const CAPABILITY_PHRASES: Readonly<Record<Capability, string>> = {
   read: "read a page",
   readMany: "read many pages at once",
   research: "run research jobs",
+  reverseImage: "find where an image appears",
   search: "search the web",
   usage: "report usage",
 };

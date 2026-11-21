@@ -58,6 +58,7 @@ const SUMMARIES: Record<Capability, string> = {
   read: "A page as Markdown",
   readMany: "Many pages in one call",
   research: "A long research job you can resume",
+  reverseImage: "The pages an image appears on",
   search: "Pages that answer a query",
   usage: "Credits used and left",
 };

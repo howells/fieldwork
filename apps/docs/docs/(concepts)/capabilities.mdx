@@ -1,6 +1,6 @@
 ---
 title: Capabilities
-description: Which of Fieldwork's 18 capabilities each of the eleven providers offers, and how an instance reports them at run time.
+description: Which of Fieldwork's 19 capabilities each of the eleven providers offers, and how an instance reports them at run time.
 ---
 
 Each instance has only the methods its provider offers, so a call the provider cannot serve does not compile. Untyped JavaScript gets a `FieldworkError` with code `Unsupported`, and no request is sent.
@@ -11,6 +11,7 @@ Not sure which to use? See the [provider guide](/tools).
 | --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
 | `search` | ● | ● | ● | ● | ● | ● | ● | ● |  |
 | `images` |  | ● | ● | ● |  | ● | ● |  |  |
+| `reverseImage` |  |  |  |  |  |  | ● |  |  |
 | `read` | ● | ● | ● | ● |  |  |  | ● | ● |
 | `readMany` | ● | ● | ● | ● |  |  |  |  |  |
 | `extract` | ● | ● |  | ● |  |  |  |  |  |
@@ -42,6 +43,7 @@ LlamaParse and Reducto parse documents, and only that.
 <AccordionItem title="What each one does">
 
 - `search` returns ranked pages for a query, and `images` returns images with the page each appears on.
+- `reverseImage` takes an image's URL and returns the pages it appears on, each with the matched image when the provider gives one. Only SerpApi offers it: it is the only provider that accepts an image as input.
 - `read` returns one page as Markdown. `readMany` reads several in one call and lists the ones it could not read.
 - `extract` returns the values a schema asks for from one page. `product` reads a product page's variants from its structured data, without a model.
 - `map` lists a site's URLs without reading them. `crawl` reads many pages from one starting URL.

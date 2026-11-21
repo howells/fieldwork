@@ -1,6 +1,6 @@
 # Fieldwork MCP server
 
-Web search, image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio, or from an [HTTP gateway](#http-gateway) as a JSON API and remote MCP.
+Web search, image search, reverse image search, page reading, value extraction, site maps, crawls, answers, research, entity discovery, decisions, document parsing, remote browsers, monitors and account usage as tools for any MCP client, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto. It serves the tools from [`@howells/fieldwork-sdk`](https://www.npmjs.com/package/@howells/fieldwork-sdk) over stdio, or from an [HTTP gateway](#http-gateway) as a JSON API and remote MCP.
 
 ```sh
 npx -y @howells/fieldwork-mcp --provider firecrawl
@@ -21,7 +21,7 @@ fieldwork-mcp --search brave --read firecrawl --product firecrawl --research exa
   --monitor firecrawl --browser browserbase --allow-monitor --allow-browser
 ```
 
-Capabilities: `search`, `images`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error. The SDK's `download` has no tool: a tool result cannot usefully carry a file's bytes.
+Capabilities: `search`, `images`, `reverseImage`, `read`, `readMany`, `extract`, `product`, `map`, `crawl`, `answer`, `research`, `discover`, `decide`, `act`, `browser`, `parse`, `monitor`, `usage`. A provider that lacks the capability you route to it stops the server at start-up with an error. The SDK's `download` has no tool: a tool result cannot usefully carry a file's bytes.
 
 ### Providers
 
@@ -35,7 +35,7 @@ Each provider reads its key from the environment.
 | `parallel` | `PARALLEL_API_KEY` | `search`, `images`, `read`, `readMany`, `extract`, `answer`, `research`, `discover`, `decide`, `monitor` |
 | `perplexity` | `PERPLEXITY_API_KEY` | `search`, `answer`, `research`, `decide` |
 | `brave` | `BRAVE_API_KEY` | `search`, `images`, `answer` |
-| `serpapi` | `SERPAPI_API_KEY` | `search`, `images`, `usage` |
+| `serpapi` | `SERPAPI_API_KEY` | `search`, `images`, `reverseImage`, `usage` |
 | `browserbase` | `BROWSERBASE_API_KEY`; the project comes from `--browserbase-project` when the key has several | `search`, `read`, `browser`, `usage` |
 | `kernel` | `KERNEL_API_KEY` | `read`, `browser` |
 | `llamaparse` | `LLAMA_CLOUD_API_KEY` | `parse` |
@@ -96,6 +96,7 @@ Each tool serves one capability, or one method of `browser` or `monitor`. The la
 | --- | --- | --- |
 | `search_web` | Ranked pages for a query. | all eight |
 | `search_images` | Images for a query, with the page each appears on. | Firecrawl, Tavily, Parallel, Brave, SerpApi |
+| `search_by_image` | The pages an image appears on, from the image's URL. | SerpApi |
 | `read_page` | One page as Markdown. Kernel loads it in a real browser, so JavaScript runs. | Exa, Firecrawl, Tavily, Parallel, Browserbase, Kernel |
 | `read_pages` | Several pages in one call; pages that fail come back in `failed`. | Exa, Firecrawl, Tavily, Parallel |
 | `extract_values` | The values a JSON Schema asks for, from one page. | Exa, Firecrawl, Parallel |

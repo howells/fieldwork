@@ -2,7 +2,12 @@
 // ./engines.ts picks the reader for each engine; the response schema is in
 // ./response.ts.
 
-import type { ImageResult, Price, SearchResult } from "../../types.js";
+import type {
+  ImageMatch,
+  ImageResult,
+  Price,
+  SearchResult,
+} from "../../types.js";
 import { compact, meta } from "../../util.js";
 import type {
   AnswerBoxBlock,
@@ -239,3 +244,149 @@ export const searchFailure = (body: SearchBody): string | undefined =>
   body.search_metadata.status === "Error"
     ? `serpapi search failed: ${body.error.message ?? "no reason given"}`
     : undefined;
+
+/** Lens-shaped `visual_matches`, kind "visual": `link` is the page, `image` the matched image. */
+const visualMatches = (body: SearchBody): ImageMatch[] =>
+  body.visual_matches.flatMap((item): ImageMatch[] =>
+    item.link === undefined
+      ? []
+      : [
+          compact({
+            height: item.image_height,
+            kind: "visual" as const,
+            siteName: item.source,
+            sourceUrl: item.link,
+            thumbnailUrl: item.thumbnail,
+            title: item.title,
+            url: item.image,
+            width: item.image_width,
+          }),
+        ]
+  );
+
+/**
+ * Google Lens: `exact_matches` (kind "exact"; the response names only the page and
+ * a thumbnail) then `visual_matches` (kind "visual", with the matched image).
+ * Whichever list the request's `type` did not ask for is empty. The `exact_matches`
+ * flag inside a visual match says exact matches of it exist; it does not make the
+ * match exact. A match with no `link` is left out.
+ */
+export const lensMatches = (body: SearchBody): ImageMatch[] => [
+  ...body.exact_matches.flatMap((item): ImageMatch[] =>
+    item.link === undefined
+      ? []
+      : [
+          compact({
+            height: item.actual_image_height,
+            kind: "exact" as const,
+            publishedAt: item.date,
+            siteName: item.source,
+            sourceUrl: item.link,
+            thumbnailUrl: item.thumbnail,
+            title: item.title,
+            width: item.actual_image_width,
+          }),
+        ]
+  ),
+  ...visualMatches(body),
+];
+
+/**
+ * Google reverse image: `image_results`, the pages that show the image (the
+ * response does not say how closely, so no kind), then `visual_matches`.
+ */
+export const googleReverseMatches = (body: SearchBody): ImageMatch[] => [
+  ...body.image_results.flatMap((item): ImageMatch[] =>
+    item.link === undefined
+      ? []
+      : [
+          compact({
+            description: item.snippet,
+            siteName: item.source,
+            sourceUrl: item.link,
+            thumbnailUrl: item.thumbnail.link,
+            title: item.title,
+          }),
+        ]
+  ),
+  ...visualMatches(body),
+];
+
+/**
+ * Bing: `pages_with_this_image`, kind "exact". `source` is the page (the item's
+ * `link` is a Bing page) and `original` the image. `related_content`, similar
+ * images, is left in `raw`.
+ */
+export const bingMatches = (body: SearchBody): ImageMatch[] =>
+  body.pages_with_this_image.flatMap((item): ImageMatch[] =>
+    item.source === undefined
+      ? []
+      : [
+          compact({
+            height: item.height,
+            kind: "exact" as const,
+            sourceUrl: item.source,
+            thumbnailUrl: item.thumbnail,
+            title: item.title,
+            url: item.original,
+            width: item.width,
+          }),
+        ]
+  );
+
+/** Yandex's "about the image" tab: `link` is the page, `original_image` the image. */
+export const yandexMatches = (body: SearchBody): ImageMatch[] =>
+  body.image_results.flatMap((item): ImageMatch[] =>
+    item.link === undefined
+      ? []
+      : [
+          compact({
+            description: item.snippet,
+            height: item.original_image.height,
+            siteName: item.source,
+            sourceUrl: item.link,
+            thumbnailUrl: item.thumbnail.link,
+            title: item.title,
+            url: item.original_image.link,
+            width: item.original_image.width,
+          }),
+        ]
+  );
+
+/**
+ * Whether a match's page is a Google redirect instead of the page itself: `/url`,
+ * or the opaque `/goto?url=…` links Lens returns for most exact matches. A GET on
+ * either answers with a redirect to the page.
+ */
+const isGoogleRedirect = (url: string): boolean => {
+  if (!URL.canParse(url)) {
+    return false;
+  }
+  const { hostname, pathname } = new URL(url);
+  return (
+    (hostname === "google.com" || hostname.endsWith(".google.com")) &&
+    (pathname === "/url" || pathname === "/goto")
+  );
+};
+
+/**
+ * `searchMeta`, plus a warning when some `sourceUrl` is a Google redirect link,
+ * which Lens returns for most exact matches, `noCache` or not. The link is kept
+ * as received.
+ */
+export const reverseImageMeta = (body: SearchBody, results: ImageMatch[]) => {
+  const redirects = results.filter((match) =>
+    isGoogleRedirect(match.sourceUrl)
+  ).length;
+  return meta({
+    requestId: body.search_metadata.id,
+    warnings: [
+      ...body.error.warnings,
+      ...(redirects === 0
+        ? []
+        : [
+            `${redirects} sourceUrl ${redirects === 1 ? "is a Google redirect link" : "values are Google redirect links"}, not the page itself; a GET on the link redirects to the page`,
+          ]),
+    ],
+  });
+};

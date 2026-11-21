@@ -84,6 +84,25 @@ const imageResult = object(
   ["url"]
 );
 
+const imageMatch = object(
+  {
+    description: str,
+    height: number(),
+    kind: choice(
+      "exact for the same image, visual for a similar one; absent when the provider does not say.",
+      ["exact", "visual"]
+    ),
+    publishedAt: str,
+    siteName: str,
+    sourceUrl: str,
+    thumbnailUrl: str,
+    title: str,
+    url: str,
+    width: number(),
+  },
+  ["sourceUrl"]
+);
+
 const page = object(
   {
     author: str,
@@ -177,6 +196,12 @@ export const SEARCH_OUTPUT: FieldSchema = object(
 /** The result of `search_images`, an `ImageSearch`. */
 export const IMAGES_OUTPUT: FieldSchema = object(
   { meta, results: list(imageResult) },
+  ["results"]
+);
+
+/** The result of `search_by_image`, a `ReverseImageSearch`. */
+export const IMAGE_MATCHES_OUTPUT: FieldSchema = object(
+  { meta, results: list(imageMatch) },
   ["results"]
 );
 

@@ -965,7 +965,7 @@ describe("serpapi adapter: errors and setup", () => {
     expect(params(calls)).toStrictEqual({ api_key: "k", q: "Austin" });
   });
 
-  it("offers search, images and usage, and nothing else", () => {
+  it("offers search, images, reverseImage and usage, and nothing else", () => {
     const { web } = client();
     expect(web.provider).toBe("serpapi");
     expect(web.capabilities).toMatchObject({
@@ -973,6 +973,7 @@ describe("serpapi adapter: errors and setup", () => {
       images: true,
       read: false,
       research: false,
+      reverseImage: true,
       search: true,
       usage: true,
     });

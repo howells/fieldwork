@@ -1,6 +1,6 @@
 # Fieldwork
 
-One API for searching the web, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser, parsing documents and downloading files, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.
+One API for searching the web, finding where an image appears, reading pages, extracting values, walking sites, answering and researching questions, finding entities, watching for changes, driving a browser, parsing documents and downloading files, across Exa, Firecrawl, Tavily, Parallel, Perplexity, Brave, SerpApi, Browserbase, Kernel, LlamaParse and Reducto.
 
 ```sh
 npm i @howells/fieldwork-sdk
@@ -28,6 +28,7 @@ Each instance has only the methods its provider offers, so a call the provider c
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | `search(query)` | yes | yes | yes | yes | yes | yes | yes | yes |  |  |  |
 | `images(query)` |  | yes | yes | yes |  | yes | yes |  |  |  |  |
+| `reverseImage(imageUrl)` |  |  |  |  |  |  | yes |  |  |  |  |
 | `read(url)` | yes | yes | yes | yes |  |  |  | yes | yes |  |  |
 | `readMany(urls)` | yes | yes | yes | yes |  |  |  |  |  |  |  |
 | `extract(url, { schema })` | yes | yes |  | yes |  |  |  |  |  |  |  |
@@ -52,6 +53,7 @@ Each instance has only the methods its provider offers, so a call the provider c
 - `decide` answers closed questions about a context: yes or no, a choice, or a score on a rubric, each with a probability.
 - `browser.open()` starts a remote browser and returns its CDP URL for Playwright or Puppeteer; `act(code)` runs one script in a fresh session.
 - `download` returns a file's bytes, its content type and the final URL after redirects, fetched through the provider's network. See [Downloading files](#downloading-files).
+- `reverseImage` takes an image's URL and returns the pages it appears on. Only SerpApi offers it, because it is the only provider that accepts an image as input. `engine` chooses where it looks: `"google_lens"` (the default), `"google_reverse_image"`, `"bing_reverse_image"` or `"yandex_images"`. Each match has `sourceUrl`, the page, on every engine; `url` is the matched image, and is absent from a Lens exact match, which names only the page. `kind` is `"exact"` for the same image and `"visual"` for a similar one, and is left out where the engine does not say. See [Reverse image search](#reverse-image-search).
 - `monitor` repeats a search or a page check on a schedule and reports what changed. Exa and Parallel monitors watch a query; Firecrawl monitors also watch specific pages (`urls`).
 
 ### Options
@@ -68,7 +70,8 @@ Options are typed per provider. An option means the same thing under the same na
 | `country` | An ISO 3166-1 code such as `"GB"`. |
 | `language` | An ISO 639-1 code such as `"de"`. |
 | `schema`, `prompt` | A JSON Schema or a Standard Schema such as Zod for structured output, and extraction instructions in plain words. |
-| `query` | On `read`: return the passages that answer it as `excerpts`. |
+| `query` | On `read`: return the passages that answer it as `excerpts`. On `reverseImage`: text to refine the search with. |
+| `match` | On `reverseImage`: `"exact"` for pages showing the same image, `"visual"` for similar ones. |
 | `content` | On `search`: include each result's page text. |
 | `continueFrom` | On `answer` and `research`: the `continuationId` of an earlier result, to ask a follow-up. |
 | `maxBytes` | On `download`: the largest file accepted, in bytes. Defaults to, and may not exceed, the provider's ceiling. |
@@ -100,6 +103,7 @@ Providers differ in which keywords they accept; Exa reads draft 7 and the others
 Every result is normalized and keeps the provider's response in `raw`. Most also carry `meta`: the provider's `requestId`, `usage` (credits, US dollars, or counted units such as tokens) and `warnings`, when the provider returns them.
 
 - `search` returns `{ results, answer, images, meta, raw }`. Each result has `url`, `title`, `snippet` and, when the provider has them, `content`, `publishedAt`, `author`, `image`, `favicon` and `score`. Shopping, place, news, scholar and patent results set `kind` and carry `price`, `rating`, `reviewCount` and `place`.
+- `reverseImage` returns `{ results, meta, raw }`. Each match has `sourceUrl` and, when the provider has them, `url` (the matched image), `thumbnailUrl`, `title`, `description`, `width`, `height` and `kind`.
 - `read` returns a `Page`: `url`, `title`, `description`, `markdown`, `html`, `links`, `images`, `image` (the page's main image), `excerpts`, `summary`, `publishedAt`, `author`, `language`, `statusCode` and `screenshot`, as the provider has them. A page that answered 404 or 410 is not returned: `read` throws `NotFound` on every provider, and `readMany` lists the URL in `failed`.
 - `readMany` returns `{ pages, failed }`. A URL that could not be read is listed in `failed` with the reason; it does not throw.
 - `extract` returns `{ data, fields }`. `data` follows your schema; `fields` lists each field's citations when the provider returns them.
@@ -169,6 +173,33 @@ const digest = await crypto.subtle.digest("SHA-256", file.bytes);
 
 A response that is not 2xx throws (`NotFound` for 404 and 410), a web page throws `NotAFile`, and a file over the limit throws `TooLarge`. Check `contentType` for anything narrower, such as "is this link really a PDF?". `download` is not an agent tool or MCP tool: a tool result cannot usefully carry tens of megabytes.
 
+### Reverse image search
+
+`reverseImage(imageUrl, options)` is SerpApi's. The image must be at a public `http` or `https` URL.
+
+```ts
+const web = new Fieldwork({ adapter: serpapi() });
+
+const { results } = await web.reverseImage("https://example.com/chair.jpg", {
+  match: "exact",
+});
+results[0].sourceUrl; // the page the image appears on
+```
+
+| `engine` | Reads | `kind` | Options |
+| --- | --- | --- | --- |
+| `google_lens` (default) | `exact_matches` and `visual_matches` | `"exact"` and `"visual"` | `match`, `query`, `country`, `language`, `noCache` |
+| `google_reverse_image` | `image_results` and `visual_matches` | `"visual"` for `visual_matches`; absent for pages | `query`, `country`, `language`, `noCache` |
+| `bing_reverse_image` | `pages_with_this_image` | `"exact"` | `limit` (sent as `count`, 1 to 150), `market`, `noCache` |
+| `yandex_images` | "About the image" `image_results` | absent | `noCache` |
+
+- `match` is Lens's `type`: `"exact"` is `exact_matches` and `"visual"` is `visual_matches`. Left out, Lens answers its default, which lists visual matches only, so ask for `"exact"` to get exact ones. The other engines cannot narrow by kind, so they refuse `match`.
+- Lens applies `query` only to visual matches, so `query` with `match: "exact"` throws `InvalidRequest`.
+- Only Bing has a result count. Lens, Google reverse image and Yandex refuse `limit` rather than cut the list after paying for it, as `images` does.
+- Bing's `related_content` (similar images) is left out of `results`; it stays in `raw`. Yandex's "Similar images" tab names no source page, so it is not offered.
+- Lens returns most exact matches' pages as Google redirect links (`google.com/goto?url=…`), whether or not `noCache` is set. The link is kept as received, and `meta.warnings` says how many there are; a GET on the link answers with a redirect to the page.
+- `siteName` is the site's name as the engine shows it ("Mark D. Sikes", "Architectural Digest") and `publishedAt` the page's date, where Lens gives one. Both help tell an original source from a copy.
+
 ## Choosing a provider per capability
 
 `router` sends each capability to exactly one adapter:
@@ -225,7 +256,7 @@ An error with a `jobId` is never `retryable`, because repeating the call would s
 
 ## Agent tools
 
-`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method: `search_web`, `search_images`, `read_page`, `read_pages`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `answer_question`, `research_question`, `find_entities`, `make_decisions`, `parse_document`, `check_usage`, `run_browser_script`, `open_browser`, `close_browser`, `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. Each tool has:
+`@howells/fieldwork-sdk/tools` turns an instance into tool definitions for a model, one per capability or group method: `search_web`, `search_images`, `search_by_image`, `read_page`, `read_pages`, `extract_values`, `read_product`, `map_site`, `crawl_site`, `answer_question`, `research_question`, `find_entities`, `make_decisions`, `parse_document`, `check_usage`, `run_browser_script`, `open_browser`, `close_browser`, `create_monitor`, `get_monitor`, `list_monitors`, `delete_monitor` and `list_monitor_events`. Each tool has:
 
 - a description that says when to use it and which tool to use instead;
 - a JSON Schema input that lists only the options its provider supports;
